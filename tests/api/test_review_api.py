@@ -139,17 +139,7 @@ class TestGetReviewTasks:
             max_tasks=3,
         )
 
-    def test_no_header_uses_default_student(self, client):
-        """不传 X-Student-Id 时依赖返回 test_student，path 必须匹配才能过 IDOR 检查。"""
-        with patch("src.api.review.ReviewPlanService") as mock_cls:
-            svc = AsyncMock()
-            mock_cls.return_value = svc
-            svc.generate_today_plan.return_value = _empty_plan("test_student")
-
-            resp = client.get("/api/students/test_student/review-tasks")
-
-        assert resp.status_code == 200
-        svc.generate_today_plan.assert_called_once_with(
-            student_id="test_student",
-            max_tasks=5,
-        )
+    def test_no_header_returns_401(self, client):
+        """不传 X-Student-Id 时返回 401，不再使用默认值。"""
+        resp = client.get("/api/students/test_student/review-tasks")
+        assert resp.status_code == 401

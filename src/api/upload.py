@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.deps import get_current_student_id
 from src.db.session import get_db
 from src.models.assignment import Assignment, AssignmentStatus
 from src.services.file_service import (
@@ -42,7 +43,7 @@ class UploadResponse(BaseModel):
 @router.post("/upload", response_model=UploadResponse)
 async def upload_assignment(
     file: UploadFile = File(...),
-    student_id: str = "test_student",  # 暂时硬编码，后续从 JWT 提取
+    student_id: str = Depends(get_current_student_id),
     db: AsyncSession = Depends(get_db),
 ) -> UploadResponse:
     """

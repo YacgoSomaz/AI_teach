@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_student_id
+from src.api.deps import check_ownership, get_current_student_id
 from src.db.session import get_db
 from src.services.report_service import (
     KnowledgePointDetail,
@@ -22,11 +22,6 @@ from src.services.report_service import (
 )
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
-
-
-async def _check_ownership(path_student_id: str, current_student_id: str) -> None:
-    if path_student_id != current_student_id:
-        raise HTTPException(status_code=404, detail="未找到该学生的数据")
 
 
 class SubjectSummaryResponse(BaseModel):
@@ -120,7 +115,7 @@ async def get_student_report(
     db: AsyncSession = Depends(get_db),
 ) -> LearningReportResponse:
     """获取学生学习报告，含各学科汇总与薄弱/优秀知识点。"""
-    await _check_ownership(student_id, current_student_id)
+    await check_ownership(student_id, current_student_id)
     service = ReportService(db=db)
     report = await service.generate_report(student_id=student_id, top_n=top_n)
     return _to_response(report)
@@ -134,7 +129,7 @@ async def get_parent_report(
     db: AsyncSession = Depends(get_db),
 ) -> ParentReportResponse:
     """获取家长视角学习报告，只展示关键信息，不暴露内部分级细节。"""
-    await _check_ownership(student_id, current_student_id)
+    await check_ownership(student_id, current_student_id)
     service = ReportService(db=db)
     report = await service.generate_report(student_id=student_id, top_n=top_n)
     return ParentReportResponse(

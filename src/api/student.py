@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import Pagination, get_current_student_id
+from src.api.deps import Pagination, check_ownership, get_current_student_id
 from src.db.session import get_db
 from src.models.knowledge_point import KnowledgePoint
 from src.models.student_profile import StudentKnowledgeProfile
@@ -69,14 +69,6 @@ class ProgressResponse(BaseModel):
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 
-async def _check_ownership(
-    student_id: str,
-    current_student_id: str,
-) -> None:
-    """IDOR 防护：路径参数中的 student_id 必须与当前登录用户一致。"""
-    if student_id != current_student_id:
-        # 返回 404 而非 403，不泄露资源是否存在
-        raise HTTPException(status_code=404, detail="未找到该学生的数据")
 
 
 def _to_summary(profile: StudentKnowledgeProfile, kp: KnowledgePoint) -> KnowledgePointSummary:
@@ -103,7 +95,7 @@ async def get_student_profile(
     db: AsyncSession = Depends(get_db),
 ) -> StudentProfileResponse:
     """获取学生完整知识点画像。"""
-    await _check_ownership(student_id, current_student_id)
+    await check_ownership(student_id, current_student_id)
 
     stmt = (
         select(StudentKnowledgeProfile, KnowledgePoint)
@@ -143,7 +135,7 @@ async def get_weak_points(
     db: AsyncSession = Depends(get_db),
 ) -> WeakPointsResponse:
     """获取学生薄弱知识点列表（掌握度 < 0.6），按掌握度升序排列。"""
-    await _check_ownership(student_id, current_student_id)
+    await check_ownership(student_id, current_student_id)
 
     count_stmt = (
         select(func.count())
@@ -185,7 +177,7 @@ async def get_student_progress(
     db: AsyncSession = Depends(get_db),
 ) -> ProgressResponse:
     """获取学生整体掌握度进度统计。"""
-    await _check_ownership(student_id, current_student_id)
+    await check_ownership(student_id, current_student_id)
 
     stmt = (
         select(StudentKnowledgeProfile)

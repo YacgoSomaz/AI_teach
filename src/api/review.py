@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_student_id
+from src.api.deps import check_ownership, get_current_student_id
 from src.db.session import get_db
 from src.services.review_plan_service import DailyReviewPlan, ReviewPlanService, ReviewTaskItem
 
@@ -42,11 +42,6 @@ class ReviewTasksResponse(BaseModel):
 
 
 # ─── Helper ─────────────────────────────────────────────────────────────────
-
-
-async def _check_ownership(path_student_id: str, current_student_id: str) -> None:
-    if path_student_id != current_student_id:
-        raise HTTPException(status_code=404, detail="未找到该学生的数据")
 
 
 def _task_to_response(item: ReviewTaskItem) -> ReviewTaskResponse:
@@ -84,7 +79,7 @@ async def get_review_tasks(
     db: AsyncSession = Depends(get_db),
 ) -> ReviewTasksResponse:
     """获取学生今日复习任务，按优先级排序。"""
-    await _check_ownership(student_id, current_student_id)
+    await check_ownership(student_id, current_student_id)
     service = ReviewPlanService(db=db)
     plan = await service.generate_today_plan(student_id=student_id, max_tasks=max_tasks)
     return _plan_to_response(plan)

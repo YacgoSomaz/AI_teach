@@ -12,18 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_student_id
+from src.api.deps import check_ownership, get_current_student_id
 from src.db.session import get_db
 from src.services.export_service import ExportService, KP_HEADERS, QUESTION_HEADERS
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
 _EXCEL_MEDIA = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-
-async def _check_ownership(path_student_id: str, current_student_id: str) -> None:
-    if path_student_id != current_student_id:
-        raise HTTPException(status_code=404, detail="未找到该学生的数据")
 
 
 @router.get("/student/{student_id}/knowledge-points")
@@ -34,7 +29,7 @@ async def export_knowledge_points(
     db: AsyncSession = Depends(get_db),
 ):
     """将学生知识点掌握数据导出为 JSON、CSV 或 Excel 文件。"""
-    await _check_ownership(student_id, current_student_id)
+    await check_ownership(student_id, current_student_id)
     svc = ExportService(db)
     rows = await svc.fetch_knowledge_points(student_id)
 
@@ -68,7 +63,7 @@ async def export_questions(
     db: AsyncSession = Depends(get_db),
 ):
     """将学生题目记录导出为 JSON、CSV 或 Excel 文件。"""
-    await _check_ownership(student_id, current_student_id)
+    await check_ownership(student_id, current_student_id)
     svc = ExportService(db)
     rows = await svc.fetch_questions(student_id)
 
