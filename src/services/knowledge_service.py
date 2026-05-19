@@ -107,7 +107,7 @@ class KnowledgeService:
         
         Args:
             name: 知识点名称
-            category: 分类（代数/几何/函数等）
+            category: 分类（代数/几何/函数等）- 对应 subject 字段
             parent_id: 父知识点 ID
         
         Returns:
@@ -116,10 +116,12 @@ class KnowledgeService:
         # 标准化名称
         std_name = await self.standardize_knowledge_point(name)
         
-        # 查询是否存在
-        result = await self.db.execute(
-            select(KnowledgePoint).where(KnowledgePoint.name == std_name)
-        )
+        # 查询是否存在（按 name 和 subject 查询）
+        query = select(KnowledgePoint).where(KnowledgePoint.name == std_name)
+        if category:
+            query = query.where(KnowledgePoint.subject == category)
+        
+        result = await self.db.execute(query)
         kp = result.scalar_one_or_none()
         
         if kp:
@@ -132,12 +134,12 @@ class KnowledgeService:
         
         kp = KnowledgePoint(
             name=std_name,
-            category=category,
+            subject=category,  # 使用 subject 字段而不是 category
             parent_id=parent_id,
+            is_active=True,
         )
         self.db.add(kp)
-        await self.db.commit()
-        await self.db.refresh(kp)
+        await self.db.flush()  # 获取 ID 但不立即提交
         
         return kp
     
