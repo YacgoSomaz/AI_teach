@@ -46,12 +46,30 @@ ai_review_system/
 
 ## 快速开始
 
+### Docker Compose（推荐）
+
+```bash
+# 1. 配置环境变量（至少填写 POSTGRES_PASSWORD 和 AI API Key）
+cp .env.example .env
+
+# 2. 构建并启动所有服务（postgres / redis / migrate / api / worker）
+docker compose up -d --build
+
+# 3. 验证服务正常
+curl http://localhost:8000/health
+curl http://localhost:8000/health/ready
+```
+
+详细说明见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。
+
+### 本地开发（裸机）
+
 ```bash
 # 安装依赖
 pip install -r requirements.txt
 
 # 运行测试
-pytest
+python -m pytest tests/api tests/integration/test_report_flow.py -q
 
 # 启动开发服务器
 uvicorn src.main:app --reload
