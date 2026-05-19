@@ -1,221 +1,492 @@
 """
 复习计划生成服务测试
 
-TDD：先写测试，再写实现。
-覆盖：纯函数算法 + DB 查询逻辑（mock DB）
+测试覆盖：
+1. 生成今日复习计划
+2. 空计划（无薄弱知识点）
+3. 权重计算（掌握度 + 时间）
+4. 题目数推荐
+5. 复习原因生成
+6. 复习历史查询
 """
 
-import uuid
-from datetime import date, datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
+from datetime import datetime, timedelta
+from uuid import uuid4
 
-from src.services.review_plan_service import (
-    DailyReviewPlan,
-    ReviewPlanService,
-    ReviewTaskItem,
-    calculate_priority_score,
-    determine_priority,
-    estimate_recommended_count,
-)
+from src.models.knowledge_point import KnowledgePoint
+from src.models.student_profile import StudentKnowledgeProfile
+from src.services.review_plan_service import ReviewPlanService
 
 
-# ─── 纯函数测试（无 DB 依赖） ────────────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_generate_today_plan_empty(async_session):
+    """测试：生成今日复习计划（无薄弱知识点）"""
+    service = ReviewPlanService(async_session)
+    
+    plan = await service.generate_today_plan("student_001", max_tasks=5)
+    
+    # 验证：返回空计划
+    assert plan.student_id == "student_001"
+    assert plan.date == datetime.now().date().isoformat()
+    assert plan.tasks == []
+    assert plan.total_minutes == 0
 
 
-class TestCalculatePriorityScore:
-    """calculate_priority_score 优先级评分算法测试"""
-
-    def test_low_mastery_never_reviewed_gives_max_score(self):
-        """掌握度为 0，从未复习 → 最高分 2.0"""
-        score = calculate_priority_score(mastery_score=0.0, last_reviewed_at=None)
-        assert score == pytest.approx(2.0, abs=0.01)
-
-    def test_high_mastery_recently_reviewed_gives_low_score(self):
-        """掌握度 0.9，刚复习过 → 低分"""
-        recently = datetime.now(timezone.utc) - timedelta(hours=1)
-        score = calculate_priority_score(mastery_score=0.9, last_reviewed_at=recently)
-        assert score < 0.2
-
-    def test_medium_mastery_long_ago_reviewed(self):
-        """掌握度 0.5，30 天前复习 → 中等偏高分"""
-        long_ago = datetime.now(timezone.utc) - timedelta(days=30)
-        score = calculate_priority_score(mastery_score=0.5, last_reviewed_at=long_ago)
-        # (1 - 0.5) * 2.0 = 1.0
-        assert score == pytest.approx(1.0, abs=0.05)
-
-    def test_score_is_non_negative(self):
-        """任何情况下分数不为负"""
-        score = calculate_priority_score(mastery_score=1.0, last_reviewed_at=None)
-        assert score >= 0.0
-
-    def test_recency_weight_caps_at_max(self):
-        """超过 30 天的间隔权重上限为 2.0（不无限增长）"""
-        very_long_ago = datetime.now(timezone.utc) - timedelta(days=365)
-        exactly_30 = datetime.now(timezone.utc) - timedelta(days=30)
-        score_long = calculate_priority_score(0.5, very_long_ago)
-        score_30 = calculate_priority_score(0.5, exactly_30)
-        assert abs(score_long - score_30) < 0.05
-
-
-class TestDeterminePriority:
-    """determine_priority 优先级映射测试"""
-
-    def test_high_score_gives_high_priority(self):
-        assert determine_priority(score=1.5) == "high"
-
-    def test_medium_score_gives_medium_priority(self):
-        assert determine_priority(score=0.7) == "medium"
-
-    def test_low_score_gives_low_priority(self):
-        assert determine_priority(score=0.2) == "low"
-
-    def test_boundary_at_high_threshold(self):
-        assert determine_priority(score=1.0) == "high"
-
-    def test_boundary_at_medium_threshold(self):
-        assert determine_priority(score=0.5) == "medium"
+@pytest.mark.asyncio
+async def test_generate_today_plan_with_weak_points(async_session):
+    """测试：生成今日复习计划（有薄弱知识点）"""
+    # 准备：知识点
+    kps = []
+    for i, name in enumerate(["三角函数", "立体几何", "概率统计"]):
+        kp = KnowledgePoint(
+            id=uuid4(),
+            name=name,
+            subject="数学",
+            is_active=True,
+        )
+        kps.append(kp)
+        async_session.add(kp)
+    
+    await async_session.flush()
+    
+    # 准备：学生画像（3 个薄弱知识点）
+    profiles = []
+    for i, (kp, mastery) in enumerate(zip(kps, [0.3, 0.5, 0.35])):
+        profile = StudentKnowledgeProfile(
+            id=uuid4(),
+            student_id="student_001",
+            knowledge_point_id=kp.id,
+            appear_count=10,
+            error_count=int(10 * (1 - mastery)),
+            mastery_score=mastery,
+            review_priority="high" if mastery < 0.4 else "medium",
+            last_reviewed_at=datetime.now() - timedelta(days=3),
+        )
+        profiles.append(profile)
+        async_session.add(profile)
+    
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    plan = await service.generate_today_plan("student_001", max_tasks=5)
+    
+    # 验证：生成复习计划
+    assert plan.student_id == "student_001"
+    assert plan.date == datetime.now().date().isoformat()
+    assert len(plan.tasks) == 3  # 3 个薄弱知识点
+    assert plan.total_minutes > 0
+    
+    # 验证：任务按权重排序（掌握度最低的优先）
+    assert plan.tasks[0].knowledge_point_name == "三角函数"  # mastery=0.3
+    assert plan.tasks[0].priority == "high"
+    assert plan.tasks[0].recommended_count >= 3
 
 
-class TestEstimateRecommendedCount:
-    """estimate_recommended_count 建议练习题数测试"""
-
-    def test_very_weak_gets_most_questions(self):
-        assert estimate_recommended_count(mastery_score=0.1) == 5
-
-    def test_medium_weak_gets_medium_questions(self):
-        assert estimate_recommended_count(mastery_score=0.4) == 3
-
-    def test_almost_proficient_gets_few_questions(self):
-        assert estimate_recommended_count(mastery_score=0.7) == 2
-
-    def test_boundary_at_0_3(self):
-        assert estimate_recommended_count(mastery_score=0.3) == 3
-
-    def test_boundary_at_0_6(self):
-        assert estimate_recommended_count(mastery_score=0.6) == 2
-
-
-# ─── 辅助函数 ────────────────────────────────────────────────────────────────
-
-
-KP_ID_1 = "00000000-0000-0000-0000-000000000001"
-KP_ID_2 = "00000000-0000-0000-0000-000000000002"
-
-
-def _make_profile(kp_id: str, mastery_score: float, last_reviewed_at=None):
-    p = MagicMock()
-    p.knowledge_point_id = uuid.UUID(kp_id)
-    p.mastery_score = mastery_score
-    p.review_priority = "medium"
-    p.last_reviewed_at = last_reviewed_at
-    p.next_review_at = None
-    p.appear_count = 5
-    p.error_count = 2
-    return p
+@pytest.mark.asyncio
+async def test_generate_today_plan_with_max_tasks_limit(async_session):
+    """测试：生成今日复习计划（限制最大任务数）"""
+    # 准备：5 个薄弱知识点
+    for i in range(5):
+        kp = KnowledgePoint(
+            id=uuid4(),
+            name=f"知识点{i}",
+            subject="数学",
+            is_active=True,
+        )
+        async_session.add(kp)
+        await async_session.flush()
+        
+        profile = StudentKnowledgeProfile(
+            id=uuid4(),
+            student_id="student_001",
+            knowledge_point_id=kp.id,
+            appear_count=10,
+            error_count=7,
+            mastery_score=0.3 + i * 0.05,
+            review_priority="high",
+            last_reviewed_at=datetime.now() - timedelta(days=1),
+        )
+        async_session.add(profile)
+    
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    plan = await service.generate_today_plan("student_001", max_tasks=3)
+    
+    # 验证：返回数量符合限制
+    assert len(plan.tasks) == 3
 
 
-def _make_kp(kp_id: str, name: str, subject: str = "数学", grade: str = "八年级"):
-    kp = MagicMock()
-    kp.id = uuid.UUID(kp_id)
-    kp.name = name
-    kp.subject = subject
-    kp.grade = grade
-    return kp
+@pytest.mark.asyncio
+async def test_generate_today_plan_time_weight(async_session):
+    """测试：时间权重计算（长时间未复习的优先）"""
+    # 准备：2 个知识点，掌握度相同，但复习时间不同
+    kp1 = KnowledgePoint(
+        id=uuid4(),
+        name="最近复习",
+        subject="数学",
+        is_active=True,
+    )
+    kp2 = KnowledgePoint(
+        id=uuid4(),
+        name="很久未复习",
+        subject="数学",
+        is_active=True,
+    )
+    async_session.add_all([kp1, kp2])
+    await async_session.flush()
+    
+    # 画像 1：最近复习过（3 天前）
+    profile1 = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp1.id,
+        appear_count=10,
+        error_count=5,
+        mastery_score=0.5,
+        review_priority="medium",
+        last_reviewed_at=datetime.now() - timedelta(days=3),
+    )
+    
+    # 画像 2：很久未复习（15 天前）
+    profile2 = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp2.id,
+        appear_count=10,
+        error_count=5,
+        mastery_score=0.5,
+        review_priority="medium",
+        last_reviewed_at=datetime.now() - timedelta(days=15),
+    )
+    
+    async_session.add_all([profile1, profile2])
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    plan = await service.generate_today_plan("student_001", max_tasks=5)
+    
+    # 验证：很久未复习的排在前面（时间权重加成）
+    assert len(plan.tasks) == 2
+    assert plan.tasks[0].knowledge_point_name == "很久未复习"
 
 
-# ─── 服务层测试（mock DB） ───────────────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_generate_today_plan_never_reviewed(async_session):
+    """测试：从未复习过的知识点（权重加成）"""
+    # 准备：2 个知识点，一个复习过，一个从未复习
+    kp1 = KnowledgePoint(
+        id=uuid4(),
+        name="复习过",
+        subject="数学",
+        is_active=True,
+    )
+    kp2 = KnowledgePoint(
+        id=uuid4(),
+        name="从未复习",
+        subject="数学",
+        is_active=True,
+    )
+    async_session.add_all([kp1, kp2])
+    await async_session.flush()
+    
+    # 画像 1：复习过
+    profile1 = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp1.id,
+        appear_count=10,
+        error_count=5,
+        mastery_score=0.5,
+        review_priority="medium",
+        last_reviewed_at=datetime.now() - timedelta(days=3),
+    )
+    
+    # 画像 2：从未复习（last_reviewed_at = None）
+    profile2 = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp2.id,
+        appear_count=10,
+        error_count=5,
+        mastery_score=0.5,
+        review_priority="medium",
+        last_reviewed_at=None,
+    )
+    
+    async_session.add_all([profile1, profile2])
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    plan = await service.generate_today_plan("student_001", max_tasks=5)
+    
+    # 验证：从未复习的排在前面（权重加成 50%）
+    assert len(plan.tasks) == 2
+    assert plan.tasks[0].knowledge_point_name == "从未复习"
 
 
-class TestReviewPlanService:
-    """ReviewPlanService.generate_today_plan 测试"""
+@pytest.mark.asyncio
+async def test_calculate_recommended_count(async_session):
+    """测试：推荐题目数计算"""
+    service = ReviewPlanService(async_session)
+    
+    # 掌握度越低，推荐越多题目
+    assert service._calculate_recommended_count(0.0) == 10  # 最多 10 题
+    assert service._calculate_recommended_count(0.3) == 7
+    assert service._calculate_recommended_count(0.5) == 5
+    assert service._calculate_recommended_count(0.6) == 4
+    assert service._calculate_recommended_count(0.9) == 3  # 最少 3 题
 
-    @pytest.fixture
-    def mock_db(self):
-        return AsyncMock()
 
-    @pytest.fixture
-    def service(self, mock_db):
-        return ReviewPlanService(db=mock_db)
+@pytest.mark.asyncio
+async def test_generate_reason_low_mastery(async_session):
+    """测试：复习原因生成（低掌握度）"""
+    # 准备：知识点
+    kp = KnowledgePoint(
+        id=uuid4(),
+        name="二次方程",
+        subject="数学",
+        is_active=True,
+    )
+    async_session.add(kp)
+    await async_session.flush()
+    
+    # 准备：低掌握度画像
+    profile = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp.id,
+        appear_count=10,
+        error_count=8,
+        mastery_score=0.2,
+        review_priority="high",
+        last_reviewed_at=datetime.now() - timedelta(days=3),
+    )
+    async_session.add(profile)
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    reason = service._generate_reason(profile)
+    
+    # 验证：包含掌握度低的原因
+    assert "掌握度较低" in reason or "20%" in reason
 
-    def _setup_db(self, mock_db, rows: list):
-        mock_result = MagicMock()
-        mock_result.all.return_value = rows
-        mock_db.execute.return_value = mock_result
 
-    @pytest.mark.asyncio
-    async def test_empty_profile_returns_empty_plan(self, service, mock_db):
-        """学生无任何知识点记录 → 返回空计划"""
-        self._setup_db(mock_db, [])
-        plan = await service.generate_today_plan(student_id="stu_1")
+@pytest.mark.asyncio
+async def test_generate_reason_high_error_rate(async_session):
+    """测试：复习原因生成（高错误率）"""
+    # 准备：知识点
+    kp = KnowledgePoint(
+        id=uuid4(),
+        name="三角函数",
+        subject="数学",
+        is_active=True,
+    )
+    async_session.add(kp)
+    await async_session.flush()
+    
+    # 准备：高错误率画像
+    profile = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp.id,
+        appear_count=10,
+        error_count=7,  # 70% 错误率
+        mastery_score=0.4,
+        review_priority="high",
+        last_reviewed_at=datetime.now() - timedelta(days=2),
+    )
+    async_session.add(profile)
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    reason = service._generate_reason(profile)
+    
+    # 验证：包含错误率高的原因
+    assert "错误率" in reason
 
-        assert isinstance(plan, DailyReviewPlan)
-        assert plan.tasks == []
-        assert plan.total_minutes == 0
-        assert plan.student_id == "stu_1"
 
-    @pytest.mark.asyncio
-    async def test_weak_point_is_high_priority(self, service, mock_db):
-        """掌握度低（0.2）的知识点应出现且优先级为 high"""
-        self._setup_db(mock_db, [
-            (_make_profile(KP_ID_1, mastery_score=0.2), _make_kp(KP_ID_1, "一次函数")),
-        ])
+@pytest.mark.asyncio
+async def test_generate_reason_long_time_no_review(async_session):
+    """测试：复习原因生成（长时间未复习）"""
+    # 准备：知识点
+    kp = KnowledgePoint(
+        id=uuid4(),
+        name="立体几何",
+        subject="数学",
+        is_active=True,
+    )
+    async_session.add(kp)
+    await async_session.flush()
+    
+    # 准备：长时间未复习画像
+    profile = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp.id,
+        appear_count=10,
+        error_count=4,
+        mastery_score=0.5,
+        review_priority="medium",
+        last_reviewed_at=datetime.now() - timedelta(days=20),
+    )
+    async_session.add(profile)
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    reason = service._generate_reason(profile)
+    
+    # 验证：包含长时间未复习的原因
+    assert "天未复习" in reason or "20" in reason
 
-        plan = await service.generate_today_plan("stu_1")
 
-        assert len(plan.tasks) == 1
-        assert plan.tasks[0].knowledge_point_name == "一次函数"
-        assert plan.tasks[0].priority == "high"
+@pytest.mark.asyncio
+async def test_get_review_history_empty(async_session):
+    """测试：获取复习历史（无数据）"""
+    service = ReviewPlanService(async_session)
+    
+    history = await service.get_review_history("student_001", days=30)
+    
+    # 验证：返回空列表
+    assert history == []
 
-    @pytest.mark.asyncio
-    async def test_max_tasks_is_respected(self, service, mock_db):
-        """返回的任务数不超过 max_tasks"""
-        rows = [
-            (_make_profile(f"00000000-0000-0000-0000-{i:012d}", 0.1),
-             _make_kp(f"00000000-0000-0000-0000-{i:012d}", f"知识点{i}"))
-            for i in range(1, 8)
-        ]
-        self._setup_db(mock_db, rows)
 
-        plan = await service.generate_today_plan("stu_1", max_tasks=3)
+@pytest.mark.asyncio
+async def test_get_review_history_with_data(async_session):
+    """测试：获取复习历史（有数据）"""
+    # 准备：知识点
+    kps = []
+    for i, name in enumerate(["二次方程", "三角函数", "立体几何"]):
+        kp = KnowledgePoint(
+            id=uuid4(),
+            name=name,
+            subject="数学",
+            is_active=True,
+        )
+        kps.append(kp)
+        async_session.add(kp)
+    
+    await async_session.flush()
+    
+    # 准备：学生画像（最近 30 天内复习过）
+    now = datetime.now()
+    for i, kp in enumerate(kps):
+        profile = StudentKnowledgeProfile(
+            id=uuid4(),
+            student_id="student_001",
+            knowledge_point_id=kp.id,
+            appear_count=10,
+            error_count=3,
+            mastery_score=0.7,
+            review_priority="low",
+            last_reviewed_at=now - timedelta(days=i * 5),  # 0, 5, 10 天前
+        )
+        async_session.add(profile)
+    
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    history = await service.get_review_history("student_001", days=30)
+    
+    # 验证：返回复习历史
+    assert len(history) == 3
+    
+    # 验证：按时间倒序排列（最近的在前）
+    assert history[0]["knowledge_point"] == "二次方程"
+    assert history[1]["knowledge_point"] == "三角函数"
+    assert history[2]["knowledge_point"] == "立体几何"
 
-        assert len(plan.tasks) <= 3
 
-    @pytest.mark.asyncio
-    async def test_total_minutes_equals_sum_of_tasks(self, service, mock_db):
-        """total_minutes 等于所有任务 estimated_minutes 之和"""
-        self._setup_db(mock_db, [
-            (_make_profile(KP_ID_1, 0.2), _make_kp(KP_ID_1, "知识点A")),
-            (_make_profile(KP_ID_2, 0.4), _make_kp(KP_ID_2, "知识点B")),
-        ])
+@pytest.mark.asyncio
+async def test_get_review_history_with_time_filter(async_session):
+    """测试：获取复习历史（时间过滤）"""
+    # 准备：知识点
+    kp1 = KnowledgePoint(
+        id=uuid4(),
+        name="最近复习",
+        subject="数学",
+        is_active=True,
+    )
+    kp2 = KnowledgePoint(
+        id=uuid4(),
+        name="很久前复习",
+        subject="数学",
+        is_active=True,
+    )
+    async_session.add_all([kp1, kp2])
+    await async_session.flush()
+    
+    # 准备：学生画像
+    now = datetime.now()
+    
+    # 最近复习（5 天前）
+    profile1 = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp1.id,
+        appear_count=10,
+        error_count=3,
+        mastery_score=0.7,
+        review_priority="low",
+        last_reviewed_at=now - timedelta(days=5),
+    )
+    
+    # 很久前复习（40 天前，超出 30 天范围）
+    profile2 = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp2.id,
+        appear_count=10,
+        error_count=3,
+        mastery_score=0.7,
+        review_priority="low",
+        last_reviewed_at=now - timedelta(days=40),
+    )
+    
+    async_session.add_all([profile1, profile2])
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    history = await service.get_review_history("student_001", days=30)
+    
+    # 验证：只返回 30 天内的复习历史
+    assert len(history) == 1
+    assert history[0]["knowledge_point"] == "最近复习"
 
-        plan = await service.generate_today_plan("stu_1")
 
-        assert plan.total_minutes == sum(t.estimated_minutes for t in plan.tasks)
-
-    @pytest.mark.asyncio
-    async def test_plan_date_is_today(self, service, mock_db):
-        """返回的 date 字段是今天的 ISO 格式"""
-        self._setup_db(mock_db, [])
-        plan = await service.generate_today_plan("stu_1")
-        assert plan.date == date.today().isoformat()
-
-    @pytest.mark.asyncio
-    async def test_review_task_item_has_all_required_fields(self, service, mock_db):
-        """ReviewTaskItem 包含所有必需字段且类型正确"""
-        self._setup_db(mock_db, [
-            (_make_profile(KP_ID_1, 0.3), _make_kp(KP_ID_1, "二次函数", "数学", "九年级")),
-        ])
-
-        plan = await service.generate_today_plan("stu_1")
-        task = plan.tasks[0]
-
-        assert task.knowledge_point_id == KP_ID_1
-        assert task.knowledge_point_name == "二次函数"
-        assert task.subject == "数学"
-        assert task.priority in ("high", "medium", "low")
-        assert isinstance(task.reason, str) and len(task.reason) > 0
-        assert task.recommended_count > 0
-        assert task.estimated_minutes > 0
-        assert task.mastery_score == pytest.approx(0.3)
+@pytest.mark.asyncio
+async def test_generate_today_plan_total_minutes_calculation(async_session):
+    """测试：总时间计算"""
+    # 准备：知识点
+    kp = KnowledgePoint(
+        id=uuid4(),
+        name="二次方程",
+        subject="数学",
+        is_active=True,
+    )
+    async_session.add(kp)
+    await async_session.flush()
+    
+    # 准备：学生画像
+    profile = StudentKnowledgeProfile(
+        id=uuid4(),
+        student_id="student_001",
+        knowledge_point_id=kp.id,
+        appear_count=10,
+        error_count=7,
+        mastery_score=0.3,
+        review_priority="high",
+        last_reviewed_at=datetime.now() - timedelta(days=3),
+    )
+    async_session.add(profile)
+    await async_session.commit()
+    
+    service = ReviewPlanService(async_session)
+    plan = await service.generate_today_plan("student_001", max_tasks=5)
+    
+    # 验证：总时间 = 推荐题目数 × 3 分钟
+    assert len(plan.tasks) == 1
+    task = plan.tasks[0]
+    assert plan.total_minutes == task.estimated_minutes
+    assert task.estimated_minutes == task.recommended_count * 3

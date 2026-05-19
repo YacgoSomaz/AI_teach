@@ -1,210 +1,271 @@
 """
 复习计划生成服务
 
-根据学生知识点掌握度生成每日复习任务清单。
-
-算法（规则引擎 v1）：
-  priority_score = (1 - mastery_score) × recency_weight
-  recency_weight = min(days_since_last_review / 30, 1.0) + 1.0  → 范围 [1.0, 2.0]
-  未复习过时 recency_weight = 2.0（最大紧迫度）
-
-优先级映射：
-  score ≥ 1.0 → high
-  score ≥ 0.5 → medium
-  score <  0.5 → low
+负责：
+1. 生成每日复习计划
+2. 基于学生画像推荐复习任务
+3. 计算复习优先级和时间估算
 """
 
-from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
-from typing import Optional
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from src.models.knowledge_point import KnowledgePoint
 from src.models.student_profile import StudentKnowledgeProfile
-
-# ─── 公开常量 ────────────────────────────────────────────────────────────────
-
-MASTERY_WEAK_THRESHOLD = 0.6
-PRIORITY_HIGH_THRESHOLD = 1.0
-PRIORITY_MEDIUM_THRESHOLD = 0.5
-RECENCY_DAYS_CAP = 30.0
-
-
-# ─── 纯函数（可单独单元测试） ──────────────────────────────────────────────
-
-
-def calculate_priority_score(
-    mastery_score: float,
-    last_reviewed_at: Optional[datetime],
-) -> float:
-    """
-    计算单个知识点的复习优先级分数。
-
-    Args:
-        mastery_score: 掌握度 0-1，越低越需要复习
-        last_reviewed_at: 上次复习时间，None 表示从未复习
-
-    Returns:
-        float: 优先级分数，越高越优先
-    """
-    if last_reviewed_at is None:
-        recency_weight = 2.0
-    else:
-        now = datetime.now(timezone.utc)
-        if last_reviewed_at.tzinfo is None:
-            last_reviewed_at = last_reviewed_at.replace(tzinfo=timezone.utc)
-        days_elapsed = max((now - last_reviewed_at).total_seconds() / 86400, 0.0)
-        normalized = min(days_elapsed / RECENCY_DAYS_CAP, 1.0)
-        recency_weight = normalized + 1.0  # 范围 [1.0, 2.0]
-
-    return (1.0 - mastery_score) * recency_weight
-
-
-def determine_priority(score: float) -> str:
-    """将数值分数映射为 high / medium / low。"""
-    if score >= PRIORITY_HIGH_THRESHOLD:
-        return "high"
-    if score >= PRIORITY_MEDIUM_THRESHOLD:
-        return "medium"
-    return "low"
-
-
-def estimate_recommended_count(mastery_score: float) -> int:
-    """根据掌握度估算建议练习题目数。"""
-    if mastery_score < 0.3:
-        return 5
-    if mastery_score < 0.6:
-        return 3
-    return 2
-
-
-def build_reason(
-    mastery_score: float,
-    appear_count: int,
-    error_count: int,
-    last_reviewed_at: Optional[datetime],
-) -> str:
-    """生成人类可读的复习原因说明。"""
-    parts = []
-
-    if mastery_score < 0.3:
-        parts.append(f"掌握度仅 {mastery_score:.0%}，需要重点强化")
-    elif mastery_score < 0.6:
-        parts.append(f"掌握度 {mastery_score:.0%}，尚未巩固")
-
-    if appear_count > 0:
-        error_rate = error_count / appear_count
-        if error_rate > 0.5:
-            parts.append(f"历史错误率 {error_rate:.0%}")
-
-    if last_reviewed_at is None:
-        parts.append("从未复习")
-    else:
-        now = datetime.now(timezone.utc)
-        if last_reviewed_at.tzinfo is None:
-            last_reviewed_at = last_reviewed_at.replace(tzinfo=timezone.utc)
-        days = (now - last_reviewed_at).days
-        if days >= 7:
-            parts.append(f"距上次复习已 {days} 天")
-
-    return "；".join(parts) if parts else "建议适量练习巩固"
-
-
-# ─── 数据结构 ────────────────────────────────────────────────────────────────
+from src.services.student_profile_service import StudentProfileService
 
 
 @dataclass
 class ReviewTaskItem:
-    """单条复习任务"""
+    """复习任务项（公开契约）"""
     knowledge_point_id: str
     knowledge_point_name: str
     subject: str
+    grade: Optional[str]
     mastery_score: float
-    priority: str
-    reason: str
-    recommended_count: int
-    estimated_minutes: int
-    grade: Optional[str] = None
+    priority: str              # high / medium / low
+    reason: str                # 为什么要复习
+    recommended_count: int     # 建议练习题目数
+    estimated_minutes: int     # 预计用时
 
 
 @dataclass
 class DailyReviewPlan:
-    """今日复习计划"""
+    """每日复习计划"""
     student_id: str
-    date: str
-    tasks: list = field(default_factory=list)
-    total_minutes: int = 0
-
-
-# ─── 服务类 ──────────────────────────────────────────────────────────────────
+    date: str                  # YYYY-MM-DD
+    tasks: List[ReviewTaskItem]
+    total_minutes: int
 
 
 class ReviewPlanService:
     """
     复习计划生成服务
-
-    只读操作，不写入任何数据。
-    由 FastAPI Depends 注入 AsyncSession。
+    
+    生成每日复习计划（规则引擎，第一版）
+    规则：
+    1. 取掌握度 < 0.6 的知识点
+    2. 按掌握度升序排序（越低越先复习）
+    3. 超过 7 天未练习的权重加成
+    4. 每日限 3-5 个知识点
     """
-
+    
     def __init__(self, db: AsyncSession):
-        self._db = db
-
+        self.db = db
+        self.student_profile_service = StudentProfileService(db)
+    
     async def generate_today_plan(
         self,
         student_id: str,
         max_tasks: int = 5,
     ) -> DailyReviewPlan:
         """
-        生成今日复习计划，返回按优先级排序的前 max_tasks 条任务。
+        生成今日复习计划
+        
+        Args:
+            student_id: 学生 ID
+            max_tasks: 最大任务数（默认 5）
+        
+        Returns:
+            DailyReviewPlan: 今日复习计划
         """
-        rows = await self._fetch_profiles_with_kp(student_id)
-
-        scored: list[tuple[float, ReviewTaskItem]] = []
-        for profile, kp in rows:
-            score = calculate_priority_score(
-                mastery_score=profile.mastery_score,
-                last_reviewed_at=profile.last_reviewed_at,
+        # 1. 获取薄弱知识点（掌握度 < 0.6）
+        result = await self.db.execute(
+            select(StudentKnowledgeProfile)
+            .options(selectinload(StudentKnowledgeProfile.knowledge_point))
+            .where(
+                StudentKnowledgeProfile.student_id == student_id,
+                StudentKnowledgeProfile.mastery_score < 0.6,
             )
-            count = estimate_recommended_count(profile.mastery_score)
-            item = ReviewTaskItem(
-                knowledge_point_id=str(kp.id),
+            .order_by(StudentKnowledgeProfile.mastery_score.asc())
+        )
+        weak_profiles = list(result.scalars().all())
+        
+        if not weak_profiles:
+            # 没有薄弱知识点，返回空计划
+            return DailyReviewPlan(
+                student_id=student_id,
+                date=datetime.now().date().isoformat(),
+                tasks=[],
+                total_minutes=0,
+            )
+        
+        # 2. 计算每个知识点的复习权重
+        weighted_profiles = []
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
+        
+        for profile in weak_profiles:
+            # 基础权重：掌握度越低，权重越高
+            base_weight = 1.0 - profile.mastery_score
+            
+            # 时间权重：超过 7 天未复习，权重加成
+            time_weight = 1.0
+            if profile.last_reviewed_at:
+                # 确保 last_reviewed_at 有时区信息
+                last_reviewed = profile.last_reviewed_at
+                if last_reviewed.tzinfo is None:
+                    last_reviewed = last_reviewed.replace(tzinfo=timezone.utc)
+                days_since_review = (now - last_reviewed).days
+                if days_since_review > 7:
+                    # 每超过 7 天，权重增加 20%
+                    time_weight = 1.0 + (days_since_review - 7) * 0.2
+            else:
+                # 从未复习过，权重加成 50%
+                time_weight = 1.5
+            
+            # 综合权重
+            total_weight = base_weight * time_weight
+            
+            weighted_profiles.append({
+                "profile": profile,
+                "weight": total_weight,
+            })
+        
+        # 3. 按权重降序排序，取前 max_tasks 个
+        weighted_profiles.sort(key=lambda x: x["weight"], reverse=True)
+        selected_profiles = weighted_profiles[:max_tasks]
+        
+        # 4. 生成复习任务
+        tasks = []
+        total_minutes = 0
+        
+        for item in selected_profiles:
+            profile = item["profile"]
+            kp = profile.knowledge_point
+            
+            # 计算推荐题目数（掌握度越低，推荐越多）
+            recommended_count = self._calculate_recommended_count(profile.mastery_score)
+            
+            # 估算时间（每题 3 分钟）
+            estimated_minutes = recommended_count * 3
+            total_minutes += estimated_minutes
+            
+            # 生成复习原因
+            reason = self._generate_reason(profile)
+            
+            task = ReviewTaskItem(
+                knowledge_point_id=str(profile.knowledge_point_id),
                 knowledge_point_name=kp.name,
                 subject=kp.subject,
                 grade=kp.grade,
                 mastery_score=profile.mastery_score,
-                priority=determine_priority(score),
-                reason=build_reason(
-                    profile.mastery_score,
-                    profile.appear_count,
-                    profile.error_count,
-                    profile.last_reviewed_at,
-                ),
-                recommended_count=count,
-                estimated_minutes=count * 5,
+                priority=profile.review_priority,
+                reason=reason,
+                recommended_count=recommended_count,
+                estimated_minutes=estimated_minutes,
             )
-            scored.append((score, item))
-
-        scored.sort(key=lambda t: t[0], reverse=True)
-        tasks = [item for _, item in scored[:max_tasks]]
-
+            tasks.append(task)
+        
         return DailyReviewPlan(
             student_id=student_id,
-            date=date.today().isoformat(),
+            date=datetime.now().date().isoformat(),
             tasks=tasks,
-            total_minutes=sum(t.estimated_minutes for t in tasks),
+            total_minutes=total_minutes,
         )
-
-    async def _fetch_profiles_with_kp(self, student_id: str) -> list[tuple]:
-        stmt = (
-            select(StudentKnowledgeProfile, KnowledgePoint)
-            .join(
-                KnowledgePoint,
-                StudentKnowledgeProfile.knowledge_point_id == KnowledgePoint.id,
+    
+    def _calculate_recommended_count(self, mastery_score: float) -> int:
+        """
+        计算推荐题目数
+        
+        Args:
+            mastery_score: 掌握度分数 (0-1)
+        
+        Returns:
+            int: 推荐题目数
+        """
+        # 掌握度越低，推荐越多题目
+        # mastery_score = 0.0 → 10 题
+        # mastery_score = 0.3 → 7 题
+        # mastery_score = 0.6 → 4 题
+        count = max(3, int((1 - mastery_score) * 10))
+        return min(count, 10)  # 最多 10 题
+    
+    def _generate_reason(self, profile: StudentKnowledgeProfile) -> str:
+        """
+        生成复习原因
+        
+        Args:
+            profile: 学生知识点画像
+        
+        Returns:
+            str: 复习原因
+        """
+        from datetime import timezone
+        mastery_score = profile.mastery_score
+        error_rate = profile.error_count / profile.appear_count if profile.appear_count > 0 else 0
+        
+        reasons = []
+        
+        # 掌握度低
+        if mastery_score < 0.4:
+            reasons.append(f"掌握度较低（{mastery_score:.0%}）")
+        elif mastery_score < 0.6:
+            reasons.append(f"掌握度一般（{mastery_score:.0%}）")
+        
+        # 错误率高
+        if error_rate > 0.5:
+            reasons.append(f"错误率较高（{error_rate:.0%}）")
+        
+        # 长时间未复习
+        if profile.last_reviewed_at:
+            last_reviewed = profile.last_reviewed_at
+            if last_reviewed.tzinfo is None:
+                last_reviewed = last_reviewed.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            days_since_review = (now - last_reviewed).days
+            if days_since_review > 14:
+                reasons.append(f"已 {days_since_review} 天未复习")
+            elif days_since_review > 7:
+                reasons.append(f"已 {days_since_review} 天未复习")
+        else:
+            reasons.append("尚未复习过")
+        
+        if not reasons:
+            reasons.append("需要巩固")
+        
+        return "，".join(reasons)
+    
+    async def get_review_history(
+        self,
+        student_id: str,
+        days: int = 30,
+    ) -> List[dict]:
+        """
+        获取复习历史（最近 N 天）
+        
+        Args:
+            student_id: 学生 ID
+            days: 天数
+        
+        Returns:
+            List[dict]: 复习历史列表
+        """
+        start_date = datetime.now() - timedelta(days=days)
+        
+        result = await self.db.execute(
+            select(StudentKnowledgeProfile)
+            .options(selectinload(StudentKnowledgeProfile.knowledge_point))
+            .where(
+                StudentKnowledgeProfile.student_id == student_id,
+                StudentKnowledgeProfile.last_reviewed_at >= start_date,
             )
-            .where(StudentKnowledgeProfile.student_id == student_id)
+            .order_by(StudentKnowledgeProfile.last_reviewed_at.desc())
         )
-        result = await self._db.execute(stmt)
-        return result.all()
+        profiles = list(result.scalars().all())
+        
+        history = []
+        for profile in profiles:
+            history.append({
+                "knowledge_point": profile.knowledge_point.name,
+                "reviewed_at": profile.last_reviewed_at.isoformat() if profile.last_reviewed_at else None,
+                "mastery_score": profile.mastery_score,
+                "appear_count": profile.appear_count,
+                "error_count": profile.error_count,
+            })
+        
+        return history
