@@ -1,11 +1,11 @@
 """
 复习任务 API 测试
 
-测试 GET /api/review/plans/today 端点。
+测试 GET /api/students/{student_id}/review-tasks 端点。
 使用 FastAPI TestClient + app.dependency_overrides 覆盖 DB 依赖。
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,6 +16,7 @@ from src.services.review_plan_service import DailyReviewPlan, ReviewTaskItem
 
 KP_ID = "00000000-0000-0000-0000-000000000001"
 STUDENT_ID = "student_abc"
+OTHER_ID = "student_xyz"
 
 
 @pytest.fixture
@@ -40,19 +41,20 @@ def _empty_plan(student_id: str = STUDENT_ID) -> DailyReviewPlan:
     )
 
 
-class TestGetTodayReviewPlan:
-    """GET /api/review/plans/today"""
+def _url(student_id: str = STUDENT_ID, extra: str = "") -> str:
+    return f"/api/students/{student_id}/review-tasks{extra}"
 
-    def test_returns_200_with_student_id_header(self, client):
+
+class TestGetReviewTasks:
+    """GET /api/students/{student_id}/review-tasks"""
+
+    def test_returns_200_with_matching_header(self, client):
         with patch("src.api.review.ReviewPlanService") as mock_cls:
             svc = AsyncMock()
             mock_cls.return_value = svc
             svc.generate_today_plan.return_value = _empty_plan()
 
-            resp = client.get(
-                "/api/review/plans/today",
-                headers={"X-Student-Id": STUDENT_ID},
-            )
+            resp = client.get(_url(), headers={"X-Student-Id": STUDENT_ID})
 
         assert resp.status_code == 200
         data = resp.json()
@@ -60,30 +62,33 @@ class TestGetTodayReviewPlan:
         assert data["tasks"] == []
         assert data["task_count"] == 0
 
+    def test_idor_returns_404_for_other_student(self, client):
+        """path student_id 与 header 不一致时返回 404，不泄露 403。"""
+        resp = client.get(
+            _url(OTHER_ID),
+            headers={"X-Student-Id": STUDENT_ID},
+        )
+        assert resp.status_code == 404
+
     def test_empty_plan_returns_zero_minutes(self, client):
         with patch("src.api.review.ReviewPlanService") as mock_cls:
             svc = AsyncMock()
             mock_cls.return_value = svc
             svc.generate_today_plan.return_value = _empty_plan()
 
-            resp = client.get(
-                "/api/review/plans/today",
-                headers={"X-Student-Id": STUDENT_ID},
-            )
+            resp = client.get(_url(), headers={"X-Student-Id": STUDENT_ID})
 
         assert resp.status_code == 200
         assert resp.json()["total_minutes"] == 0
 
-    def test_max_tasks_validation_out_of_range(self, client):
-        """max_tasks 超出合法范围（>20）时返回 422"""
+    def test_max_tasks_out_of_range_returns_422(self, client):
         resp = client.get(
-            "/api/review/plans/today?max_tasks=99",
+            _url(extra="?max_tasks=99"),
             headers={"X-Student-Id": STUDENT_ID},
         )
         assert resp.status_code == 422
 
     def test_task_fields_are_present(self, client):
-        """返回的任务包含所有必需字段"""
         task = ReviewTaskItem(
             knowledge_point_id=KP_ID,
             knowledge_point_name="一次函数",
@@ -104,10 +109,7 @@ class TestGetTodayReviewPlan:
             mock_cls.return_value = svc
             svc.generate_today_plan.return_value = plan
 
-            resp = client.get(
-                "/api/review/plans/today",
-                headers={"X-Student-Id": STUDENT_ID},
-            )
+            resp = client.get(_url(), headers={"X-Student-Id": STUDENT_ID})
 
         assert resp.status_code == 200
         data = resp.json()
@@ -121,14 +123,13 @@ class TestGetTodayReviewPlan:
         assert t["estimated_minutes"] == 25
 
     def test_max_tasks_param_passed_to_service(self, client):
-        """max_tasks 参数正确传递给 service"""
         with patch("src.api.review.ReviewPlanService") as mock_cls:
             svc = AsyncMock()
             mock_cls.return_value = svc
             svc.generate_today_plan.return_value = _empty_plan()
 
             resp = client.get(
-                "/api/review/plans/today?max_tasks=3",
+                _url(extra="?max_tasks=3"),
                 headers={"X-Student-Id": STUDENT_ID},
             )
 
@@ -138,14 +139,14 @@ class TestGetTodayReviewPlan:
             max_tasks=3,
         )
 
-    def test_default_student_id_is_used_without_header(self, client):
-        """不传 X-Student-Id 时使用默认值 test_student"""
+    def test_no_header_uses_default_student(self, client):
+        """不传 X-Student-Id 时依赖返回 test_student，path 必须匹配才能过 IDOR 检查。"""
         with patch("src.api.review.ReviewPlanService") as mock_cls:
             svc = AsyncMock()
             mock_cls.return_value = svc
             svc.generate_today_plan.return_value = _empty_plan("test_student")
 
-            resp = client.get("/api/review/plans/today")
+            resp = client.get("/api/students/test_student/review-tasks")
 
         assert resp.status_code == 200
         svc.generate_today_plan.assert_called_once_with(

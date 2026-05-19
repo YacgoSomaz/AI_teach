@@ -1,23 +1,21 @@
 """
 复习任务查询 API
 
-暴露 ReviewPlanService 生成的今日复习计划，以及历史任务查询。
-student_id 通过鉴权依赖注入（IDOR 防护）。
+路径：GET /api/students/{student_id}/review-tasks
+student_id 从 URL 路径取得，并与鉴权 Header 做所有权校验（IDOR 防护）。
 """
 
-from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_student_id
 from src.db.session import get_db
 from src.services.review_plan_service import DailyReviewPlan, ReviewPlanService, ReviewTaskItem
 
-router = APIRouter(prefix="/api/review", tags=["review"])
+router = APIRouter(prefix="/api/students", tags=["review"])
 
 
 # ─── Response Models ────────────────────────────────────────────────────────
@@ -35,7 +33,7 @@ class ReviewTaskResponse(BaseModel):
     estimated_minutes: int
 
 
-class TodayReviewPlanResponse(BaseModel):
+class ReviewTasksResponse(BaseModel):
     student_id: str
     date: str
     total_minutes: int
@@ -43,7 +41,12 @@ class TodayReviewPlanResponse(BaseModel):
     tasks: list[ReviewTaskResponse]
 
 
-# ─── Converters ─────────────────────────────────────────────────────────────
+# ─── Helper ─────────────────────────────────────────────────────────────────
+
+
+async def _check_ownership(path_student_id: str, current_student_id: str) -> None:
+    if path_student_id != current_student_id:
+        raise HTTPException(status_code=404, detail="未找到该学生的数据")
 
 
 def _task_to_response(item: ReviewTaskItem) -> ReviewTaskResponse:
@@ -60,8 +63,8 @@ def _task_to_response(item: ReviewTaskItem) -> ReviewTaskResponse:
     )
 
 
-def _plan_to_response(plan: DailyReviewPlan) -> TodayReviewPlanResponse:
-    return TodayReviewPlanResponse(
+def _plan_to_response(plan: DailyReviewPlan) -> ReviewTasksResponse:
+    return ReviewTasksResponse(
         student_id=plan.student_id,
         date=plan.date,
         total_minutes=plan.total_minutes,
@@ -70,19 +73,18 @@ def _plan_to_response(plan: DailyReviewPlan) -> TodayReviewPlanResponse:
     )
 
 
-# ─── Endpoints ──────────────────────────────────────────────────────────────
+# ─── Endpoint ───────────────────────────────────────────────────────────────
 
 
-@router.get("/plans/today", response_model=TodayReviewPlanResponse)
-async def get_today_review_plan(
+@router.get("/{student_id}/review-tasks", response_model=ReviewTasksResponse)
+async def get_review_tasks(
+    student_id: str,
     max_tasks: int = Query(default=5, ge=1, le=20, description="最多返回任务数"),
     current_student_id: str = Depends(get_current_student_id),
     db: AsyncSession = Depends(get_db),
-) -> TodayReviewPlanResponse:
-    """获取当前学生的今日复习计划，按优先级排序。"""
+) -> ReviewTasksResponse:
+    """获取学生今日复习任务，按优先级排序。"""
+    await _check_ownership(student_id, current_student_id)
     service = ReviewPlanService(db=db)
-    plan = await service.generate_today_plan(
-        student_id=current_student_id,
-        max_tasks=max_tasks,
-    )
+    plan = await service.generate_today_plan(student_id=student_id, max_tasks=max_tasks)
     return _plan_to_response(plan)

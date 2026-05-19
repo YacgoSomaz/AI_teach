@@ -1,17 +1,17 @@
 """
 数据导出 API
 
-支持将学生知识点掌握数据导出为 JSON 或 CSV 格式。
-student_id 通过鉴权依赖注入（IDOR 防护）。
+路径：GET /api/export/student/{student_id}/knowledge-points?format=json|csv
+student_id 路径参数与鉴权 Header 做所有权校验（IDOR 防护）。
 """
 
 import csv
 import io
 import json
 from datetime import datetime
-from typing import Optional
+from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,18 +24,15 @@ from src.models.student_profile import StudentKnowledgeProfile
 router = APIRouter(prefix="/api/export", tags=["export"])
 
 CSV_HEADERS = [
-    "knowledge_point_id",
-    "knowledge_point_name",
-    "subject",
-    "grade",
-    "mastery_score",
-    "mastery_level",
-    "appear_count",
-    "error_count",
-    "error_rate",
-    "review_priority",
-    "last_reviewed_at",
+    "knowledge_point_id", "knowledge_point_name", "subject", "grade",
+    "mastery_score", "mastery_level", "appear_count", "error_count",
+    "error_rate", "review_priority", "last_reviewed_at",
 ]
+
+
+async def _check_ownership(path_student_id: str, current_student_id: str) -> None:
+    if path_student_id != current_student_id:
+        raise HTTPException(status_code=404, detail="未找到该学生的数据")
 
 
 def _mastery_level(score: float) -> str:
@@ -49,10 +46,6 @@ def _mastery_level(score: float) -> str:
 def _row_dict(profile: StudentKnowledgeProfile, kp: KnowledgePoint) -> dict:
     appear = profile.appear_count
     error = profile.error_count
-    error_rate = round(error / appear, 4) if appear > 0 else 0.0
-    reviewed = (
-        profile.last_reviewed_at.isoformat() if profile.last_reviewed_at else ""
-    )
     return {
         "knowledge_point_id": str(kp.id),
         "knowledge_point_name": kp.name,
@@ -62,9 +55,9 @@ def _row_dict(profile: StudentKnowledgeProfile, kp: KnowledgePoint) -> dict:
         "mastery_level": _mastery_level(profile.mastery_score),
         "appear_count": appear,
         "error_count": error,
-        "error_rate": error_rate,
+        "error_rate": round(error / appear, 4) if appear > 0 else 0.0,
         "review_priority": profile.review_priority,
-        "last_reviewed_at": reviewed,
+        "last_reviewed_at": profile.last_reviewed_at.isoformat() if profile.last_reviewed_at else "",
     }
 
 
@@ -75,53 +68,48 @@ async def _fetch_rows(student_id: str, db: AsyncSession) -> list[tuple]:
         .where(StudentKnowledgeProfile.student_id == student_id)
         .order_by(StudentKnowledgeProfile.mastery_score.asc())
     )
-    result = await db.execute(stmt)
-    return result.all()
+    return (await db.execute(stmt)).all()
 
 
-@router.get("/knowledge-points/json")
-async def export_knowledge_points_json(
+@router.get("/student/{student_id}/knowledge-points")
+async def export_knowledge_points(
+    student_id: str,
+    format: Literal["json", "csv"] = Query(default="json", description="导出格式"),
     current_student_id: str = Depends(get_current_student_id),
     db: AsyncSession = Depends(get_db),
-) -> Response:
-    """将学生知识点掌握数据导出为 JSON 文件。"""
-    rows = await _fetch_rows(current_student_id, db)
-    payload = {
-        "student_id": current_student_id,
-        "exported_at": datetime.utcnow().isoformat(),
-        "total": len(rows),
-        "knowledge_points": [_row_dict(p, kp) for p, kp in rows],
-    }
-    content = json.dumps(payload, ensure_ascii=False, indent=2)
-    filename = f"knowledge_points_{current_student_id}.json"
-    return Response(
-        content=content,
-        media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+):
+    """将学生知识点掌握数据导出为 JSON 或 CSV 文件。"""
+    await _check_ownership(student_id, current_student_id)
+    rows = await _fetch_rows(student_id, db)
 
+    if format == "json":
+        payload = {
+            "student_id": student_id,
+            "exported_at": datetime.utcnow().isoformat(),
+            "total": len(rows),
+            "knowledge_points": [_row_dict(p, kp) for p, kp in rows],
+        }
+        filename = f"knowledge_points_{student_id}.json"
+        return Response(
+            content=json.dumps(payload, ensure_ascii=False, indent=2),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
-@router.get("/knowledge-points/csv")
-async def export_knowledge_points_csv(
-    current_student_id: str = Depends(get_current_student_id),
-    db: AsyncSession = Depends(get_db),
-) -> StreamingResponse:
-    """将学生知识点掌握数据导出为 CSV 文件。"""
-    rows = await _fetch_rows(current_student_id, db)
+    # CSV
+    filename = f"knowledge_points_{student_id}.csv"
 
     def generate():
         buf = io.StringIO()
         writer = csv.DictWriter(buf, fieldnames=CSV_HEADERS)
         writer.writeheader()
         yield buf.getvalue()
-
         for profile, kp in rows:
             buf = io.StringIO()
             writer = csv.DictWriter(buf, fieldnames=CSV_HEADERS)
             writer.writerow(_row_dict(profile, kp))
             yield buf.getvalue()
 
-    filename = f"knowledge_points_{current_student_id}.csv"
     return StreamingResponse(
         generate(),
         media_type="text/csv; charset=utf-8",

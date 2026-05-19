@@ -11,6 +11,10 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.export import router as export_router
+from src.api.report import router as report_router
+from src.api.review import router as review_router
+from src.api.student import router as student_router
 from src.api.upload import router as upload_router
 
 
@@ -40,11 +44,10 @@ def create_app() -> FastAPI:
 
     # 注册路由
     app.include_router(upload_router)
-    # TODO: Claude Code 负责的路由
-    # app.include_router(student_router)
-    # app.include_router(review_router)
-    # app.include_router(report_router)
-    # app.include_router(export_router)
+    app.include_router(student_router)
+    app.include_router(review_router)
+    app.include_router(report_router)
+    app.include_router(export_router)
 
     @app.get("/health")
     async def health_check():
