@@ -13,12 +13,17 @@ AI 分析服务
 
 import json
 import hashlib
+import logging
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum
 from abc import ABC, abstractmethod
 
 import requests
+
+from src.services.ai_cache_service import AICacheService
+
+logger = logging.getLogger(__name__)
 
 
 class Subject(str, Enum):
@@ -533,27 +538,36 @@ class AIAnalysisService:
     def __init__(
         self,
         provider: AIProvider,
+        cache_service: Optional[AICacheService] = None,
         enable_cache: bool = True,
-        cache_ttl: int = 86400,  # 24 小时
     ):
         """
         初始化 AI 分析服务
         
         Args:
             provider: AI 提供商
+            cache_service: 缓存服务（可选，不提供则使用内存缓存）
             enable_cache: 是否启用缓存
-            cache_ttl: 缓存过期时间（秒）
         """
         self.provider = provider
         self.enable_cache = enable_cache
-        self.cache_ttl = cache_ttl
-        self._cache: Dict[str, QuestionAnalysis] = {}
+        
+        # 使用提供的缓存服务，或创建默认的 Redis 缓存（降级到内存）
+        if cache_service:
+            self.cache_service = cache_service
+        else:
+            from src.config import settings
+            self.cache_service = AICacheService(redis_url=settings.redis_url)
+        
+        logger.info(f"AIAnalysisService initialized with cache={'enabled' if enable_cache else 'disabled'}")
     
     def analyze_question(
         self,
         question_text: str,
         question_markdown: str,
-        image_urls: List[str] = None,
+        subject: Optional[str] = None,
+        grade: Optional[str] = None,
+        image_urls: Optional[List[str]] = None,
         use_cache: bool = True,
     ) -> QuestionAnalysis:
         """
@@ -562,7 +576,9 @@ class AIAnalysisService:
         Args:
             question_text: 题目纯文本
             question_markdown: 题目 Markdown 格式
-            image_urls: 图片 URL 列表（用于多模态分析）
+            subject: 学科（用于缓存 key）
+            grade: 年级（用于缓存 key）
+            image_urls: 图片 URL 列表（用于多模态分析和缓存 key）
             use_cache: 是否使用缓存
             
         Returns:
@@ -571,13 +587,25 @@ class AIAnalysisService:
         Raises:
             AIAnalysisException: 分析失败
         """
-        # 检查缓存
+        # 1. 尝试从缓存获取
         if self.enable_cache and use_cache:
-            cache_key = self._get_cache_key(question_text)
-            if cache_key in self._cache:
-                return self._cache[cache_key]
+            try:
+                cache_key = self.cache_service.generate_cache_key(
+                    question_text=question_text,
+                    subject=subject,
+                    grade=grade,
+                    image_urls=image_urls,
+                )
+                cached_result = self.cache_service.get(cache_key)
+                
+                if cached_result:
+                    logger.info(f"Cache hit for question analysis")
+                    return self._dict_to_analysis(cached_result)
+            except Exception as e:
+                # 缓存失败不影响主流程
+                logger.warning(f"Cache get failed, proceeding without cache: {e}")
         
-        # 调用 AI 分析
+        # 2. 调用 AI 分析
         try:
             # 检查 provider 是否支持多模态
             if image_urls and hasattr(self.provider, 'analyze_question'):
@@ -596,19 +624,83 @@ class AIAnalysisService:
         except Exception as e:
             raise AIAnalysisException(f"AI analysis failed: {e}")
         
-        # 解析结果
+        # 3. 解析结果
         analysis = self._parse_analysis(raw_result)
         
-        # 写入缓存
-        if self.enable_cache:
-            cache_key = self._get_cache_key(question_text)
-            self._cache[cache_key] = analysis
+        # 4. 写入缓存（仅当结果有效时）
+        if self.enable_cache and self._should_cache(analysis):
+            try:
+                cache_key = self.cache_service.generate_cache_key(
+                    question_text=question_text,
+                    subject=subject,
+                    grade=grade,
+                    image_urls=image_urls,
+                )
+                # 转换为字典以便序列化
+                analysis_dict = asdict(analysis)
+                self.cache_service.set(cache_key, analysis_dict)
+                logger.info(f"Cached analysis result")
+            except Exception as e:
+                # 缓存写入失败不影响主流程
+                logger.warning(f"Cache set failed: {e}")
         
         return analysis
     
-    def _get_cache_key(self, question_text: str) -> str:
-        """生成缓存 key（使用文本 hash）"""
-        return hashlib.sha256(question_text.encode()).hexdigest()
+    def _should_cache(self, analysis: QuestionAnalysis) -> bool:
+        """
+        判断是否应该缓存结果
+        
+        不缓存的情况：
+        1. knowledge_points 为空
+        2. subject 为"未知"
+        3. confidence 过低（< 0.3）
+        
+        Args:
+            analysis: 分析结果
+        
+        Returns:
+            bool: 是否应该缓存
+        """
+        # 知识点为空，不缓存
+        if not analysis.knowledge_points:
+            logger.debug("Skip caching: empty knowledge_points")
+            return False
+        
+        # 学科未知，不缓存
+        if analysis.subject == "未知":
+            logger.debug("Skip caching: unknown subject")
+            return False
+        
+        # 置信度过低，不缓存
+        if analysis.confidence < 0.3:
+            logger.debug(f"Skip caching: low confidence ({analysis.confidence})")
+            return False
+        
+        return True
+    
+    def _dict_to_analysis(self, data: Dict[str, Any]) -> QuestionAnalysis:
+        """
+        将字典转换为 QuestionAnalysis 对象
+        
+        Args:
+            data: 字典数据
+        
+        Returns:
+            QuestionAnalysis: 分析结果对象
+        """
+        return QuestionAnalysis(
+            subject=data.get("subject", "未知"),
+            grade=data.get("grade", "未知"),
+            question_type=data.get("question_type", "未知"),
+            knowledge_points=data.get("knowledge_points", []),
+            prerequisites=data.get("prerequisites", []),
+            difficulty=data.get("difficulty", 3),
+            likely_error_causes=data.get("likely_error_causes", []),
+            review_priority=data.get("review_priority", "medium"),
+            need_review=data.get("need_review", True),
+            confidence=data.get("confidence", 0.8),
+            raw_response=data.get("raw_response"),
+        )
     
     def _parse_analysis(self, raw_result: Dict[str, Any]) -> QuestionAnalysis:
         """
@@ -639,11 +731,19 @@ class AIAnalysisService:
     
     def clear_cache(self):
         """清空缓存"""
-        self._cache.clear()
+        try:
+            self.cache_service.clear()
+            logger.info("Cache cleared")
+        except Exception as e:
+            logger.warning(f"Failed to clear cache: {e}")
     
-    def get_cache_size(self) -> int:
-        """获取缓存大小"""
-        return len(self._cache)
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """获取缓存统计信息"""
+        try:
+            return self.cache_service.get_stats()
+        except Exception as e:
+            logger.warning(f"Failed to get cache stats: {e}")
+            return {"error": str(e)}
 
 
 class AIAnalysisException(Exception):

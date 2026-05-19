@@ -124,7 +124,8 @@ class TestAIAnalysisService:
         """测试初始化"""
         assert ai_service.provider == openai_provider
         assert ai_service.enable_cache is True
-        assert ai_service.cache_ttl == 86400
+        # cache_ttl 现在在 cache_service 中
+        assert ai_service.cache_service.ttl == 86400
     
     @patch('src.services.ai_analysis_service.requests.post')
     def test_analyze_question_success(
@@ -222,9 +223,10 @@ class TestAIAnalysisService:
         text2 = "计算浮力大小"
         text3 = "计算重力大小"
         
-        key1 = ai_service._get_cache_key(text1)
-        key2 = ai_service._get_cache_key(text2)
-        key3 = ai_service._get_cache_key(text3)
+        # 使用新的 cache_service API
+        key1 = ai_service.cache_service.generate_cache_key(text1)
+        key2 = ai_service.cache_service.generate_cache_key(text2)
+        key3 = ai_service.cache_service.generate_cache_key(text3)
         
         # 相同文本应该生成相同 key
         assert key1 == key2
@@ -232,8 +234,9 @@ class TestAIAnalysisService:
         # 不同文本应该生成不同 key
         assert key1 != key3
         
-        # key 应该是 64 位十六进制字符串（SHA256）
-        assert len(key1) == 64
+        # key 应该包含前缀和 64 位十六进制字符串（SHA256）
+        assert key1.startswith("ai_analysis:")
+        assert len(key1) == len("ai_analysis:") + 64
     
     def test_parse_analysis(self, ai_service):
         """测试解析分析结果"""
@@ -272,26 +275,31 @@ class TestAIAnalysisService:
     
     def test_clear_cache(self, ai_service):
         """测试清空缓存"""
-        # 添加一些缓存
-        ai_service._cache["key1"] = Mock()
-        ai_service._cache["key2"] = Mock()
+        # 添加一些缓存（使用新的 API）
+        cache_key1 = ai_service.cache_service.generate_cache_key("题目1")
+        cache_key2 = ai_service.cache_service.generate_cache_key("题目2")
+        ai_service.cache_service.set(cache_key1, {"subject": "数学", "knowledge_points": ["知识点1"]})
+        ai_service.cache_service.set(cache_key2, {"subject": "物理", "knowledge_points": ["知识点2"]})
         
-        assert ai_service.get_cache_size() == 2
+        stats = ai_service.get_cache_stats()
+        assert stats["total_keys"] == 2
         
         # 清空缓存
         ai_service.clear_cache()
         
-        assert ai_service.get_cache_size() == 0
+        stats = ai_service.get_cache_stats()
+        assert stats["total_keys"] == 0
     
     def test_get_cache_size(self, ai_service):
-        """测试获取缓存大小"""
-        assert ai_service.get_cache_size() == 0
+        """测试获取缓存统计信息"""
+        stats = ai_service.get_cache_stats()
+        assert stats["total_keys"] == 0
         
-        ai_service._cache["key1"] = Mock()
-        assert ai_service.get_cache_size() == 1
+        cache_key = ai_service.cache_service.generate_cache_key("题目1")
+        ai_service.cache_service.set(cache_key, {"subject": "数学", "knowledge_points": ["知识点1"]})
         
-        ai_service._cache["key2"] = Mock()
-        assert ai_service.get_cache_size() == 2
+        stats = ai_service.get_cache_stats()
+        assert stats["total_keys"] == 1
 
 
 class TestQuestionAnalysis:
