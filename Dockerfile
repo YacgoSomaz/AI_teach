@@ -38,4 +38,6 @@ USER appuser
 EXPOSE 8000
 
 # 默认启动 API；worker 在 docker-compose 里用 command 覆盖
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# 单进程启动：上传限流为内存实现，多 worker 会导致各进程独立计数，限流失效。
+# 如需水平扩展，请先将限流实现迁移至 Redis，再改回 --workers N。
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

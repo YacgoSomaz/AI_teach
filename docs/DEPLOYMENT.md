@@ -131,7 +131,7 @@ alembic upgrade head
 | 端点 | 用途 | 正常响应 | 异常响应 |
 |------|------|----------|----------|
 | `GET /health` | 进程存活（Liveness） | `200 {"status":"ok"}` | 进程挂掉时无响应 |
-| `GET /health/ready` | 依赖就绪（Readiness） | `200 {"status":"ok","db":true,"redis":true}` | `503 {"status":"degraded",...}` |
+| `GET /health/ready` | 依赖就绪（Readiness） | `200 {"status":"ok","checks":{"db":"ok","redis":"ok"}}` | `503 {"status":"degraded",...}` |
 
 ### 验证命令
 
