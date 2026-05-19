@@ -43,6 +43,7 @@ class OCRResult:
     extracted_pages: int = 0
     start_time: Optional[str] = None
     end_time: Optional[str] = None
+    job_id: Optional[str] = None  # OCR 任务 ID
 
 
 class PaddleOCRAdapter:
@@ -120,8 +121,8 @@ class PaddleOCRAdapter:
         # 轮询结果
         result_data = self._poll_job_result(job_id)
         
-        # 解析结果
-        ocr_result = self._parse_result(file_id, result_data)
+        # 解析结果（传递 job_id）
+        ocr_result = self._parse_result(file_id, result_data, job_id)
         
         return ocr_result
     
@@ -220,13 +221,14 @@ class PaddleOCRAdapter:
             else:
                 raise OCRException(f"Unknown OCR job state: {state}")
     
-    def _parse_result(self, file_id: str, result_data: Dict) -> OCRResult:
+    def _parse_result(self, file_id: str, result_data: Dict, job_id: str = None) -> OCRResult:
         """
         解析 OCR 结果
         
         Args:
             file_id: 文件 ID
             result_data: 原始结果数据
+            job_id: OCR 任务 ID
             
         Returns:
             OCRResult: 统一的 OCR 结果
@@ -302,6 +304,7 @@ class PaddleOCRAdapter:
             extracted_pages=extracted_pages,
             start_time=start_time,
             end_time=end_time,
+            job_id=job_id,  # 添加 job_id
         )
     
     @staticmethod

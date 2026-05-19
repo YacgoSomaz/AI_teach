@@ -28,6 +28,7 @@ from src.db.session import get_celery_session
 from src.models.assignment import Assignment, AssignmentStatus
 from src.models.ocr_task import OCRTask as OCRTaskModel
 from src.models.question import Question
+from src.models.student_profile import StudentKnowledgeProfile
 from src.services.ai_analysis_service import DoubaoSeedProvider
 
 
@@ -61,6 +62,7 @@ def process_ai_analysis(self, assignment_id: str):
 
 async def _process_ai_analysis_async(task, assignment_id: str):
     """异步 AI 分析处理逻辑"""
+    assignment = None  # 初始化 assignment 变量
     async with get_celery_session() as db:
         try:
             # 1. 查询 Assignment 和 OCRTask
@@ -96,26 +98,6 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                 base_url=settings.doubao_seed_base_url,
             )
             
-            # 构建分析提示词
-            prompt = f"""请分析以下作业内容，识别其中的题目和知识点。
-
-作业内容（Markdown 格式）：
-{ocr_task.markdown}
-
-请以 JSON 格式返回分析结果，格式如下：
-{{
-    "questions": [
-        {{
-            "question_text": "题目内容",
-            "question_type": "选择题/填空题/解答题/判断题",
-            "difficulty": "easy/medium/hard",
-            "knowledge_points": ["知识点1", "知识点2"],
-            "solution": "解题思路",
-            "answer": "参考答案"
-        }}
-    ]
-}}"""
-            
             # 准备图片（如果有）
             images = []
             if ocr_task.images:
@@ -125,39 +107,44 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                     images.append(img_url)
             
             try:
-                # 调用 AI 分析
-                ai_response = provider.analyze(
-                    prompt=prompt,
-                    images=images[:5] if images else None,  # 最多 5 张图片
+                # 调用 AI 分析（使用 analyze_question 方法）
+                analysis_result = provider.analyze_question(
+                    question_text=ocr_task.raw_text or "",
+                    question_markdown=ocr_task.markdown,
+                    image_urls=images[:5] if images else None,  # 最多 5 张图片
                 )
                 
-                # 5. 解析 AI 返回结果
-                try:
-                    analysis_result = json.loads(ai_response)
-                except json.JSONDecodeError:
-                    # 如果返回不是 JSON，尝试提取 JSON 部分
-                    import re
-                    json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
-                    if json_match:
-                        analysis_result = json.loads(json_match.group())
-                    else:
-                        raise ValueError("AI 返回格式错误")
-                
-                # 6. 创建 Question 记录
-                questions_data = analysis_result.get("questions", [])
+                # analyze_question 已经返回解析好的字典，不需要再解析 JSON
+                # 但为了兼容旧的 prompt 格式，我们需要调整返回结构
+                # 假设 AI 返回的是单个题目的分析，我们需要包装成 questions 数组
+                questions_data = [{
+                    "question_text": ocr_task.raw_text or ocr_task.markdown,
+                    "question_type": analysis_result.get("question_type", "unknown"),
+                    "difficulty": analysis_result.get("difficulty", 3),
+                    "knowledge_points": analysis_result.get("knowledge_points", []),
+                    "subject": analysis_result.get("subject"),
+                    "grade": analysis_result.get("grade"),
+                }]
                 created_questions = []
                 
                 for idx, q_data in enumerate(questions_data):
+                    # 转换难度：字符串 → 1-5 整数
+                    difficulty_map = {"easy": 1, "medium": 3, "hard": 5}
+                    difficulty_str = q_data.get("difficulty", "medium")
+                    difficulty_int = difficulty_map.get(difficulty_str, 3)
+                    
                     question = Question(
                         assignment_id=assignment.id,
-                        question_number=idx + 1,
-                        question_text=q_data.get("question_text", ""),
+                        raw_text=q_data.get("question_text", ""),  # 使用 raw_text
+                        markdown=q_data.get("question_text", ""),  # 使用 markdown
                         question_type=q_data.get("question_type", "unknown"),
-                        difficulty=q_data.get("difficulty", "medium"),
-                        knowledge_points=q_data.get("knowledge_points", []),
-                        solution=q_data.get("solution"),
-                        answer=q_data.get("answer"),
+                        difficulty=difficulty_int,  # 使用整数
+                        knowledge_points=q_data.get("knowledge_points", []),  # JSON 数组
                         image_urls=images if images else None,
+                        subject=q_data.get("subject"),  # 学科
+                        grade=q_data.get("grade"),  # 年级
+                        need_review=True,  # 默认需要复习
+                        review_priority="medium",  # 默认中等优先级
                     )
                     db.add(question)
                     created_questions.append(question)
@@ -254,34 +241,63 @@ async def _update_student_profile_async(student_id: str, question_id: str):
             if not question or not question.knowledge_points:
                 return {"success": False, "message": "题目或知识点不存在"}
             
-            # 2. 更新学生知识点画像
-            from src.models.student_profile import StudentKnowledgeProfile
+            # 2. 导入知识点服务
+            from src.models.knowledge_point import KnowledgePoint
+            from src.services.knowledge_service import KnowledgeService
             
+            knowledge_service = KnowledgeService(db)
+            
+            # 3. 遍历知识点
             for kp_name in question.knowledge_points:
-                # 查询或创建知识点画像
+                # 3.1 标准化知识点名称
+                std_name = await knowledge_service.standardize_knowledge_point(kp_name)
+                
+                # 3.2 获取或创建 KnowledgePoint
+                kp = await knowledge_service.get_or_create_knowledge_point(
+                    name=std_name,
+                    category=question.subject,  # 使用题目的学科作为分类
+                )
+                
+                # 3.3 查询或创建 StudentKnowledgeProfile
                 profile_result = await db.execute(
                     select(StudentKnowledgeProfile).where(
                         StudentKnowledgeProfile.student_id == student_id,
-                        StudentKnowledgeProfile.knowledge_point == kp_name,
+                        StudentKnowledgeProfile.knowledge_point_id == kp.id,
                     )
                 )
                 profile = profile_result.scalar_one_or_none()
                 
                 if not profile:
                     # 创建新画像
+                    from datetime import datetime, timezone
                     profile = StudentKnowledgeProfile(
                         student_id=student_id,
-                        knowledge_point=kp_name,
-                        total_questions=1,
-                        correct_questions=0,  # 默认认为是错题，后续可以标记正确
-                        mastery_level=0.0,
+                        knowledge_point_id=kp.id,
+                        appear_count=1,
+                        error_count=1,  # 默认认为是错题
+                        mastery_score=0.3,  # 初始掌握度较低
+                        review_priority="high",  # 高优先级复习
+                        last_error_at=datetime.now(timezone.utc),
                     )
                     db.add(profile)
                 else:
                     # 更新画像
-                    profile.total_questions += 1
-                    # 重新计算掌握度（简化算法）
-                    profile.mastery_level = profile.correct_questions / profile.total_questions
+                    from datetime import datetime, timezone
+                    profile.appear_count += 1
+                    profile.error_count += 1
+                    profile.last_error_at = datetime.now(timezone.utc)
+                    
+                    # 重新计算掌握度（简化算法：1 - 错误率）
+                    error_rate = profile.error_count / profile.appear_count
+                    profile.mastery_score = max(0.0, 1.0 - error_rate)
+                    
+                    # 更新复习优先级
+                    if profile.mastery_score < 0.5:
+                        profile.review_priority = "high"
+                    elif profile.mastery_score < 0.8:
+                        profile.review_priority = "medium"
+                    else:
+                        profile.review_priority = "low"
                 
                 await db.commit()
             

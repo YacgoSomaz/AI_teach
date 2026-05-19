@@ -58,6 +58,7 @@ def process_ocr(self, assignment_id: str):
 
 async def _process_ocr_async(task, assignment_id: str):
     """异步 OCR 处理逻辑"""
+    assignment = None  # 初始化 assignment 变量
     async with get_celery_session() as db:
         try:
             # 1. 查询 Assignment
