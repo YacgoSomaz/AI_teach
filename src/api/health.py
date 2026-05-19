@@ -5,6 +5,8 @@
 /health/ready — 依赖就绪探针（Readiness Probe），检查 DB + Redis
 """
 
+import logging
+
 import redis.asyncio as aioredis
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -12,6 +14,8 @@ from sqlalchemy import text
 
 from src.config import settings
 from src.db.session import engine
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -55,7 +59,9 @@ async def readiness() -> ReadyResponse:
             await conn.execute(text("SELECT 1"))
         checks["db"] = "ok"
     except Exception as exc:
-        checks["db"] = f"error: {exc}"
+        # 仅记录日志，不把连接细节暴露到响应体
+        logger.warning("DB health check failed: %s", exc)
+        checks["db"] = "error"
         overall = "degraded"
 
     # ---- Redis ----
@@ -64,7 +70,9 @@ async def readiness() -> ReadyResponse:
         await r.ping()
         checks["redis"] = "ok"
     except Exception as exc:
-        checks["redis"] = f"error: {exc}"
+        # 仅记录日志，不把连接细节暴露到响应体
+        logger.warning("Redis health check failed: %s", exc)
+        checks["redis"] = "error"
         overall = "degraded"
     finally:
         await r.aclose()

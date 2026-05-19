@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.deps import get_current_student_id
 from src.api.rate_limit import upload_rate_limit
 from src.db.session import get_db
 from src.models.assignment import Assignment, AssignmentStatus
@@ -122,16 +123,18 @@ async def upload_assignment(
 @router.get("/assignments/{assignment_id}")
 async def get_assignment_status(
     assignment_id: str,
+    current_student_id: str = Depends(get_current_student_id),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    查询作业处理状态
+    查询作业处理状态（需要身份校验）
 
     前端轮询此接口获取进度：
     - uploaded → ocr_queued → ocr_running → ocr_done → ai_queued → ai_running → ai_done
+
+    只能查询属于当前学生的 assignment，否则返回 404（IDOR 防护）。
     """
     try:
-        # 将字符串转换为 UUID（如果是 UUID 格式）
         import uuid
         assignment_uuid = uuid.UUID(assignment_id)
     except ValueError:
@@ -139,13 +142,14 @@ async def get_assignment_status(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="无效的 assignment_id 格式",
         )
-    
+
     result = await db.execute(
         select(Assignment).where(Assignment.id == assignment_uuid)
     )
     assignment = result.scalar_one_or_none()
 
-    if not assignment:
+    # 记录不存在 / 不属于当前学生，统一返回 404，不区分两种情况（防止枚举）
+    if not assignment or assignment.student_id != current_student_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="作业记录不存在",

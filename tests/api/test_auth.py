@@ -7,6 +7,7 @@
 - 学生 ID 不匹配仍返回 404（IDOR 防护）
 """
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -148,6 +149,62 @@ class TestOwnershipStillEnforced:
             headers={"X-Student-Id": STUDENT_ID},
         )
         assert resp.status_code == 404
+
+
+class TestAssignmentStatusIDOR:
+    """GET /api/assignments/{id} — H1 所有权校验。"""
+
+    ASSIGNMENT_ID = "00000000-0000-0000-0000-000000000099"
+
+    def _mock_assignment(self, student_id: str) -> MagicMock:
+        a = MagicMock()
+        a.id = self.ASSIGNMENT_ID
+        a.student_id = student_id
+        a.status = "uploaded"
+        a.error_message = None
+        a.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        a.updated_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        return a
+
+    def test_missing_header_returns_401(self, client):
+        """缺少 X-Student-Id → 401，鉴权在所有权校验之前。"""
+        resp = client.get(f"/api/assignments/{self.ASSIGNMENT_ID}")
+        assert resp.status_code == 401
+
+    def test_wrong_student_returns_404(self, app):
+        """Header 与 assignment.student_id 不一致 → 404（不泄露 403）。"""
+        mock_db = AsyncMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = self._mock_assignment("owner_stu")
+        mock_db.execute = AsyncMock(return_value=result)
+
+        async def override_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = override_db
+        resp = TestClient(app).get(
+            f"/api/assignments/{self.ASSIGNMENT_ID}",
+            headers={"X-Student-Id": "other_stu"},
+        )
+        assert resp.status_code == 404
+
+    def test_matching_student_returns_200(self, app):
+        """Header 与 assignment.student_id 一致 → 200，返回 assignment 数据。"""
+        mock_db = AsyncMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = self._mock_assignment(STUDENT_ID)
+        mock_db.execute = AsyncMock(return_value=result)
+
+        async def override_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = override_db
+        resp = TestClient(app).get(
+            f"/api/assignments/{self.ASSIGNMENT_ID}",
+            headers={"X-Student-Id": STUDENT_ID},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["assignment_id"] == self.ASSIGNMENT_ID
 
 
 class TestUploadUsesHeaderStudentId:

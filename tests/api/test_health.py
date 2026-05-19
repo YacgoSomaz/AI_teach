@@ -146,3 +146,39 @@ class TestReadiness:
             client.get("/health/ready")
 
         mock_redis.aclose.assert_called_once()
+
+    def test_db_error_is_fixed_string_not_exception_detail(self, client):
+        """H2：DB 失败时响应体 checks.db 必须是固定字符串 'error'，不含异常原文。"""
+        bad_conn = AsyncMock()
+        bad_conn.__aenter__ = AsyncMock(
+            side_effect=Exception("postgresql+asyncpg://appuser:secret@postgres:5432/db")
+        )
+        bad_conn.__aexit__ = AsyncMock(return_value=False)
+        mock_engine = MagicMock()
+        mock_engine.connect.return_value = bad_conn
+        mock_redis = self._mock_redis_ok()
+
+        with patch("src.api.health.engine", mock_engine), \
+             patch("src.api.health.aioredis") as mock_aioredis:
+            mock_aioredis.from_url.return_value = mock_redis
+            resp = client.get("/health/ready")
+
+        db_val = resp.json()["checks"]["db"]
+        assert db_val == "error", f"期望 'error'，实际返回 '{db_val}'"
+
+    def test_redis_error_is_fixed_string_not_exception_detail(self, client):
+        """H2：Redis 失败时响应体 checks.redis 必须是固定字符串 'error'，不含异常原文。"""
+        mock_engine = self._mock_db_ok()
+        bad_redis = AsyncMock()
+        bad_redis.ping = AsyncMock(
+            side_effect=Exception("redis://secret-password@redis-host:6379/0")
+        )
+        bad_redis.aclose = AsyncMock()
+
+        with patch("src.api.health.engine", mock_engine), \
+             patch("src.api.health.aioredis") as mock_aioredis:
+            mock_aioredis.from_url.return_value = bad_redis
+            resp = client.get("/health/ready")
+
+        redis_val = resp.json()["checks"]["redis"]
+        assert redis_val == "error", f"期望 'error'，实际返回 '{redis_val}'"
