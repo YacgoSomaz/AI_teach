@@ -88,9 +88,18 @@ async def _insert_profile(
     mastery: float,
     appear: int = 5,
     error: int = 2,
-    priority: str = "medium",
+    priority: str | None = None,  # 改为可选，自动计算
     last_reviewed_at: datetime | None = None,
 ) -> None:
+    # 自动计算 priority（与 StudentProfileService 逻辑一致）
+    if priority is None:
+        if mastery < 0.4:
+            priority = "high"
+        elif mastery < 0.6:
+            priority = "medium"
+        else:
+            priority = "low"
+    
     reviewed = last_reviewed_at.isoformat() if last_reviewed_at else None
     await db.execute(text(
         """INSERT INTO student_knowledge_profiles
@@ -201,8 +210,8 @@ class TestReviewPlanServiceIntegration:
         assert task.knowledge_point_id == kp_id
         assert task.subject == "数学"
         assert task.grade == "九年级"
-        assert task.recommended_count == 5   # mastery < 0.3 → 5 题
-        assert task.estimated_minutes == 25  # 5 × 5 min
+        assert task.recommended_count == 7   # mastery=0.25 → int((1-0.25)*10) = 7 题
+        assert task.estimated_minutes == 21  # 7 × 3 min
 
 
 # ── ReportService 集成测试 ───────────────────────────────────────────────────

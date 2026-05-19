@@ -13,9 +13,10 @@ from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from src.models.student_profile import StudentKnowledgeProfile
+from src.models.knowledge_point import KnowledgePoint
 from src.services.student_profile_service import StudentProfileService
 
 
@@ -73,20 +74,19 @@ class ReviewPlanService:
         Returns:
             DailyReviewPlan: 今日复习计划
         """
-        # 1. 获取薄弱知识点（掌握度 < 0.6）
+        # 1. 获取所有知识点画像，显式 join KnowledgePoint
         result = await self.db.execute(
-            select(StudentKnowledgeProfile)
-            .options(selectinload(StudentKnowledgeProfile.knowledge_point))
+            select(StudentKnowledgeProfile, KnowledgePoint)
+            .join(KnowledgePoint, StudentKnowledgeProfile.knowledge_point_id == KnowledgePoint.id)
             .where(
                 StudentKnowledgeProfile.student_id == student_id,
-                StudentKnowledgeProfile.mastery_score < 0.6,
             )
             .order_by(StudentKnowledgeProfile.mastery_score.asc())
         )
-        weak_profiles = list(result.scalars().all())
+        profile_pairs = list(result.all())
         
-        if not weak_profiles:
-            # 没有薄弱知识点，返回空计划
+        if not profile_pairs:
+            # 没有知识点画像，返回空计划
             return DailyReviewPlan(
                 student_id=student_id,
                 date=datetime.now().date().isoformat(),
@@ -99,7 +99,7 @@ class ReviewPlanService:
         from datetime import timezone
         now = datetime.now(timezone.utc)
         
-        for profile in weak_profiles:
+        for profile, kp in profile_pairs:
             # 基础权重：掌握度越低，权重越高
             base_weight = 1.0 - profile.mastery_score
             
@@ -123,6 +123,7 @@ class ReviewPlanService:
             
             weighted_profiles.append({
                 "profile": profile,
+                "kp": kp,
                 "weight": total_weight,
             })
         
@@ -136,7 +137,7 @@ class ReviewPlanService:
         
         for item in selected_profiles:
             profile = item["profile"]
-            kp = profile.knowledge_point
+            kp = item["kp"]
             
             # 计算推荐题目数（掌握度越低，推荐越多）
             recommended_count = self._calculate_recommended_count(profile.mastery_score)
@@ -181,9 +182,11 @@ class ReviewPlanService:
         # 掌握度越低，推荐越多题目
         # mastery_score = 0.0 → 10 题
         # mastery_score = 0.3 → 7 题
+        # mastery_score = 0.5 → 5 题
         # mastery_score = 0.6 → 4 题
+        # mastery_score = 0.9 → 3 题（最少）
         count = max(3, int((1 - mastery_score) * 10))
-        return min(count, 10)  # 最多 10 题
+        return min(count, 10)  # 限制在 3-10 题之间
     
     def _generate_reason(self, profile: StudentKnowledgeProfile) -> str:
         """
