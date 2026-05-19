@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.deps import get_current_student_id
+from src.api.rate_limit import upload_rate_limit
 from src.db.session import get_db
 from src.models.assignment import Assignment, AssignmentStatus
 from src.services.file_service import (
@@ -43,7 +43,7 @@ class UploadResponse(BaseModel):
 @router.post("/upload", response_model=UploadResponse)
 async def upload_assignment(
     file: UploadFile = File(...),
-    student_id: str = Depends(get_current_student_id),
+    student_id: str = Depends(upload_rate_limit),
     db: AsyncSession = Depends(get_db),
 ) -> UploadResponse:
     """

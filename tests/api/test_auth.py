@@ -12,6 +12,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from src.api.deps import get_current_student_id
+from src.api.rate_limit import upload_rate_limit
 from src.db.session import get_db
 from src.main import create_app
 
@@ -167,6 +169,8 @@ class TestUploadUsesHeaderStudentId:
             yield mock_db
 
         app.dependency_overrides[get_db] = override_db
+        # 绕过限流，保留 Header → student_id 的提取逻辑
+        app.dependency_overrides[upload_rate_limit] = get_current_student_id
 
         mock_file_result = MagicMock()
         mock_file_result.file_id = "file_abc"

@@ -84,12 +84,23 @@ class Settings(BaseSettings):
         description="Celery 任务最大重试次数",
     )
     
+    # ==================== 限流配置 ====================
+    upload_rate_limit_requests: int = Field(
+        default=10,
+        description="上传限流：每窗口期每学生最多请求次数",
+    )
+
+    upload_rate_limit_window: int = Field(
+        default=60,
+        description="上传限流：滑动窗口时长（秒）",
+    )
+
     # ==================== 应用配置 ====================
     environment: str = Field(
         default="development",
         description="运行环境：development / production",
     )
-    
+
     debug: bool = Field(
         default=False,
         description="调试模式",

@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.export import router as export_router
+from src.api.health import router as health_router
 from src.api.report import router as report_router
 from src.api.review import router as review_router
 from src.api.student import router as student_router
@@ -20,41 +21,29 @@ from src.api.visualization import router as visualization_router
 
 
 def create_app() -> FastAPI:
-    """
-    创建 FastAPI 应用实例
-
-    Returns:
-        FastAPI: 配置好的应用实例
-    """
+    """创建 FastAPI 应用实例（工厂模式，便于测试和多环境部署）。"""
     app = FastAPI(
         title="AI 复习导航系统",
         description="拍作业 → OCR → AI 分析 → 知识点归档 → 复习任务生成",
         version="0.1.0",
     )
 
-    # CORS 配置
-    # 开发环境允许所有来源，生产环境需配置白名单
     cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins if cors_origins != ["*"] else ["*"],
-        allow_credentials=cors_origins != ["*"],  # * 不能配合 credentials
+        allow_credentials=cors_origins != ["*"],
         allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "X-Student-Id"],
     )
 
-    # 注册路由
+    app.include_router(health_router)
     app.include_router(upload_router)
     app.include_router(student_router)
     app.include_router(review_router)
     app.include_router(report_router)
     app.include_router(export_router)
     app.include_router(visualization_router)
-
-    @app.get("/health")
-    async def health_check():
-        """健康检查"""
-        return {"status": "ok", "service": "ai-review-system"}
 
     return app
 
