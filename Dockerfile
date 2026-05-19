@@ -3,11 +3,11 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# 只复制依赖清单，充分利用层缓存
-COPY requirements.txt .
+# 只复制生产依赖清单，充分利用层缓存（测试/格式化工具不进镜像）
+COPY requirements-prod.txt .
 
 # 安装生产依赖到独立目录，便于多阶段复制
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r requirements-prod.txt
 
 
 # ── 运行阶段 ─────────────────────────────────────────────────────────────────
