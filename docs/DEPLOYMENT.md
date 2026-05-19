@@ -4,11 +4,12 @@
 
 1. [环境变量](#环境变量)
 2. [Docker Compose 快速启动](#docker-compose-快速启动)
-3. [数据库迁移](#数据库迁移)
-4. [健康检查验证](#健康检查验证)
-5. [本地裸机启动（不用 Docker）](#本地裸机启动)
-6. [限流说明](#上传限流)
-7. [测试分层](#测试分层)
+3. [部署前自检脚本](#部署前自检脚本)
+4. [数据库迁移](#数据库迁移)
+5. [健康检查验证](#健康检查验证)
+6. [本地裸机启动（不用 Docker）](#本地裸机启动)
+7. [限流说明](#上传限流)
+8. [测试分层](#测试分层)
 
 ---
 
@@ -90,6 +91,64 @@ docker compose logs -f api worker
 ```
 容器内：/app/uploads  ←→  Docker volume: uploads_data
 ```
+
+---
+
+## 部署前自检脚本
+
+在执行 `docker compose up` 之前运行自检脚本，可以提前发现环境问题（Docker 未启动、`.env` 漏填、compose 语法错误等）。
+
+### Windows（PowerShell）
+
+```powershell
+# 在项目根目录执行
+powershell -ExecutionPolicy Bypass -File scripts\deploy_check.ps1
+
+# 服务尚未启动时跳过健康检查
+powershell -ExecutionPolicy Bypass -File scripts\deploy_check.ps1 -SkipHealth
+
+# 自定义 API 地址（默认 http://localhost:8000）
+powershell -ExecutionPolicy Bypass -File scripts\deploy_check.ps1 -ApiBaseUrl http://192.168.1.10:8000
+```
+
+### Linux / macOS（Bash）
+
+```bash
+# 添加执行权限（首次运行前执行一次）
+chmod +x scripts/deploy_check.sh
+
+# 在项目根目录执行
+bash scripts/deploy_check.sh
+
+# 服务尚未启动时跳过健康检查
+bash scripts/deploy_check.sh --skip-health
+
+# 自定义 API 地址
+DEPLOY_CHECK_API=http://192.168.1.10:8000 bash scripts/deploy_check.sh
+```
+
+### 脚本检查项
+
+| 序号 | 检查内容 | 失败后果 |
+|------|----------|----------|
+| 1 | `docker` 命令是否存在 | FAIL |
+| 2 | Docker daemon 是否运行 | FAIL |
+| 3 | `docker compose` v2 是否可用 | FAIL |
+| 4 | `.env` 文件是否存在 | FAIL |
+| 5 | 必填项是否已设置（仅检查 key，不打印 value） | FAIL |
+| 6 | `docker compose config` 语法验证 | FAIL |
+| 7 | `docker compose ps` 是否可执行 | FAIL / WARN |
+| 8 | `GET /health` 返回 200（可选，服务未启动时为 WARN） | WARN |
+| 9 | `GET /health/ready` 返回 200（可选） | WARN / FAIL |
+
+> 脚本不会打印 `.env` 中的任何密钥或密码值。
+
+### 退出码
+
+| 退出码 | 含义 |
+|--------|------|
+| `0` | 全部通过（或仅有 WARN） |
+| `1` | 存在 FAIL 项，禁止部署 |
 
 ---
 
