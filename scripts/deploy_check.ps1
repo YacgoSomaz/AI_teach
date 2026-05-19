@@ -171,17 +171,29 @@ if (-not $SkipHealth) {
     }
 
     # /health/ready — readiness
+    # Invoke-WebRequest -ErrorAction Stop 对所有 non-2xx（含 503）均抛异常，
+    # 因此在 catch 中通过 $_.Exception.Response 是否为 $null 来区分两种情况：
+    #   - $null     → 连接失败 / 超时（服务未启动）→ WARN
+    #   - not $null → 服务返回了 HTTP 错误码      → FAIL
     try {
         $resp = Invoke-WebRequest -Uri "$ApiBaseUrl/health/ready" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
         if ($resp.StatusCode -eq 200) {
             Write-Pass "/health/ready → $($resp.StatusCode)  $($resp.Content)"
-        } elseif ($resp.StatusCode -eq 503) {
-            Write-Fail "/health/ready → 503 degraded（DB 或 Redis 不可达）：$($resp.Content)"
         } else {
             Write-Fail "/health/ready → 非预期状态码 $($resp.StatusCode)"
         }
     } catch {
-        Write-Warn "/health/ready 无响应（服务未启动？）跳过。"
+        $httpResponse = $_.Exception.Response
+        if ($null -ne $httpResponse) {
+            $statusCode = [int]$httpResponse.StatusCode
+            if ($statusCode -eq 503) {
+                Write-Fail "/health/ready → 503 degraded（DB 或 Redis 不可达）"
+            } else {
+                Write-Fail "/health/ready → 非预期状态码 $statusCode"
+            }
+        } else {
+            Write-Warn "/health/ready 无响应（服务未启动？）跳过。"
+        }
     }
 } else {
     Write-Host ""
