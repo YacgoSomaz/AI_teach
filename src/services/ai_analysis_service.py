@@ -552,11 +552,12 @@ class AIAnalysisService:
         self.provider = provider
         self.enable_cache = enable_cache
         
-        # 使用提供的缓存服务，或创建默认的内存缓存
+        # 使用提供的缓存服务，或创建默认的 Redis 缓存（降级到内存）
         if cache_service:
             self.cache_service = cache_service
         else:
-            self.cache_service = AICacheService()  # 默认内存缓存
+            from src.config import settings
+            self.cache_service = AICacheService(redis_url=settings.redis_url)
         
         logger.info(f"AIAnalysisService initialized with cache={'enabled' if enable_cache else 'disabled'}")
     
