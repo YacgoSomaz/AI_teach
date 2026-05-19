@@ -27,6 +27,7 @@ COPY --from=builder /install /usr/local
 COPY src/       ./src/
 COPY alembic/   ./alembic/
 COPY alembic.ini .
+COPY static/    ./static/
 
 # 创建上传目录（容器内默认落盘位置，docker-compose 会挂载 volume 覆盖）
 RUN mkdir -p /app/uploads

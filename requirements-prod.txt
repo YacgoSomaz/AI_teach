@@ -26,3 +26,4 @@ openpyxl==3.1.5
 
 # Utilities
 python-dotenv==1.0.0
+aiofiles==23.2.1

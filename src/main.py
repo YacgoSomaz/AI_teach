@@ -10,6 +10,8 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from src.api.export import router as export_router
 from src.api.health import router as health_router
@@ -44,6 +46,15 @@ def create_app() -> FastAPI:
     app.include_router(report_router)
     app.include_router(export_router)
     app.include_router(visualization_router)
+
+    # 前端静态文件（claude_design 输出）
+    static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+    if os.path.isdir(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+        @app.get("/", include_in_schema=False)
+        async def frontend():
+            return FileResponse(os.path.join(static_dir, "index.html"))
 
     return app
 
