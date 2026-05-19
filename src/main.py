@@ -16,6 +16,7 @@ from src.api.report import router as report_router
 from src.api.review import router as review_router
 from src.api.student import router as student_router
 from src.api.upload import router as upload_router
+from src.api.visualization import router as visualization_router
 
 
 def create_app() -> FastAPI:
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(review_router)
     app.include_router(report_router)
     app.include_router(export_router)
+    app.include_router(visualization_router)
 
     @app.get("/health")
     async def health_check():

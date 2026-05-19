@@ -87,6 +87,31 @@ def _to_response(report: LearningReport) -> LearningReportResponse:
     )
 
 
+class ParentWeakPointItem(BaseModel):
+    knowledge_point_name: str
+    subject: str
+    grade: Optional[str]
+    mastery_score: float
+    mastery_level: str
+    review_priority: str
+
+
+class ParentSubjectItem(BaseModel):
+    subject: str
+    total: int
+    average_mastery: float
+
+
+class ParentReportResponse(BaseModel):
+    student_id: str
+    generated_at: str
+    total_knowledge_points: int
+    overall_mastery: float
+    weak_count: int
+    subjects: list[ParentSubjectItem]
+    top_weak_points: list[ParentWeakPointItem]
+
+
 @router.get("/student/{student_id}", response_model=LearningReportResponse)
 async def get_student_report(
     student_id: str,
@@ -99,3 +124,42 @@ async def get_student_report(
     service = ReportService(db=db)
     report = await service.generate_report(student_id=student_id, top_n=top_n)
     return _to_response(report)
+
+
+@router.get("/parent/{student_id}", response_model=ParentReportResponse)
+async def get_parent_report(
+    student_id: str,
+    top_n: int = Query(default=3, ge=1, le=10),
+    current_student_id: str = Depends(get_current_student_id),
+    db: AsyncSession = Depends(get_db),
+) -> ParentReportResponse:
+    """获取家长视角学习报告，只展示关键信息，不暴露内部分级细节。"""
+    await _check_ownership(student_id, current_student_id)
+    service = ReportService(db=db)
+    report = await service.generate_report(student_id=student_id, top_n=top_n)
+    return ParentReportResponse(
+        student_id=report.student_id,
+        generated_at=report.generated_at,
+        total_knowledge_points=report.total_knowledge_points,
+        overall_mastery=report.overall_mastery,
+        weak_count=report.weak_count,
+        subjects=[
+            ParentSubjectItem(
+                subject=s.subject,
+                total=s.total,
+                average_mastery=s.average_mastery,
+            )
+            for s in report.subjects
+        ],
+        top_weak_points=[
+            ParentWeakPointItem(
+                knowledge_point_name=d.knowledge_point_name,
+                subject=d.subject,
+                grade=d.grade,
+                mastery_score=d.mastery_score,
+                mastery_level=d.mastery_level,
+                review_priority=d.review_priority,
+            )
+            for d in report.top_weak_points
+        ],
+    )

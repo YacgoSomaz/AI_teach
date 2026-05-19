@@ -11,6 +11,8 @@ import json
 from datetime import datetime
 from typing import Literal
 
+import openpyxl
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
@@ -18,7 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_student_id
 from src.db.session import get_db
+from src.models.assignment import Assignment
 from src.models.knowledge_point import KnowledgePoint
+from src.models.question import Question
 from src.models.student_profile import StudentKnowledgeProfile
 
 router = APIRouter(prefix="/api/export", tags=["export"])
@@ -71,10 +75,21 @@ async def _fetch_rows(student_id: str, db: AsyncSession) -> list[tuple]:
     return (await db.execute(stmt)).all()
 
 
+def _build_excel(headers: list[str], rows_data: list[dict]) -> bytes:
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(headers)
+    for row in rows_data:
+        ws.append([row.get(h, "") for h in headers])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 @router.get("/student/{student_id}/knowledge-points")
 async def export_knowledge_points(
     student_id: str,
-    format: Literal["json", "csv"] = Query(default="json", description="导出格式"),
+    format: Literal["json", "csv", "excel"] = Query(default="json", description="导出格式"),
     current_student_id: str = Depends(get_current_student_id),
     db: AsyncSession = Depends(get_db),
 ):
@@ -96,22 +111,116 @@ async def export_knowledge_points(
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
-    # CSV
-    filename = f"knowledge_points_{student_id}.csv"
+    if format == "csv":
+        filename = f"knowledge_points_{student_id}.csv"
 
-    def generate():
-        buf = io.StringIO()
-        writer = csv.DictWriter(buf, fieldnames=CSV_HEADERS)
-        writer.writeheader()
-        yield buf.getvalue()
-        for profile, kp in rows:
+        def generate():
             buf = io.StringIO()
             writer = csv.DictWriter(buf, fieldnames=CSV_HEADERS)
-            writer.writerow(_row_dict(profile, kp))
+            writer.writeheader()
             yield buf.getvalue()
+            for profile, kp in rows:
+                buf = io.StringIO()
+                writer = csv.DictWriter(buf, fieldnames=CSV_HEADERS)
+                writer.writerow(_row_dict(profile, kp))
+                yield buf.getvalue()
 
-    return StreamingResponse(
-        generate(),
-        media_type="text/csv; charset=utf-8",
+        return StreamingResponse(
+            generate(),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # Excel
+    filename = f"knowledge_points_{student_id}.xlsx"
+    data = _build_excel(CSV_HEADERS, [_row_dict(p, kp) for p, kp in rows])
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+QUESTIONS_CSV_HEADERS = [
+    "question_id", "raw_text", "subject", "grade",
+    "question_type", "difficulty", "review_priority", "need_review",
+]
+
+
+def _question_dict(q: Question) -> dict:
+    return {
+        "question_id": str(q.id),
+        "raw_text": q.raw_text or "",
+        "subject": q.subject or "",
+        "grade": q.grade or "",
+        "question_type": q.question_type or "",
+        "difficulty": q.difficulty if q.difficulty is not None else "",
+        "review_priority": q.review_priority or "",
+        "need_review": str(q.need_review) if q.need_review is not None else "",
+    }
+
+
+async def _fetch_questions(student_id: str, db: AsyncSession) -> list[Question]:
+    stmt = (
+        select(Question)
+        .join(Assignment, Question.assignment_id == Assignment.id)
+        .where(Assignment.student_id == student_id)
+        .order_by(Question.created_at.desc())
+    )
+    return (await db.execute(stmt)).all()
+
+
+@router.get("/student/{student_id}/questions")
+async def export_questions(
+    student_id: str,
+    format: Literal["json", "csv", "excel"] = Query(default="json", description="导出格式"),
+    current_student_id: str = Depends(get_current_student_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """将学生题目记录导出为 JSON、CSV 或 Excel 文件。"""
+    await _check_ownership(student_id, current_student_id)
+    rows = await _fetch_questions(student_id, db)
+    questions_data = [_question_dict(r[0] if isinstance(r, tuple) else r) for r in rows]
+
+    if format == "json":
+        payload = {
+            "student_id": student_id,
+            "exported_at": datetime.utcnow().isoformat(),
+            "total": len(questions_data),
+            "questions": questions_data,
+        }
+        filename = f"questions_{student_id}.json"
+        return Response(
+            content=json.dumps(payload, ensure_ascii=False, indent=2),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    if format == "csv":
+        filename = f"questions_{student_id}.csv"
+
+        def generate():
+            buf = io.StringIO()
+            writer = csv.DictWriter(buf, fieldnames=QUESTIONS_CSV_HEADERS)
+            writer.writeheader()
+            yield buf.getvalue()
+            for d in questions_data:
+                buf = io.StringIO()
+                writer = csv.DictWriter(buf, fieldnames=QUESTIONS_CSV_HEADERS)
+                writer.writerow(d)
+                yield buf.getvalue()
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # Excel
+    filename = f"questions_{student_id}.xlsx"
+    data = _build_excel(QUESTIONS_CSV_HEADERS, questions_data)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
