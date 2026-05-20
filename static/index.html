@@ -169,20 +169,8 @@
 
 <div id="toast"></div>
 
-<!-- ═══ LOGIN ═══ -->
-<div id="login">
-  <div class="login-orb"><span>AI</span></div>
-  <h1>AI 复习导航</h1>
-  <p>智能分析作业错题<br>精准生成个人复习计划</p>
-  <div class="field" style="margin-top:12px">
-    <label>学生 ID</label>
-    <input id="sid" type="text" placeholder="请输入学生ID，如 stu_001" autocomplete="username">
-  </div>
-  <button class="btn btn-primary" onclick="doLogin()">进入系统</button>
-</div>
-
 <!-- ═══ APP ═══ -->
-<div id="app">
+<div id="app" style="display:flex;flex-direction:column;">
 
   <!-- ── 首页 ── -->
   <div id="s-home" class="screen active">
@@ -191,7 +179,7 @@
         <div class="topbar-title">首页</div>
         <div class="topbar-sub" id="home-date"></div>
       </div>
-      <div class="avatar" id="av1">S</div>
+      <div class="avatar" id="av1" onclick="changeStudent()" title="点击切换学生">S</div>
     </div>
     <div class="scroll-area">
       <div class="home-hero">
@@ -383,22 +371,31 @@ async function api(path,opts={}){
 // ─────────────────────────────────────────────
 // Login
 // ─────────────────────────────────────────────
-function doLogin(){
-  const v=document.getElementById('sid').value.trim();
-  if(!v){toast('请输入学生ID');return}
-  SID=v;
-  const ch=v[0].toUpperCase();
-  ['av1','mine-av'].forEach(id=>document.getElementById(id).textContent=ch);
-  document.getElementById('mine-name').textContent='学生 '+v;
-  document.getElementById('mine-id').textContent='ID: '+v;
-  document.getElementById('login').style.display='none';
-  document.getElementById('app').style.display='flex';
-  // Date
-  const d=new Date();
-  document.getElementById('home-date').textContent=d.toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'long'});
+function setStudent(v){
+  SID=v||'default_student';
+  const ch=SID[0].toUpperCase();
+  const av=document.getElementById('av1');
+  const av2=document.getElementById('mine-av');
+  if(av)av.textContent=ch;
+  if(av2)av2.textContent=ch;
+  const mn=document.getElementById('mine-name');
+  const mi=document.getElementById('mine-id');
+  if(mn)mn.textContent='学生 '+SID;
+  if(mi)mi.textContent='ID: '+SID;
+}
+function changeStudent(){
+  const v=prompt('输入学生ID:',SID)||SID;
+  setStudent(v.trim()||SID);
   loadAll();
 }
-document.getElementById('sid').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+// Auto-init on load
+window.addEventListener('DOMContentLoaded',()=>{
+  setStudent('default_student');
+  const d=new Date();
+  const hd=document.getElementById('home-date');
+  if(hd)hd.textContent=d.toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'long'});
+  loadAll();
+});
 
 // ─────────────────────────────────────────────
 // Screen nav
