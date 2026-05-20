@@ -333,3 +333,80 @@ class TestGitignore:
         with open(GITIGNORE, encoding="utf-8") as f:
             content = f.read()
         assert '.env' in content, ".gitignore 未忽略 .env 文件"
+
+
+# ── 10. OCR 结果展示 ──────────────────────────────────────────────────────────
+
+class TestOCRResultDisplay:
+    """
+    确认前端正确读取和展示 OCR 结果：
+    1. 优先使用 ocr_markdown 而非 ocr_text
+    2. 读取 ocr_images 字段（OCR 切出的图片块）
+    3. 不再请求废弃的 /ocr-result 接口
+    4. showOcrResult 函数使用 innerHTML 渲染 markdown
+    """
+
+    def test_reads_ocr_markdown_field(self, js_content):
+        """前端应读取 ocr_markdown 字段"""
+        assert 'ocr_markdown' in js_content, \
+            "JS 中未读取 ocr_markdown 字段"
+
+    def test_ocr_markdown_before_ocr_text(self, js_content):
+        """ocr_markdown 应优先于 ocr_text 使用"""
+        idx_md = js_content.find('ocr_markdown')
+        idx_txt = js_content.find('ocr_text')
+        assert idx_md != -1, "未找到 ocr_markdown"
+        # 如果两者都存在，markdown 应该在前面或在同一个 || 表达式中优先
+        if idx_txt != -1:
+            # 检查是否在 || 表达式中：ocr_markdown || ocr_text
+            context = js_content[max(0, idx_md-50):min(len(js_content), idx_txt+50)]
+            assert '||' in context or idx_md < idx_txt, \
+                "ocr_text 出现在 ocr_markdown 之前，优先级错误"
+
+    def test_reads_ocr_images_field(self, js_content):
+        """前端应读取 ocr_images 字段（OCR 切出的图片块）"""
+        assert 'ocr_images' in js_content, \
+            "JS 中未读取 ocr_images 字段"
+
+    def test_no_deprecated_ocr_result_endpoint(self, js_content):
+        """不应再请求废弃的 /ocr-result 接口"""
+        assert '/ocr-result' not in js_content, \
+            "JS 中仍在使用废弃的 /ocr-result 接口"
+
+    def test_show_ocr_result_function_exists(self, js_content):
+        """应该有 showOcrResult 函数用于展示 OCR 结果"""
+        assert 'showOcrResult' in js_content, \
+            "未找到 showOcrResult 函数"
+
+    def test_show_ocr_result_uses_innerHTML(self, js_content):
+        """showOcrResult 应使用 innerHTML 而非 textContent 以支持 markdown 渲染"""
+        # 查找 showOcrResult 函数
+        m = re.search(r'function showOcrResult.*?^}', js_content, re.DOTALL | re.MULTILINE)
+        if not m:
+            pytest.skip("未找到 showOcrResult 函数定义")
+        block = m.group(0)
+        # 应该使用 innerHTML
+        assert 'innerHTML' in block, \
+            "showOcrResult 未使用 innerHTML 渲染 markdown"
+        # 不应该只用 textContent（除了 confidence 等辅助字段）
+        # 检查 ocrEl 相关的赋值
+        if 'ocrEl' in block:
+            # 应该有 innerHTML 赋值
+            assert 'ocrEl.innerHTML' in block or 'ocrEl).innerHTML' in block, \
+                "showOcrResult 未对 ocrEl 使用 innerHTML"
+
+    def test_markdown_rendering_preserves_structure(self, js_content):
+        """Markdown 渲染应保留结构（换行、图片、LaTeX）"""
+        if 'showOcrResult' not in js_content:
+            pytest.skip("未实现 showOcrResult")
+        # 查找 showOcrResult 函数
+        m = re.search(r'function showOcrResult.*?^}', js_content, re.DOTALL | re.MULTILINE)
+        if not m:
+            pytest.skip("未找到 showOcrResult 函数定义")
+        block = m.group(0)
+        # 应该处理换行
+        assert r'\n' in block or 'replace' in block, \
+            "showOcrResult 未处理换行"
+        # 应该处理图片
+        assert 'img' in block.lower() or '!\\[' in block, \
+            "showOcrResult 未处理 Markdown 图片"

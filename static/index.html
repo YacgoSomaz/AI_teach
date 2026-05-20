@@ -888,16 +888,55 @@ function showOcrResult(data){
   document.getElementById('phase-ocr').style.display    = 'none';
   document.getElementById('phase-result').style.display = 'flex';
 
-  const text = data.ocr_markdown || data.ocr_text || '';
+  // 优先使用 ocr_markdown，降级到 ocr_text
+  const markdown = data.ocr_markdown || data.ocr_text || '';
   const conf = data.processing_status && data.processing_status.ocr && data.processing_status.ocr.confidence != null
     ? Math.round(data.processing_status.ocr.confidence * 100) + '% 置信度'
     : '';
+
+  // 简单的 markdown 渲染：保留换行，处理图片和 LaTeX
+  let html = markdown
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    // 标题：## text
+    .replace(/^## (.+)$/gm, '<div style="font-size:14px;font-weight:700;margin-top:10px;margin-bottom:4px">$1</div>')
+    // 图片：![alt](url) -> <img>
+    .replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '<br><img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;opacity:.9"><br>')
+    // LaTeX 块公式：$$...$$
+    .replace(/\$\$([^\$]+)\$\$/g, '<div style="background:rgba(255,255,255,.12);padding:12px;border-radius:8px;margin:8px 0;font-family:monospace;font-size:12px">$1</div>')
+    // LaTeX 行内公式：$...$（简单标记，不实际渲染）
+    .replace(/\$([^\$]+)\$/g, '<code style="background:rgba(255,255,255,.12);padding:2px 6px;border-radius:4px;font-size:12px">$1</code>')
+    // 粗体：**text**
+    .replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+
   const ocrEl  = document.getElementById('proc-ocr-text');
   const confEl = document.getElementById('proc-confidence');
   const imgEl  = document.getElementById('proc-img');
-  if(ocrEl)  ocrEl.textContent  = text || '（未识别到文字内容）';
+
+  // 使用 innerHTML 而非 textContent 以支持 markdown 渲染
+  if(ocrEl)  ocrEl.innerHTML = html || '（未识别到文字内容）';
   if(confEl) confEl.textContent = conf;
   if(imgEl && data.image_url) imgEl.src = data.image_url;
+
+  // 显示 OCR 图片块（最多 3 张）
+  const ocrImages = data.ocr_images || {};
+  const imageUrls = Object.values(ocrImages).slice(0, 3);
+  if(imageUrls.length > 0){
+    const imagesHtml = imageUrls.map(url =>
+      `<img src="${url}" style="max-width:100%;border-radius:8px;margin:4px 0;opacity:.85">`
+    ).join('');
+    const imagesDiv = document.createElement('div');
+    imagesDiv.style.cssText = 'margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)';
+    imagesDiv.innerHTML = `
+      <div style="font-size:11px;font-weight:600;opacity:.5;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
+        OCR 图片块 (${imageUrls.length})
+      </div>
+      ${imagesHtml}
+    `;
+    if(ocrEl && ocrEl.parentNode) ocrEl.parentNode.appendChild(imagesDiv);
+  }
 }
 
 // ── Phase B → AI done ──

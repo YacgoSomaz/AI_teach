@@ -98,17 +98,26 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                 base_url=settings.doubao_seed_base_url,
             )
             
-            # 准备图片：把原始上传图片转为 base64 data URI 传给 AI
+            # 准备图片：优先使用 OCR 切出的图片块，否则使用原始上传图片
             images = []
-            storage_url = assignment.storage_url or ""
-            # 本地文件路径（file:// 前缀或绝对路径）
-            local_path = storage_url.removeprefix("file://")
-            if local_path and __import__("os").path.isfile(local_path):
-                import base64, mimetypes
-                mime = assignment.mime_type or mimetypes.guess_type(local_path)[0] or "image/jpeg"
-                with open(local_path, "rb") as _f:
-                    _b64 = base64.b64encode(_f.read()).decode()
-                images.append(f"data:{mime};base64,{_b64}")
+            
+            # 1. 尝试使用 OCR 切出的图片块（PaddleOCR layoutParsingResults.markdown.images）
+            if ocr_task.images:
+                # ocr_task.images 是 Dict[str, str]，值是图片 URL
+                for img_url in list(ocr_task.images.values())[:5]:  # 最多 5 张
+                    images.append(img_url)
+            
+            # 2. 如果没有 OCR 图片块，使用原始上传图片
+            if not images:
+                storage_url = assignment.storage_url or ""
+                # 本地文件路径（file:// 前缀或绝对路径）
+                local_path = storage_url.removeprefix("file://")
+                if local_path and __import__("os").path.isfile(local_path):
+                    import base64, mimetypes
+                    mime = assignment.mime_type or mimetypes.guess_type(local_path)[0] or "image/jpeg"
+                    with open(local_path, "rb") as _f:
+                        _b64 = base64.b64encode(_f.read()).decode()
+                    images.append(f"data:{mime};base64,{_b64}")
             
             try:
                 # 记录 AI 分析开始时间
@@ -119,10 +128,10 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                 ai_start_time = time.time()
                 logger.info(f"AI 分析开始 - assignment_id={assignment_id}")
                 
-                # 调用 AI 分析（使用 analyze_question 方法）
+                # 调用 AI 分析（使用 analyze_question 方法，优先使用 markdown）
                 analysis_result = provider.analyze_question(
                     question_text=ocr_task.raw_text or "",
-                    question_markdown=ocr_task.markdown,
+                    question_markdown=ocr_task.markdown,  # 优先使用 markdown
                     image_urls=images[:5] if images else None,  # 最多 5 张图片
                 )
                 

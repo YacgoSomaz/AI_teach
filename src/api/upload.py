@@ -192,6 +192,7 @@ async def get_assignment_status(
         # OCR 结果（OCR 完成后可用，即使 AI 失败也返回）
         "ocr_text": latest_ocr.raw_text if latest_ocr else None,
         "ocr_markdown": latest_ocr.markdown if latest_ocr else None,
+        "ocr_images": latest_ocr.images if latest_ocr else None,  # OCR 切出的图片块
         # 图片 URL（HTTP 可访问）
         "image_url": f"/api/assignments/{assignment.id}/file",
         # 文件存储路径（内部使用）
