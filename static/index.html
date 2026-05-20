@@ -638,13 +638,71 @@
 
 <!-- ═══ Processing overlay (dark full-screen) ═══ -->
 <div id="proc-overlay">
-  <div style="font-size:14px;opacity:.6;margin-bottom:8px">AI 正在分析你的题目…</div>
-  <div class="proc-art">
-    <div class="proc-orb"></div>
+  <!-- Phase A: OCR running — centered orb -->
+  <div id="phase-ocr" style="display:flex;flex-direction:column;align-items:center;width:100%;flex:1">
+    <div style="font-size:14px;opacity:.6;margin-bottom:8px">正在识别题目…</div>
+    <div class="proc-art">
+      <div class="proc-orb"></div>
+    </div>
+    <div class="proc-label" id="proc-title">OCR 识别中</div>
+    <div class="proc-sub" id="proc-sub">正在提取题目文字，请稍候</div>
+    <div class="proc-stages" id="proc-stages-ocr" style="width:100%;max-width:340px;margin-top:20px"></div>
   </div>
-  <div class="proc-label" id="proc-title">分析中</div>
-  <div class="proc-sub" id="proc-sub">请稍候，通常需要 30-60 秒</div>
-  <div class="proc-stages" id="proc-stages"></div>
+
+  <!-- Phase B: OCR done → show image + text + AI loading -->
+  <div id="phase-result" style="display:none;flex-direction:column;width:100%;flex:1;overflow-y:auto;padding-bottom:20px">
+    <div style="font-size:14px;opacity:.6;text-align:center;margin-bottom:12px">识别完成</div>
+
+    <!-- Uploaded image thumbnail -->
+    <div style="width:100%;max-width:340px;margin:0 auto 16px">
+      <img id="proc-img" style="width:100%;border-radius:var(--r-md);max-height:180px;object-fit:cover;opacity:.9">
+    </div>
+
+    <!-- OCR text result -->
+    <div style="width:100%;max-width:340px;margin:0 auto">
+      <div style="font-size:11px;font-weight:600;opacity:.5;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
+        识别内容
+        <span id="proc-confidence" style="float:right;opacity:.7"></span>
+      </div>
+      <div id="proc-ocr-text"
+           style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);
+                  border-radius:var(--r-md);padding:14px;font-size:13px;line-height:1.7;
+                  max-height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;
+                  color:rgba(255,255,255,.85)">
+        等待识别结果…
+      </div>
+    </div>
+
+    <!-- AI analysis status (below OCR) -->
+    <div id="proc-ai-status" style="width:100%;max-width:340px;margin:16px auto 0">
+      <div class="proc-stage active" id="ai-stage-card">
+        <div class="proc-stage-icon">
+          <div class="spinner"></div>
+        </div>
+        <div>
+          <div class="proc-stage-label" id="ai-stage-label">AI 分析中</div>
+          <div class="proc-stage-sub" id="ai-stage-sub">正在识别知识点和复习建议</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result summary (shown after AI done) -->
+    <div id="proc-summary" style="display:none;width:100%;max-width:340px;margin:12px auto 0;
+         background:rgba(54,200,168,.15);border:1px solid rgba(54,200,168,.3);
+         border-radius:var(--r-md);padding:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--mint);margin-bottom:6px">✓ 分析完成</div>
+      <div id="proc-summary-text" style="font-size:13px;opacity:.85;line-height:1.6"></div>
+    </div>
+
+    <!-- AI failure note (only shown on ai_failed, but OCR kept) -->
+    <div id="proc-ai-fail" style="display:none;width:100%;max-width:340px;margin:12px auto 0;
+         background:rgba(242,107,122,.12);border:1px solid rgba(242,107,122,.3);
+         border-radius:var(--r-md);padding:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--rose);margin-bottom:4px">⚠ AI 分析遇到问题</div>
+      <div style="font-size:12px;opacity:.7;line-height:1.6">OCR 识别结果已保存。<br>AI 分析将在后台重试，请稍后查看复习计划。</div>
+      <button onclick="closeProcOverlay()" class="btn" style="margin-top:12px;padding:8px 18px;font-size:13px;background:rgba(255,255,255,.12);color:white;border-radius:var(--r-full)">关闭</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -745,85 +803,132 @@ async function doUpload(){
 }
 
 // ─────────────────────────────────────────────
-// Processing overlay
+// Processing overlay — two-phase
 // ─────────────────────────────────────────────
+const POLL_SUCCESS  = ['ai_done','completed','done'];
+const POLL_AI_FAIL  = ['ai_failed'];
+const POLL_FAIL     = ['failed','error','ocr_failed','ai_failed'];
+const POLL_MANUAL   = ['manual_required'];
+const OCR_DONE_SET  = ['ocr_done','ai_queued','ai_running','ai_done','ai_failed'];
+const ALL_DONE_STATES = ['ai_done'];
+
+let ocrFetched = false;
+
 function openProcOverlay(){
+  ocrFetched = false;
+  document.getElementById('phase-ocr').style.display    = 'flex';
+  document.getElementById('phase-result').style.display = 'none';
+  document.getElementById('proc-summary').style.display  = 'none';
+  document.getElementById('proc-ai-fail').style.display  = 'none';
+  const aiCard = document.getElementById('ai-stage-card');
+  if(aiCard){ aiCard.className = 'proc-stage active'; }
   document.getElementById('proc-overlay').classList.add('open');
-  renderProcStages('');
+  renderOcrPhase('');
+  // Mirror the preview image into the overlay
+  const prevImg = document.getElementById('prev-img');
+  if(prevImg && prevImg.src) document.getElementById('proc-img').src = prevImg.src;
 }
+
 function closeProcOverlay(){
   document.getElementById('proc-overlay').classList.remove('open');
+  clearInterval(pollTimer);
   const btn = document.getElementById('upload-btn');
   btn.textContent = '开始分析'; btn.disabled = false;
   document.getElementById('preview-area').style.display = 'none';
   selFile = null;
 }
 
-const POLL_SUCCESS = ['ai_done','completed','done'];
-const POLL_FAIL    = ['failed','error','ocr_failed','ai_failed'];
-const POLL_MANUAL  = ['manual_required'];
+// ── Phase A: OCR running ──
+function renderOcrPhase(s){
+  const OCR_RUN = ['ocr_queued','ocr_running'];
+  const stOcr   = OCR_DONE_SET.includes(s) ? 'done' : OCR_RUN.includes(s) ? 'running' : 'wait';
+  const label   = stOcr === 'done' ? 'OCR 完成' : stOcr === 'running' ? 'OCR 识别中' : '等待识别';
+  const sub     = stOcr === 'running' ? '正在提取题目文字与图形'
+                : stOcr === 'done'    ? '识别成功' : '即将开始';
+
+  const titleEl = document.getElementById('proc-title');
+  const subEl   = document.getElementById('proc-sub');
+  if(titleEl) titleEl.textContent = label;
+  if(subEl)   subEl.textContent   = sub;
+
+  const stagesEl = document.getElementById('proc-stages-ocr');
+  if(!stagesEl) return;
+  function stageIcon(st){
+    if(st==='done')    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`;
+    if(st==='running') return `<div class="spinner"></div>`;
+    return `<div style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3)"></div>`;
+  }
+  stagesEl.innerHTML = `
+    <div class="proc-stage ${stOcr==='done'?'done':stOcr==='running'?'active':''}">
+      <div class="proc-stage-icon">${stageIcon(stOcr)}</div>
+      <div><div class="proc-stage-label">OCR 识别</div><div class="proc-stage-sub">提取题目文字与图形</div></div>
+    </div>`;
+}
 
 function inferStepsFromStatus(s){
-  const OCR_DONE = ['ocr_done','ai_queued','ai_running','ai_done'];
-  const OCR_RUN  = ['ocr_queued','ocr_running'];
-  const AI_RUN   = ['ai_queued','ai_running'];
-  const DONE     = ['ai_done'];
+  const OCR_RUN = ['ocr_queued','ocr_running'];
+  const AI_RUN  = ['ai_queued','ai_running'];
   return {
-    ocr:     DONE.includes(s)||OCR_DONE.includes(s) ? 'done' : OCR_RUN.includes(s) ? 'running' : 'wait',
-    ai:      DONE.includes(s) ? 'done' : AI_RUN.includes(s) ? 'running' : 'wait',
-    archive: DONE.includes(s) ? 'done' : 'wait',
-    plan:    DONE.includes(s) ? 'done' : 'wait',
+    ocr: OCR_DONE_SET.includes(s) ? 'done' : OCR_RUN.includes(s) ? 'running' : 'wait',
+    ai: ALL_DONE_STATES.includes(s) ? 'done' : AI_RUN.includes(s) ? 'running' : 'wait',
+    archive: ALL_DONE_STATES.includes(s) ? 'done' : 'wait',
+    plan: ALL_DONE_STATES.includes(s) ? 'done' : 'wait',
   };
 }
 
-function inferSteps(s){
-  return inferStepsFromStatus(s);
-}
-
-const STAGE_DEFS = [
-  {key:'ocr',     label:'OCR 识别',    sub:'提取题目文字与图形'},
-  {key:'ai',      label:'AI 分析',     sub:'识别错误原因和知识点'},
-  {key:'archive', label:'知识点归档',  sub:'匹配知识体系'},
-  {key:'plan',    label:'生成复习计划', sub:'个性化推荐'},
-];
-
-function renderProcStages(statusStr){
-  const map = inferSteps(statusStr || '');
-  const runningIdx = STAGE_DEFS.findIndex(s => map[s.key] === 'running');
-  const label = runningIdx >= 0 ? STAGE_DEFS[runningIdx].label
-              : POLL_SUCCESS.includes(statusStr) ? '分析完成！' : '分析中';
-  const sub   = runningIdx >= 0 ? STAGE_DEFS[runningIdx].sub
-              : POLL_SUCCESS.includes(statusStr) ? '正在更新你的学习画像' : '请稍候，通常需要 30-60 秒';
-
-  document.getElementById('proc-title').textContent = label;
-  document.getElementById('proc-sub').textContent   = sub;
-
-  document.getElementById('proc-stages').innerHTML = STAGE_DEFS.map(s => {
-    const st = map[s.key];
-    let cls = '', icon = '';
-    if(st === 'done'){
-      cls = 'done';
-      icon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`;
-    } else if(st === 'running'){
-      cls = 'active';
-      icon = `<div class="spinner"></div>`;
-    } else {
-      icon = `<div style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3)"></div>`;
-    }
-    return `<div class="proc-stage ${cls}">
-      <div class="proc-stage-icon">${icon}</div>
-      <div>
-        <div class="proc-stage-label">${s.label}</div>
-        <div class="proc-stage-sub">${s.sub}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
 function renderSteps(statusStr){
-  renderProcStages(statusStr);
+  renderOcrPhase(statusStr || '');
 }
 
+// ── Phase B: show OCR result + AI loading ──
+function showOcrResult(data){
+  if(ocrFetched) return;
+  ocrFetched = true;
+
+  document.getElementById('phase-ocr').style.display    = 'none';
+  document.getElementById('phase-result').style.display = 'flex';
+
+  const text = data.ocr_markdown || data.ocr_text || '';
+  const conf = data.processing_status && data.processing_status.ocr && data.processing_status.ocr.confidence != null
+    ? Math.round(data.processing_status.ocr.confidence * 100) + '% 置信度'
+    : '';
+  const ocrEl  = document.getElementById('proc-ocr-text');
+  const confEl = document.getElementById('proc-confidence');
+  const imgEl  = document.getElementById('proc-img');
+  if(ocrEl)  ocrEl.textContent  = text || '（未识别到文字内容）';
+  if(confEl) confEl.textContent = conf;
+  if(imgEl && data.image_url) imgEl.src = data.image_url;
+}
+
+// ── Phase B → AI done ──
+function showAiDone(){
+  const aiCard = document.getElementById('ai-stage-card');
+  if(aiCard){
+    aiCard.className = 'proc-stage done';
+    const icon = aiCard.querySelector('.proc-stage-icon');
+    if(icon) icon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`;
+  }
+  const lblEl = document.getElementById('ai-stage-label');
+  const subEl = document.getElementById('ai-stage-sub');
+  if(lblEl) lblEl.textContent = '分析完成';
+  if(subEl) subEl.textContent = '已归档知识点并更新复习计划';
+  const sumDiv = document.getElementById('proc-summary');
+  if(sumDiv){
+    sumDiv.style.display = 'block';
+    const txtEl = document.getElementById('proc-summary-text');
+    if(txtEl) txtEl.textContent = '知识点已归档，复习计划已更新。';
+  }
+}
+
+// ── Phase B → AI failed (OCR result stays) ──
+function showAiFailed(){
+  const aiStatus = document.getElementById('proc-ai-status');
+  const aiFail   = document.getElementById('proc-ai-fail');
+  if(aiStatus) aiStatus.style.display = 'none';
+  if(aiFail)   aiFail.style.display   = 'block';
+}
+
+// ── Main poll loop ──
 function pollStatus(id){
   if(!id) return;
   clearInterval(pollTimer);
@@ -832,14 +937,21 @@ function pollStatus(id){
       const res = await api('/api/assignments/' + id);
       const d   = await res.json();
       const s   = d.status || '';
-      renderProcStages(s);
+
+      if(OCR_DONE_SET.includes(s)){
+        showOcrResult(d);
+      } else {
+        renderOcrPhase(s);
+      }
+
       if(POLL_SUCCESS.includes(s)){
         clearInterval(pollTimer);
-        setTimeout(() => {
-          closeProcOverlay();
-          toast('✅ 分析完成！');
-          loadAll();
-        }, 1200);
+        showAiDone();
+        setTimeout(() => { closeProcOverlay(); toast('✅ 分析完成！'); loadAll(); }, 2500);
+      } else if(POLL_AI_FAIL.includes(s)){
+        clearInterval(pollTimer);
+        showAiFailed();
+        loadAll();
       } else if(POLL_MANUAL.includes(s)){
         clearInterval(pollTimer);
         closeProcOverlay();
@@ -847,7 +959,7 @@ function pollStatus(id){
       } else if(POLL_FAIL.includes(s)){
         clearInterval(pollTimer);
         closeProcOverlay();
-        toast('❌ 分析失败，请重试', 4000);
+        toast('❌ 识别失败，请重试', 4000);
       }
     } catch(e){}
   }, 3000);
