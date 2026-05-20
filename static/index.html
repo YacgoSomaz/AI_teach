@@ -889,18 +889,44 @@ function showOcrResult(data){
   document.getElementById('phase-result').style.display = 'flex';
 
   // 优先使用 ocr_markdown，降级到 ocr_text
-  const markdown = data.ocr_markdown || data.ocr_text || '';
+  let markdown = data.ocr_markdown || data.ocr_text || '';
   const conf = data.processing_status && data.processing_status.ocr && data.processing_status.ocr.confidence != null
     ? Math.round(data.processing_status.ocr.confidence * 100) + '% 置信度'
     : '';
   
-  // 简单的 markdown 渲染：保留换行，处理图片和 LaTeX
+  // OCR 图片映射（用于替换 PaddleOCR HTML img 标签中的相对路径）
+  const ocrImages = data.ocr_images || {};
+  
+  // 第一步：提取所有 PaddleOCR HTML 结构（<div>...</div> 包含 <img>）
+  // 替换为 placeholder，避免后续转义
+  const imgPlaceholders = [];
+  
+  // 匹配 <div ...><img src="..." /></div> 结构
+  markdown = markdown.replace(/<div\s+[^>]*?>\s*<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)\s*\/?\s*>\s*<\/div>/gi, (match, before, src, after) => {
+    // 从 ocrImages 映射中查找真实 URL
+    const realUrl = ocrImages[src] || src;
+    const placeholder = `__IMG_PLACEHOLDER_${imgPlaceholders.length}__`;
+    // 生成我们自己的安全 img 标签（不保留原始 div）
+    imgPlaceholders.push(`<img src="${realUrl}" style="max-width:100%;border-radius:8px;margin:8px 0;opacity:.9">`);
+    return placeholder;
+  });
+  
+  // 匹配单独的 <img> 标签（不在 div 中）
+  markdown = markdown.replace(/<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)\s*\/?\s*>/gi, (match, before, src, after) => {
+    // 从 ocrImages 映射中查找真实 URL
+    const realUrl = ocrImages[src] || src;
+    const placeholder = `__IMG_PLACEHOLDER_${imgPlaceholders.length}__`;
+    imgPlaceholders.push(`<img src="${realUrl}" style="max-width:100%;border-radius:8px;margin:8px 0;opacity:.9">`);
+    return placeholder;
+  });
+  
+  // 第二步：转义所有剩余的 HTML 标签（包括其他 div）
   let html = markdown
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>')
-    // 图片：![alt](url) -> <img>
+    // 图片：![alt](url) -> <img>（markdown 格式）
     .replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '<br><img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;opacity:.9"><br>')
     // LaTeX 行内公式：$...$（简单标记，不实际渲染）
     .replace(/\$([^\$]+)\$/g, '<code style="background:rgba(255,255,255,.12);padding:2px 6px;border-radius:4px;font-size:12px">$1</code>')
@@ -911,6 +937,11 @@ function showOcrResult(data){
     // 标题：## text
     .replace(/^## (.+)$/gm, '<div style="font-size:14px;font-weight:700;margin-top:10px;margin-bottom:4px">$1</div>');
   
+  // 第三步：恢复 img placeholders（这些是安全的，已经过处理）
+  imgPlaceholders.forEach((imgHtml, i) => {
+    html = html.replace(`__IMG_PLACEHOLDER_${i}__`, imgHtml);
+  });
+  
   const ocrEl  = document.getElementById('proc-ocr-text');
   const confEl = document.getElementById('proc-confidence');
   const imgEl  = document.getElementById('proc-img');
@@ -920,18 +951,22 @@ function showOcrResult(data){
   if(confEl) confEl.textContent = conf;
   if(imgEl && data.image_url) imgEl.src = data.image_url;
   
-  // 显示 OCR 图片块（最多 3 张）
-  const ocrImages = data.ocr_images || {};
-  const imageUrls = Object.values(ocrImages).slice(0, 3);
-  if(imageUrls.length > 0){
-    const imagesHtml = imageUrls.map(url => 
+  // 显示 OCR 图片块（最多 3 张）- 只显示未在 markdown 中使用的图片
+  const usedImages = new Set();
+  imgPlaceholders.forEach(img => {
+    const match = img.match(/src=["']([^"']+)["']/);
+    if(match) usedImages.add(match[1]);
+  });
+  const unusedImageUrls = Object.values(ocrImages).filter(url => !usedImages.has(url)).slice(0, 3);
+  if(unusedImageUrls.length > 0){
+    const imagesHtml = unusedImageUrls.map(url => 
       `<img src="${url}" style="max-width:100%;border-radius:8px;margin:4px 0;opacity:.85">`
     ).join('');
     const imagesDiv = document.createElement('div');
     imagesDiv.style.cssText = 'margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)';
     imagesDiv.innerHTML = `
       <div style="font-size:11px;font-weight:600;opacity:.5;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
-        OCR 图片块 (${imageUrls.length})
+        其他 OCR 图片块 (${unusedImageUrls.length})
       </div>
       ${imagesHtml}
     `;

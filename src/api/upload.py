@@ -104,9 +104,18 @@ async def upload_assignment(
     await db.commit()
     await db.refresh(assignment)
 
-    # 5. 触发 OCR 异步任务（重复文件同样触发，每次上传独立处理）
-    from src.tasks.ocr_tasks import process_ocr
-    process_ocr.delay(str(assignment.id))
+    # 5. 触发异步任务
+    # 如果 SKIP_OCR=true，跳过 OCR 直接进入 AI 分析（实验功能）
+    from src.config import settings
+    
+    if settings.skip_ocr:
+        # 跳过 OCR，直接触发 AI 分析
+        from src.tasks.ai_tasks import process_ai_analysis
+        process_ai_analysis.delay(str(assignment.id))
+    else:
+        # 正常流程：触发 OCR 异步任务（重复文件同样触发，每次上传独立处理）
+        from src.tasks.ocr_tasks import process_ocr
+        process_ocr.delay(str(assignment.id))
 
     # 6. 返回
     return UploadResponse(
