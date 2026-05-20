@@ -80,7 +80,7 @@ services:
     build: .
     image: ai-review-system:latest
     restart: unless-stopped
-    command: ["celery", "-A", "src.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    command: ["celery", "-A", "src.celery_app", "worker", "--loglevel=info", "--concurrency=2", "-Q", "ocr,ai,celery"]
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-appuser}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ai_review_system}

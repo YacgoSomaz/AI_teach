@@ -163,7 +163,7 @@ class ImageSemanticService:
                     "content": content,
                 }
             ],
-            "max_new_tokens": self.max_tokens,
+            "max_output_tokens": self.max_tokens,
         }
         
         # 使用 asyncio 运行同步请求

@@ -7,7 +7,10 @@ WORKDIR /app
 COPY requirements-prod.txt .
 
 # 安装生产依赖到独立目录，便于多阶段复制
-RUN pip install --no-cache-dir --prefix=/install -r requirements-prod.txt
+RUN pip install --no-cache-dir --prefix=/install \
+    -i https://mirrors.aliyun.com/pypi/simple/ \
+    --trusted-host mirrors.aliyun.com \
+    -r requirements-prod.txt
 
 
 # ── 运行阶段 ─────────────────────────────────────────────────────────────────

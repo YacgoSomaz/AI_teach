@@ -98,13 +98,17 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                 base_url=settings.doubao_seed_base_url,
             )
             
-            # 准备图片（如果有）
+            # 准备图片：把原始上传图片转为 base64 data URI 传给 AI
             images = []
-            if ocr_task.images:
-                for img_path, img_url in ocr_task.images.items():
-                    # 将本地路径转换为可访问的 URL
-                    # 这里简化处理，实际应该生成临时访问 URL
-                    images.append(img_url)
+            storage_url = assignment.storage_url or ""
+            # 本地文件路径（file:// 前缀或绝对路径）
+            local_path = storage_url.removeprefix("file://")
+            if local_path and __import__("os").path.isfile(local_path):
+                import base64, mimetypes
+                mime = assignment.mime_type or mimetypes.guess_type(local_path)[0] or "image/jpeg"
+                with open(local_path, "rb") as _f:
+                    _b64 = base64.b64encode(_f.read()).decode()
+                images.append(f"data:{mime};base64,{_b64}")
             
             try:
                 # 调用 AI 分析（使用 analyze_question 方法）
@@ -128,10 +132,12 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                 created_questions = []
                 
                 for idx, q_data in enumerate(questions_data):
-                    # 转换难度：字符串 → 1-5 整数
-                    difficulty_map = {"easy": 1, "medium": 3, "hard": 5}
-                    difficulty_str = q_data.get("difficulty", "medium")
-                    difficulty_int = difficulty_map.get(difficulty_str, 3)
+                    # AI 返回整数 1-5，兼容旧字符串格式
+                    raw_diff = q_data.get("difficulty", 3)
+                    if isinstance(raw_diff, str):
+                        difficulty_int = {"easy": 1, "medium": 3, "hard": 5}.get(raw_diff, 3)
+                    else:
+                        difficulty_int = int(raw_diff)
                     
                     question = Question(
                         assignment_id=assignment.id,

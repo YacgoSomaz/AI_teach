@@ -104,11 +104,10 @@ async def upload_assignment(
     await db.commit()
     await db.refresh(assignment)
 
-    # 5. 触发 OCR 异步任务
-    if not uploaded.is_duplicate:
-        from src.tasks.ocr_tasks import process_ocr
-        process_ocr.delay(str(assignment.id))
-    
+    # 5. 触发 OCR 异步任务（重复文件同样触发，每次上传独立处理）
+    from src.tasks.ocr_tasks import process_ocr
+    process_ocr.delay(str(assignment.id))
+
     # 6. 返回
     return UploadResponse(
         success=True,
@@ -116,7 +115,7 @@ async def upload_assignment(
         file_id=uploaded.file_id,
         status=assignment.status,
         is_duplicate=uploaded.is_duplicate,
-        message="上传成功，正在处理中" if not uploaded.is_duplicate else "文件已存在，跳过 OCR",
+        message="上传成功，正在处理中",
     )
 
 

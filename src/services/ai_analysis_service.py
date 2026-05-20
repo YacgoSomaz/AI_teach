@@ -371,7 +371,7 @@ class DoubaoSeedProvider(AIProvider):
                     "content": content,
                 }
             ],
-            "max_new_tokens": self.max_tokens,
+            "max_output_tokens": self.max_tokens,
         }
 
         response = requests.post(
@@ -388,9 +388,20 @@ class DoubaoSeedProvider(AIProvider):
 
         result = response.json()
 
-        # Responses API 输出结构：result.output[].content[].text
+        # Responses API 输出结构：output 数组可能包含 reasoning 块和 message 块
+        # 需要找 type=message 的块，取其 content[].text 或 content[].output_text
         try:
-            output_text = result["output"][0]["content"][0]["text"]
+            output_text = None
+            for item in result.get("output", []):
+                if item.get("type") == "message":
+                    for content_item in item.get("content", []):
+                        if content_item.get("type") in ("text", "output_text"):
+                            output_text = content_item.get("text")
+                            break
+                if output_text is not None:
+                    break
+            if output_text is None:
+                raise KeyError("no message/text block found in output")
         except (KeyError, IndexError) as e:
             raise AIAnalysisException(
                 f"Unexpected DoubaoSeed response structure: {e}\nResponse: {result}"
