@@ -81,7 +81,15 @@ function Invoke-RemoteScript([string]$script, [string]$name) {
         return
     }
 
-    Set-Content -Path $localScript -Value $script -Encoding ASCII
+    # Write LF-only shell scripts. PowerShell 5.1 Set-Content writes CRLF,
+    # which can make bash parse "then\r" and fail with "unexpected end of file".
+    $scriptLf = $script -replace "`r`n", "`n"
+    $scriptLf = $scriptLf -replace "`r", "`n"
+    [System.IO.File]::WriteAllText(
+        $localScript,
+        $scriptLf + "`n",
+        [System.Text.Encoding]::ASCII
+    )
 
     & scp $localScript "${target}:$remoteScript"
     if ($LASTEXITCODE -ne 0) {
