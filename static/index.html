@@ -442,19 +442,41 @@ async function doUpload(){
   }
 }
 
+// ── Poll terminal state sets (matches AssignmentStatus enum) ──
+const POLL_SUCCESS=['ai_done','completed','done'];
+const POLL_FAIL   =['failed','error','ocr_failed','ai_failed'];
+const POLL_MANUAL =['manual_required'];
+
+// ── Infer per-step state from single status string ──
+function inferStepsFromStatus(s){
+  const OCR_DONE_STATES=['ocr_done','ai_queued','ai_running','ai_done'];
+  const OCR_RUN_STATES =['ocr_queued','ocr_running'];
+  const AI_RUN_STATES  =['ai_queued','ai_running'];
+  const ALL_DONE_STATES=['ai_done'];
+  return {
+    ocr:     ALL_DONE_STATES.includes(s)||OCR_DONE_STATES.includes(s)?'done'
+           : OCR_RUN_STATES.includes(s)?'running':'wait',
+    ai:      ALL_DONE_STATES.includes(s)?'done'
+           : AI_RUN_STATES.includes(s)?'running':'wait',
+    archive: ALL_DONE_STATES.includes(s)?'done':'wait',
+    plan:    ALL_DONE_STATES.includes(s)?'done':'wait',
+  };
+}
+
 const STEPS=[
   {key:'ocr',    label:'OCR 识别',   sub:'提取题目文字'},
   {key:'ai',     label:'AI 分析',    sub:'识别错误原因'},
   {key:'archive',label:'知识点归档', sub:'匹配知识体系'},
   {key:'plan',   label:'生成计划',   sub:'个性化推荐'},
 ];
-function renderSteps(status){
+function renderSteps(statusStr){
+  const inferred=inferStepsFromStatus(statusStr||'');
   let done=0;
   const html=STEPS.map(s=>{
-    const st=status[s.key]||'';
+    const st=inferred[s.key]||'';
     let cls='s-wait',icon='○';
-    if(st==='completed'||st==='done'){cls='s-done';icon='✓';done++}
-    else if(st==='processing'||st==='running'){cls='s-run';icon='⟳'}
+    if(st==='done'){cls='s-done';icon='✓';done++}
+    else if(st==='running'){cls='s-run';icon='⟳'}
     return `<div class="step-row"><div class="step-icon ${cls}">${icon}</div><div><div style="font-size:13px;font-weight:500">${s.label}</div><div style="font-size:11px;color:var(--gray)">${s.sub}</div></div></div>`
   }).join('');
   document.getElementById('steps-wrap').innerHTML=html;
@@ -467,9 +489,9 @@ function pollStatus(id){
     try{
       const res=await api('/api/assignments/'+id);
       const d=await res.json();
-      renderSteps(d.processing_status||{});
+      renderSteps(d.status||'');
       const s=d.status||'';
-      if(s==='completed'||s==='done'){
+      if(POLL_SUCCESS.includes(s)){
         clearInterval(pollTimer);
         toast('✅ 分析完成！');
         document.getElementById('upload-btn').style.display='block';
@@ -477,14 +499,20 @@ function pollStatus(id){
         document.getElementById('upload-btn').disabled=false;
         document.getElementById('upload-modal').classList.remove('open');
         loadAll();
-      }else if(s==='failed'||s==='error'){
+      }else if(POLL_MANUAL.includes(s)){
+        clearInterval(pollTimer);
+        toast('⚠️ 需要人工复核，请联系老师',4000);
+        document.getElementById('upload-btn').style.display='block';
+        document.getElementById('upload-btn').textContent='重新上传';
+        document.getElementById('upload-btn').disabled=false;
+      }else if(POLL_FAIL.includes(s)){
         clearInterval(pollTimer);
         toast('❌ 分析失败，请重试',4000);
         document.getElementById('upload-btn').style.display='block';
         document.getElementById('upload-btn').textContent='重新分析';
         document.getElementById('upload-btn').disabled=false;
       }
-    }catch{}
+    }catch(e){}
   },3000);
 }
 
@@ -501,14 +529,12 @@ async function loadHome(){
       api('/api/students/'+SID+'/weak-points').then(r=>r.json()).catch(()=>null),
     ]);
     if(pr){
-      const items=pr.knowledge_mastery||pr.mastery||[];
-      document.getElementById('st-kp').textContent=items.length||pr.total_knowledge_points||0;
-      const avg=items.length?items.reduce((a,i)=>a+(i.mastery_score||i.score||0),0)/items.length:0;
-      document.getElementById('st-ms').textContent=Math.round(avg*100)+'%';
-    }
-    if(wr){
-      const wpts=wr.weak_points||wr||[];
-      document.getElementById('st-wk').textContent=Array.isArray(wpts)?wpts.length:0;
+      const items=pr.knowledge_points||pr.knowledge_mastery||pr.mastery||[];
+      document.getElementById('st-kp').textContent=pr.total_knowledge_points||items.length||0;
+      const mastery=pr.overall_mastery!=null?pr.overall_mastery
+                   :(items.length?items.reduce((a,i)=>a+(i.mastery_score||i.score||0),0)/items.length:0);
+      document.getElementById('st-ms').textContent=Math.round(mastery*100)+'%';
+      document.getElementById('st-wk').textContent=pr.weak_count!=null?pr.weak_count:'—';
     }
   }catch{}
   // Recent
@@ -534,7 +560,7 @@ async function loadKnowledge(){
   try{
     const res=await api('/api/students/'+SID+'/profile');
     const d=await res.json();
-    const items=d.knowledge_mastery||d.mastery||[];
+    const items=d.knowledge_points||d.knowledge_mastery||d.mastery||[];
     document.getElementById('kp-count').textContent=(d.total_knowledge_points||items.length)+' 个已学知识点';
     drawRadar(items);
     drawHeatmap(items);
@@ -658,7 +684,7 @@ async function loadReview(){
       const pl=pri==='high'?'重点':pri==='low'?'一般':'中等';
       return`<div class="plan-item"><div class="plan-num">${i+1}</div><div style="flex:1"><div class="plan-name">${name}</div><div class="plan-meta">${it.estimated_minutes?'约'+it.estimated_minutes+'分钟':''}${it.description?' · '+it.description:''}</div></div><span class="priority ${pc}">${pl}</span></div>`
     }).join(''):'<div class="empty"><p>暂无复习任务<br>请先上传作业</p></div>';
-  }catch(){
+  }catch(e){
     document.getElementById('review-summary').textContent='加载失败';
     document.getElementById('plan-list').innerHTML='<div class="empty"><p>加载失败，请重试</p></div>';
   }
@@ -671,14 +697,25 @@ async function loadReport(){
   try{
     const res=await api('/api/reports/student/'+SID);
     const d=await res.json();
-    const avg=d.average_mastery_score!=null?Math.round(d.average_mastery_score*100)+'%':'—';
+    const mastery=d.overall_mastery!=null?Math.round(d.overall_mastery*100)+'%'
+                 :(d.average_mastery_score!=null?Math.round(d.average_mastery_score*100)+'%':'—');
+    const mastered=d.strong_count!=null?d.strong_count:(d.mastered_knowledge_points||0);
+    const subjectsHtml=(d.subjects&&d.subjects.length)?
+      '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:8px">学科分布</div>'+
+      d.subjects.map(s=>{const pct=Math.round((s.mastery||0)*100);return`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px"><span>${s.subject_name||s.name||'—'}</span><span style="color:var(--coral);font-weight:600">${pct}%</span></div><div style="height:6px;background:var(--border);border-radius:3px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--coral),#FB923C);border-radius:3px"></div></div></div>`}).join('')+
+      '</div>':'';
+    const weakHtml=(d.top_weak_points&&d.top_weak_points.length)?
+      '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:8px">薄弱知识点</div>'+
+      d.top_weak_points.slice(0,3).map((w,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)"><div style="width:20px;height:20px;border-radius:50%;background:var(--coral-light);color:var(--coral);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div><span style="font-size:13px;flex:1">${w.knowledge_point_name||w.name||'—'}</span><span style="font-size:11px;color:var(--coral);font-weight:600">${Math.round((w.mastery_score||0)*100)}%</span></div>`).join('')+
+      '</div>':'';
     document.getElementById('report-content').innerHTML=`
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0">
         <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--coral)">${d.total_knowledge_points||0}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">知识点</div></div>
-        <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--coral)">${d.mastered_knowledge_points||0}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">已掌握</div></div>
-        <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--coral)">${avg}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">平均掌握</div></div>
+        <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--coral)">${mastered}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">已掌握</div></div>
+        <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--coral)">${mastery}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">平均掌握</div></div>
       </div>
       ${d.summary?`<p style="font-size:14px;line-height:1.7;color:var(--dark);margin-top:8px">${d.summary}</p>`:''}
+      ${subjectsHtml}${weakHtml}
     `;
   }catch(e){
     document.getElementById('report-content').innerHTML='<div class="empty"><p>生成失败，请重试</p></div>';
@@ -695,7 +732,7 @@ async function doExport(){
     const a=document.createElement('a');a.href=url;a.download=SID+'_knowledge.xlsx';a.click();
     URL.revokeObjectURL(url);
     toast('导出成功');
-  }catch(){toast('❌ 导出失败',3000)}
+  }catch(e){toast('❌ 导出失败',3000)}
 }
 </script>
 </body>

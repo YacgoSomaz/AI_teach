@@ -72,3 +72,6 @@ tmp/
 dmypy.json
 
 .claude/
+
+# User uploaded files — never commit
+uploads/
