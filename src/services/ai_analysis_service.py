@@ -336,7 +336,7 @@ class DoubaoSeedProvider(AIProvider):
 - need_review: 是否需要复习（true/false）
 - confidence: 分析置信度（0-1）
 
-只输出 JSON，不要其他内容。"""
+重要：只输出 JSON，不要输出思考过程，不要输出解释，不要输出 markdown 代码块包裹，直接输出纯 JSON。"""
 
         # 构建 Responses API 的 content 列表
         # 格式：先放图片（如有），再放文本
@@ -354,7 +354,7 @@ class DoubaoSeedProvider(AIProvider):
             "text": (
                 f"系统指令：{system_prompt}\n\n"
                 f"请分析以下题目：\n\n{question_markdown}\n\n"
-                "只输出 JSON，不要其他内容。"
+                "只输出 JSON，不要其他内容，不要思考过程，不要解释。"
             ),
         })
 
@@ -363,6 +363,7 @@ class DoubaoSeedProvider(AIProvider):
             "Content-Type": "application/json",
         }
 
+        # 构建 payload，不包含 reasoning 相关参数
         payload = {
             "model": self.model,
             "input": [
@@ -372,6 +373,7 @@ class DoubaoSeedProvider(AIProvider):
                 }
             ],
             "max_output_tokens": self.max_tokens,
+            # 不设置 reasoning / thinking 参数，确保不启用深度思考模式
         }
 
         response = requests.post(

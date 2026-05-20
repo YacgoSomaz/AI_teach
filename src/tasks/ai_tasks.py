@@ -111,11 +111,27 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                 images.append(f"data:{mime};base64,{_b64}")
             
             try:
+                # 记录 AI 分析开始时间
+                import time
+                import logging
+                logger = logging.getLogger(__name__)
+                
+                ai_start_time = time.time()
+                logger.info(f"AI 分析开始 - assignment_id={assignment_id}")
+                
                 # 调用 AI 分析（使用 analyze_question 方法）
                 analysis_result = provider.analyze_question(
                     question_text=ocr_task.raw_text or "",
                     question_markdown=ocr_task.markdown,
                     image_urls=images[:5] if images else None,  # 最多 5 张图片
+                )
+                
+                # 记录 AI 分析结束时间和耗时
+                ai_end_time = time.time()
+                ai_duration = ai_end_time - ai_start_time
+                logger.info(
+                    f"AI 分析完成 - assignment_id={assignment_id}, "
+                    f"耗时={ai_duration:.2f}秒"
                 )
                 
                 # analyze_question 已经返回解析好的字典，不需要再解析 JSON
