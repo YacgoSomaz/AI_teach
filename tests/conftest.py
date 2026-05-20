@@ -33,6 +33,7 @@ if "src.config" not in sys.modules:
     _mock_settings.doubao_seed_model = "ep-test"
     _mock_settings.doubao_seed_base_url = "https://ark.cn-beijing.volces.com/api/v3"
     _mock_settings.paddleocr_token = None
+    _mock_settings.skip_ocr = False
     _mock_settings.upload_dir = "uploads"
     _mock_settings.max_file_size_mb = 20
     _mock_settings.max_file_size_bytes = 20 * 1024 * 1024
