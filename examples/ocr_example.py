@@ -18,7 +18,10 @@ from src.adapters.ocr import PaddleOCRAdapter, OCRException
 def main():
     """主函数"""
     # 从环境变量读取 Token
-    token = os.getenv("PADDLEOCR_TOKEN", "9b7fe06ddc38194934d1f8bbaa94f930c3d80d76")
+    token = os.getenv("PADDLEOCR_TOKEN")
+    if not token:
+        print("请先设置 PADDLEOCR_TOKEN 环境变量")
+        return
     
     # 创建 Adapter
     adapter = PaddleOCRAdapter(

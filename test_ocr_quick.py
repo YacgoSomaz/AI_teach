@@ -20,8 +20,10 @@ def main():
     print("PaddleOCR Adapter 快速测试")
     print("=" * 60)
     
-    # 使用你的 Token
-    TOKEN = "9b7fe06ddc38194934d1f8bbaa94f930c3d80d76"
+    TOKEN = os.getenv("PADDLEOCR_TOKEN")
+    if not TOKEN:
+        print("请先设置 PADDLEOCR_TOKEN 环境变量")
+        return
     
     # 创建 Adapter
     adapter = PaddleOCRAdapter(

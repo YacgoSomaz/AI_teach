@@ -5,164 +5,412 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>AI 复习导航</title>
   <style>
+    /* ── Design Tokens ── */
     :root {
-      --coral: #F87171;
-      --coral-dark: #EF4444;
-      --coral-light: rgba(248,113,113,0.12);
-      --cream: #FDF8F3;
-      --card: #FFFFFF;
-      --dark: #1C1917;
-      --gray: #78716C;
-      --border: #E8E0D8;
-      --green: #34D399;
-      --teal: #2DD4BF;
-      --amber: #FBBF24;
-      --blue: #818CF8;
-      --radius: 18px;
-      --shadow: 0 2px 16px rgba(0,0,0,0.07);
+      --bg:          #FBF7F0;
+      --bg-soft:     #F5EFE5;
+      --surface:     #FFFFFF;
+      --ink:         #1B1B2A;
+      --ink-2:       #4A4B5C;
+      --ink-3:       #8B8C9A;
+      --ink-4:       #B8B9C5;
+      --coral:       #FF6B5B;
+      --coral-deep:  #E64C3B;
+      --coral-soft:  #FFE5DF;
+      --coral-tint:  #FFF1ED;
+      --mint:        #36C8A8;
+      --mint-soft:   #DCF5EE;
+      --amber:       #F5B33A;
+      --amber-soft:  #FCEFCE;
+      --rose:        #F26B7A;
+      --rose-soft:   #FBDDE2;
+      --violet:      #7A6BFF;
+      --violet-soft: #E6E2FF;
+      --line:        #ECE5D8;
+      --line-2:      #E2DBCB;
+      --r-xs:  8px;  --r-sm: 12px; --r-md: 18px;
+      --r-lg:  24px; --r-xl: 32px; --r-full: 9999px;
+      --shadow-sm: 0 1px 2px rgba(27,27,42,.04), 0 2px 8px rgba(27,27,42,.04);
+      --shadow-md: 0 2px 6px rgba(27,27,42,.06), 0 12px 28px rgba(27,27,42,.08);
+      --shadow-coral: 0 8px 24px rgba(255,107,91,.32);
+      --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                   "HarmonyOS Sans SC", "Microsoft YaHei",
+                   "Source Han Sans CN", "Helvetica Neue", system-ui, sans-serif;
+      --font-num: "SF Pro Display", "DM Sans", -apple-system, system-ui, sans-serif;
     }
-    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    html,body{height:100%;background:var(--cream);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;color:var(--dark)}
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: var(--bg); font-family: var(--font-sans);
+      color: var(--ink); -webkit-font-smoothing: antialiased; }
+    button { font-family: inherit; cursor: pointer; border: none;
+      background: none; color: inherit; }
+    input { font-family: inherit; }
+    input[type=file] { display: none; }
+
+    /* ── App Shell ── */
+    #app { max-width: 480px; margin: 0 auto; min-height: 100vh;
+      display: flex; flex-direction: column; position: relative; background: var(--bg); }
 
     /* ── Screens ── */
-    #app{max-width:480px;margin:0 auto;min-height:100vh;display:none;flex-direction:column;position:relative}
-    .screen{display:none;flex-direction:column;flex:1;padding-bottom:80px;min-height:100vh}
-    .screen.active{display:flex}
+    .screen { display: none; flex-direction: column; flex: 1;
+      padding-bottom: 100px; min-height: 100vh; }
+    .screen.active { display: flex; }
 
-    /* ── Login ── */
-    #login{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 28px;gap:20px;max-width:480px;margin:0 auto}
-    .login-orb{width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,var(--coral),#FB923C);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 20px var(--coral-light);margin-bottom:8px}
-    .login-orb span{font-size:38px;font-weight:800;color:#fff}
-    #login h1{font-size:26px;font-weight:800}
-    #login p{font-size:14px;color:var(--gray);text-align:center;line-height:1.6}
-    .field label{display:block;font-size:12px;font-weight:600;color:var(--gray);margin-bottom:6px;letter-spacing:.4px;text-transform:uppercase}
-    .field input{width:100%;padding:14px 16px;border:1.5px solid var(--border);border-radius:14px;font-size:16px;background:var(--card);outline:none;transition:border-color .2s}
-    .field input:focus{border-color:var(--coral)}
-    .field{width:100%}
-
-    /* ── Buttons ── */
-    .btn{border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;transition:transform .1s,opacity .15s}
-    .btn:active{transform:scale(.97);opacity:.88}
-    .btn-primary{background:linear-gradient(135deg,var(--coral),#FB923C);color:#fff;padding:16px;width:100%;box-shadow:0 4px 14px rgba(248,113,113,.35)}
-    .btn-outline{background:var(--card);border:1.5px solid var(--border);color:var(--dark);padding:13px 20px}
-    .btn-sm{padding:8px 16px;font-size:13px;border-radius:10px}
+    /* ── Scroll area ── */
+    .scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .scroll-area::-webkit-scrollbar { display: none; }
 
     /* ── Top bar ── */
-    .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 8px}
-    .topbar-title{font-size:20px;font-weight:800}
-    .topbar-sub{font-size:13px;color:var(--gray);margin-top:2px}
-    .avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--coral),#FB923C);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;cursor:pointer;flex-shrink:0}
-    .badge{background:#EEF2FF;color:var(--blue);border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600}
-
-    /* ── Bottom nav ── */
-    .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-top:1px solid var(--border);display:flex;z-index:200;padding:0 8px}
-    .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 0 14px;gap:4px;cursor:pointer;color:var(--gray);font-size:10px;font-weight:500;position:relative}
-    .nav-item.active{color:var(--coral)}
-    .nav-item svg{width:22px;height:22px;stroke-width:1.8}
-    .nav-center{flex:0 0 64px;display:flex;align-items:center;justify-content:center;padding-bottom:8px}
-    .cam-btn{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--coral),#FB923C);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(248,113,113,.4);cursor:pointer;margin-top:-14px}
-    .cam-btn svg{width:24px;height:24px;stroke:#fff;stroke-width:2}
+    .topbar { display: flex; align-items: center;
+      justify-content: space-between; padding: 18px 20px 12px; }
+    .topbar-title { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+    .topbar-sub { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
+    .avatar { width: 44px; height: 44px; border-radius: var(--r-full);
+      background: linear-gradient(135deg, var(--coral) 0%, #FF9577 100%);
+      color: white; font-weight: 700; font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 12px rgba(255,107,91,.3); cursor: pointer; flex-shrink: 0; }
 
     /* ── Cards ── */
-    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin:10px 16px 0}
-    .card-title{font-size:13px;font-weight:700;color:var(--gray);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
-    .card-heading{font-size:17px;font-weight:800;margin-bottom:4px}
-    .card-sub{font-size:12px;color:var(--gray)}
+    .card { background: var(--surface); border-radius: var(--r-md);
+      padding: 18px; box-shadow: var(--shadow-sm); margin: 0 16px; }
+    .card + .card { margin-top: 12px; }
+    .card-title { font-size: 15px; font-weight: 700; color: var(--ink);
+      letter-spacing: -0.005em; }
+    .card-sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+    .gap { height: 16px; }
 
-    /* ── Home ── */
-    .home-hero{margin:12px 16px 0;background:linear-gradient(135deg,#FEE2E2,#FEF3C7);border-radius:var(--radius);padding:20px;display:flex;justify-content:space-between;align-items:center}
-    .home-hero h2{font-size:22px;font-weight:800;line-height:1.3}
-    .home-hero p{font-size:13px;color:#92400E;margin-top:6px}
-    .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 16px 0}
-    .stat-box{background:var(--card);border-radius:14px;padding:16px 12px;text-align:center;box-shadow:var(--shadow)}
-    .stat-num{font-size:24px;font-weight:800;color:var(--coral)}
-    .stat-label{font-size:11px;color:var(--gray);margin-top:2px}
-    .recent-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
-    .recent-item:last-child{border-bottom:none}
-    .recent-icon{width:40px;height:40px;border-radius:10px;background:var(--coral-light);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .recent-info{flex:1}
-    .recent-name{font-size:14px;font-weight:600}
-    .recent-sub{font-size:12px;color:var(--gray);margin-top:2px}
-    .status-chip{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600}
-    .chip-done{background:#D1FAE5;color:#065F46}
-    .chip-proc{background:#FEF3C7;color:#92400E}
-    .chip-fail{background:#FEE2E2;color:#991B1B}
+    /* ── Greeting banner ── */
+    .greet-card { margin: 0 16px;
+      background: linear-gradient(135deg, #FFE5DF 0%, #FFD0C2 60%, #FFC7A0 100%);
+      border-radius: var(--r-lg); padding: 20px; position: relative; overflow: hidden; }
+    .greet-card::before { content: ''; position: absolute; right: -30px; top: -30px;
+      width: 140px; height: 140px; border-radius: 50%;
+      background: rgba(255,255,255,.3); pointer-events: none; }
+    .greet-card::after { content: ''; position: absolute; right: 30px; top: 20px;
+      width: 60px; height: 60px; border-radius: 50%;
+      background: rgba(255,200,160,.6); pointer-events: none; }
+    .greet-hello { font-size: 13px; color: #7A2A1F; opacity: .8; }
+    .greet-name { font-size: 22px; font-weight: 700; color: #4A1810;
+      letter-spacing: -0.01em; margin-top: 2px; position: relative; z-index: 1; }
+    .greet-tip { font-size: 12px; color: #7A2A1F; margin-top: 8px;
+      line-height: 1.5; max-width: 220px; position: relative; z-index: 1; }
+    .greet-streak { margin-top: 14px; display: inline-flex; align-items: center;
+      gap: 6px; padding: 6px 12px; background: rgba(255,255,255,.6);
+      border-radius: var(--r-full); font-size: 12px; font-weight: 600;
+      color: #4A1810; position: relative; z-index: 1; }
 
-    /* ── Knowledge / Radar ── */
-    .knowledge-count{font-size:13px;color:var(--gray);margin:4px 20px 0}
-    .radar-wrap{position:relative;width:100%;aspect-ratio:1;max-width:280px;margin:0 auto}
-    .radar-legend{display:flex;gap:16px;justify-content:center;margin-top:12px}
-    .legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+    /* ── Stat grid 2×2 ── */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr;
+      gap: 12px; margin: 12px 16px 0; }
+    .stat-tile { border-radius: var(--r-md); padding: 16px;
+      position: relative; overflow: hidden; min-height: 96px;
+      display: flex; flex-direction: column; justify-content: space-between; }
+    .stat-tile-coral { background: linear-gradient(140deg,#FFE7E0 0%,#FFD6CB 100%);
+      color: #7A2A1F; }
+    .stat-tile-mint  { background: linear-gradient(140deg,#DFF5EE 0%,#C9EEE0 100%);
+      color: #1B5A4B; }
+    .stat-tile-amber { background: linear-gradient(140deg,#FFF1D1 0%,#FFE4A6 100%);
+      color: #6B4A0F; }
+    .stat-tile-violet{ background: linear-gradient(140deg,#E8E3FF 0%,#D4CCFF 100%);
+      color: #312880; }
+    .stat-label { font-size: 12px; font-weight: 500; opacity: .85; }
+    .stat-value { font-size: 32px; font-weight: 700; font-family: var(--font-num);
+      letter-spacing: -0.02em; line-height: 1; }
+    .stat-unit { font-size: 14px; font-weight: 600; opacity: .7; margin-left: 2px; }
+    .stat-trend { font-size: 11px; font-weight: 600; opacity: .7; margin-top: 4px; }
+    .stat-icon { position: absolute; top: 14px; right: 14px;
+      width: 26px; height: 26px; opacity: .55; }
+
+    /* ── Section header ── */
+    .section-head { display: flex; align-items: center;
+      justify-content: space-between; padding: 20px 20px 8px; }
+    .section-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+    .section-more { font-size: 12px; color: var(--ink-3); }
+
+    /* ── Task cards ── */
+    .task-card { background: var(--surface); border-radius: var(--r-md);
+      padding: 14px 16px; box-shadow: var(--shadow-sm);
+      display: flex; gap: 14px; align-items: flex-start;
+      margin: 0 16px 10px; }
+    .task-bar { width: 4px; align-self: stretch; border-radius: var(--r-full);
+      background: var(--rose); flex-shrink: 0; }
+    .task-bar.amber { background: var(--amber); }
+    .task-bar.mint  { background: var(--mint); }
+    .task-body { flex: 1; min-width: 0; }
+    .task-title { font-size: 14px; font-weight: 600; }
+    .task-meta { display: flex; align-items: center; gap: 8px;
+      margin-top: 6px; font-size: 11px; color: var(--ink-3); }
+    .task-action { display: inline-flex; align-items: center; gap: 4px;
+      font-size: 12px; font-weight: 600; color: var(--coral);
+      background: var(--coral-tint); padding: 5px 12px;
+      border-radius: var(--r-full); margin-top: 10px; }
+
+    /* ── Chips ── */
+    .chip { display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 600; padding: 4px 9px;
+      border-radius: var(--r-full); background: var(--bg-soft); color: var(--ink-2); }
+    .chip-mint   { background: var(--mint-soft);   color: #1B5A4B; }
+    .chip-amber  { background: var(--amber-soft);  color: #6B4A0F; }
+    .chip-rose   { background: var(--rose-soft);   color: #8E1F2C; }
+    .chip-violet { background: var(--violet-soft); color: #312880; }
+    .chip-coral  { background: var(--coral-soft);  color: #7A2A1F; }
+    .dot { width: 6px; height: 6px; border-radius: var(--r-full); display: inline-block; }
+    .dot-rose   { background: var(--rose); }
+    .dot-amber  { background: var(--amber); }
+    .dot-mint   { background: var(--mint); }
+
+    /* ── KP item ── */
+    .kp-item { display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px; background: var(--surface);
+      border-radius: var(--r-md); box-shadow: var(--shadow-sm);
+      margin: 0 16px 10px; }
+    .kp-rank { width: 30px; height: 30px; border-radius: var(--r-sm);
+      background: var(--rose-soft); color: #8E1F2C;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px; font-family: var(--font-num); flex-shrink: 0; }
+    .kp-rank.amber  { background: var(--amber-soft);  color: #6B4A0F; }
+    .kp-rank.mint   { background: var(--mint-soft);   color: #1B5A4B; }
+    .kp-body { flex: 1; min-width: 0; }
+    .kp-title { font-size: 14px; font-weight: 600; }
+    .kp-meta { font-size: 11px; color: var(--ink-3); margin-top: 3px;
+      display: flex; gap: 8px; align-items: center; }
+    .kp-score { font-size: 14px; font-weight: 700; font-family: var(--font-num); }
+
+    /* ── Progress bar ── */
+    .bar { height: 8px; background: var(--bg-soft);
+      border-radius: var(--r-full); overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: var(--r-full);
+      background: var(--coral);
+      transition: width .6s cubic-bezier(.2,.8,.2,1); }
+    .bar-fill.mint  { background: var(--mint); }
+    .bar-fill.amber { background: var(--amber); }
+    .bar-fill.rose  { background: var(--rose); }
+
+    /* ── Radar ── */
+    .radar-wrap { position: relative; width: 100%; aspect-ratio: 1;
+      max-width: 280px; margin: 0 auto; }
+    .radar-legend { display: flex; gap: 16px; justify-content: center; margin-top: 12px; }
 
     /* ── Heatmap ── */
-    .heatmap-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-    .heatmap-table{border-collapse:separate;border-spacing:4px;min-width:380px;width:100%}
-    .hm-th{font-size:10px;color:var(--gray);font-weight:500;padding:0 2px;text-align:center;white-space:nowrap}
-    .hm-row-label{font-size:10px;color:var(--gray);font-weight:500;padding:0 6px 0 0;white-space:nowrap}
-    .hm-cell{width:36px;height:28px;border-radius:6px;cursor:default;transition:opacity .2s}
-    .hm-cell:hover{opacity:.8}
-    .hm-0{background:#F3F4F6}
-    .hm-1{background:#99F6E4}
-    .hm-2{background:#2DD4BF}
-    .hm-3{background:#FBBF24}
-    .hm-4{background:#F87171}
+    .heatmap-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .heatmap-table { border-collapse: separate; border-spacing: 4px;
+      min-width: 380px; width: 100%; }
+    .hm-th { font-size: 10px; color: var(--ink-3); font-weight: 500;
+      padding: 0 2px; text-align: center; white-space: nowrap; }
+    .hm-row-label { font-size: 10px; color: var(--ink-3); font-weight: 500;
+      padding: 0 6px 0 0; white-space: nowrap; }
+    .hm-cell { width: 36px; height: 28px; border-radius: 6px; cursor: default;
+      transition: opacity .2s; }
+    .hm-cell:hover { opacity: .8; }
+    .hm-0 { background: #F3F4F6; }
+    .hm-1 { background: #99F6E4; }
+    .hm-2 { background: var(--mint); }
+    .hm-3 { background: var(--amber); }
+    .hm-4 { background: var(--rose); }
 
-    /* ── Upload modal ── */
-    #upload-modal{position:fixed;inset:0;background:rgba(28,25,23,.5);z-index:500;display:none;align-items:flex-end;justify-content:center}
-    #upload-modal.open{display:flex}
-    .upload-sheet{background:var(--card);border-radius:24px 24px 0 0;padding:24px 24px 40px;width:100%;max-width:480px}
-    .sheet-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px}
-    .upload-actions{display:flex;flex-direction:column;gap:12px}
-    .upload-action-btn{display:flex;align-items:center;gap:14px;padding:16px 20px;border:1.5px solid var(--border);border-radius:14px;cursor:pointer;background:var(--card);font-size:16px;font-weight:500;width:100%;text-align:left;transition:background .15s}
-    .upload-action-btn:active{background:var(--cream)}
-    .upload-action-btn .icon-wrap{width:44px;height:44px;border-radius:12px;background:var(--coral-light);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .upload-action-btn svg{stroke:var(--coral);stroke-width:2}
-    input[type=file]{display:none}
+    /* ── Buttons ── */
+    .btn { display: inline-flex; align-items: center; justify-content: center;
+      gap: 8px; font-weight: 600; font-size: 15px;
+      border-radius: var(--r-full); padding: 14px 22px;
+      transition: transform .15s ease, opacity .15s ease; white-space: nowrap; }
+    .btn:active { transform: scale(.97); opacity: .88; }
+    .btn-primary { background: var(--coral); color: white;
+      box-shadow: var(--shadow-coral); width: 100%; }
+    .btn-ghost { background: var(--surface); color: var(--ink);
+      border: 1px solid var(--line); }
+    .btn-sm { padding: 9px 16px; font-size: 13px; }
 
-    /* ── Review ── */
-    .review-header{background:linear-gradient(135deg,var(--coral),#FB923C);margin:10px 16px 0;border-radius:var(--radius);padding:20px;color:#fff}
-    .review-header h2{font-size:20px;font-weight:800}
-    .review-header p{font-size:13px;opacity:.85;margin-top:4px}
-    .plan-item{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)}
-    .plan-item:last-child{border-bottom:none}
-    .plan-num{width:34px;height:34px;border-radius:10px;background:var(--coral-light);color:var(--coral);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0}
-    .plan-name{font-size:15px;font-weight:600}
-    .plan-meta{font-size:12px;color:var(--gray);margin-top:3px}
-    .priority{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
-    .p-high{background:#FEE2E2;color:#B91C1C}
-    .p-med{background:#FEF3C7;color:#92400E}
-    .p-low{background:#D1FAE5;color:#065F46}
+    /* ── Bottom nav (floating pill) ── */
+    .tabbar { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+      width: calc(100% - 32px); max-width: 448px;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-radius: var(--r-xl); padding: 10px 8px;
+      box-shadow: 0 8px 30px rgba(27,27,42,.10), 0 2px 6px rgba(27,27,42,.04);
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      border: 1px solid rgba(255,255,255,.7); z-index: 200; }
+    .tab { display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 6px 0; color: var(--ink-3); font-size: 10px; font-weight: 600;
+      cursor: pointer; transition: color .15s ease; }
+    .tab.active { color: var(--coral); }
+    .tab svg { width: 22px; height: 22px; stroke-width: 1.8; }
+    .tab-upload { background: var(--coral); color: white !important;
+      margin: -10px 6px; border-radius: var(--r-full);
+      box-shadow: var(--shadow-coral); padding: 14px 0 12px; }
+    .tab-upload .tab-label { display: none; }
+    .tab-upload svg { width: 26px; height: 26px; }
 
-    /* ── Mine ── */
-    .mine-header{background:linear-gradient(135deg,var(--coral),#FB923C);margin:10px 16px 0;border-radius:var(--radius);padding:24px 20px;color:#fff;display:flex;align-items:center;gap:16px}
-    .mine-avatar{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex-shrink:0}
-    .mine-menu-item{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid var(--border);cursor:pointer}
-    .mine-menu-item:last-child{border-bottom:none}
-    .mine-menu-item svg{stroke:var(--gray);width:20px;height:20px;flex-shrink:0}
-    .mine-menu-item span{flex:1;font-size:15px}
-    .mine-menu-item .arr{stroke:var(--border);width:16px;height:16px}
+    /* ── Review header card ── */
+    .review-hero { margin: 10px 16px 0;
+      background: linear-gradient(135deg, var(--coral) 0%, #FF9577 100%);
+      border-radius: var(--r-lg); padding: 20px; color: white; }
+    .review-hero h2 { font-size: 20px; font-weight: 700; }
+    .review-hero p { font-size: 13px; opacity: .85; margin-top: 4px; }
 
-    /* ── Processing ── */
-    .progress-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin:10px 0}
-    .progress-fill{height:100%;background:linear-gradient(90deg,var(--coral),#FB923C);border-radius:3px;transition:width .5s}
-    .step-row{display:flex;align-items:center;gap:10px;padding:10px 0}
-    .step-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
-    .s-done{background:#D1FAE5;color:#065F46}
-    .s-run{background:var(--coral-light);color:var(--coral)}
-    .s-wait{background:#F3F4F6;color:var(--gray)}
+    /* ── Profile / Mine ── */
+    .mine-hero { margin: 10px 16px 0;
+      background: linear-gradient(135deg, var(--coral) 0%, #FF9577 100%);
+      border-radius: var(--r-lg); padding: 22px 20px; color: white;
+      display: flex; align-items: center; gap: 16px; }
+    .mine-avatar { width: 56px; height: 56px; border-radius: var(--r-full);
+      background: rgba(255,255,255,.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800; flex-shrink: 0; }
+    .menu-item { display: flex; align-items: center; gap: 14px;
+      padding: 16px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+    .menu-item:last-child { border-bottom: none; }
+    .menu-item svg { stroke: var(--ink-3); width: 20px; height: 20px; flex-shrink: 0; }
+    .menu-item span { flex: 1; font-size: 15px; }
+    .menu-arr { stroke: var(--line-2) !important; width: 16px !important;
+      height: 16px !important; }
+
+    /* ── Upload sheet ── */
+    #upload-modal { position: fixed; inset: 0;
+      background: rgba(27,27,42,.5); z-index: 500;
+      display: none; align-items: flex-end; justify-content: center; }
+    #upload-modal.open { display: flex; }
+    .upload-sheet { background: var(--surface); border-radius: var(--r-xl) var(--r-xl) 0 0;
+      padding: 24px 24px 48px; width: 100%; max-width: 480px; }
+    .sheet-handle { width: 40px; height: 4px; background: var(--line);
+      border-radius: 2px; margin: 0 auto 20px; }
+    .upload-zone { position: relative; border-radius: var(--r-lg);
+      background: linear-gradient(160deg, #FFFFFF 0%, #FFF4EF 100%);
+      border: 2px dashed var(--coral); padding: 32px 24px;
+      text-align: center; overflow: hidden; cursor: pointer; }
+    .upload-zone::before { content: ''; position: absolute; inset: 0;
+      background: radial-gradient(circle at 20% 0%, rgba(255,107,91,.08), transparent 50%);
+      pointer-events: none; }
+    .upload-icon-wrap { width: 76px; height: 76px; border-radius: var(--r-full);
+      background: white; margin: 0 auto 16px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 24px rgba(255,107,91,.18); position: relative; z-index: 1; }
+    .upload-title { font-size: 17px; font-weight: 700; position: relative; z-index: 1; }
+    .upload-sub { font-size: 12px; color: var(--ink-3); margin-top: 6px;
+      max-width: 240px; margin-left: auto; margin-right: auto;
+      line-height: 1.5; position: relative; z-index: 1; }
+    .upload-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    .upload-action-btn { display: flex; align-items: center; gap: 14px;
+      padding: 14px 18px; border: 1.5px solid var(--line);
+      border-radius: var(--r-md); cursor: pointer; background: var(--surface);
+      font-size: 15px; font-weight: 500; width: 100%; text-align: left;
+      transition: background .15s; }
+    .upload-action-btn:active { background: var(--bg); }
+    .upload-action-btn .icon-wrap { width: 44px; height: 44px;
+      border-radius: var(--r-sm); background: var(--coral-soft);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .upload-action-btn svg { stroke: var(--coral); stroke-width: 2; }
+
+    /* ── Processing overlay (dark full-screen) ── */
+    #proc-overlay { position: fixed; inset: 0; z-index: 900;
+      background: linear-gradient(180deg, #1B1B2A 0%, #2B2138 100%);
+      color: white; display: none;
+      flex-direction: column; align-items: center;
+      padding: 60px 24px 40px; text-align: center; }
+    #proc-overlay.open { display: flex; }
+    .proc-art { flex: 1; display: flex; align-items: center;
+      justify-content: center; position: relative; width: 100%; }
+    .proc-orb { width: 200px; height: 200px; border-radius: var(--r-full);
+      background: radial-gradient(circle at 30% 30%,
+        #FF9F8C 0%, var(--coral) 50%, #B83A2A 100%);
+      filter: blur(.5px);
+      box-shadow: 0 0 80px rgba(255,107,91,.5),
+        inset 0 0 60px rgba(255,255,255,.15);
+      position: relative;
+      animation: orbPulse 3s ease-in-out infinite; }
+    .proc-orb::after { content: ''; position: absolute; inset: -30px;
+      border-radius: var(--r-full);
+      border: 1px solid rgba(255,107,91,.3);
+      animation: orbRing 3s ease-in-out infinite; }
+    .proc-orb::before { content: ''; position: absolute; inset: -60px;
+      border-radius: var(--r-full);
+      border: 1px solid rgba(255,107,91,.15);
+      animation: orbRing 3s ease-in-out infinite .5s; }
+    @keyframes orbPulse {
+      0%,100% { transform: scale(1); }
+      50%      { transform: scale(1.05); }
+    }
+    @keyframes orbRing {
+      0%,100% { transform: scale(1); opacity: .6; }
+      50%      { transform: scale(1.15); opacity: .2; }
+    }
+    .proc-label { font-size: 20px; font-weight: 700; margin-top: 4px; }
+    .proc-sub { font-size: 13px; opacity: .6; margin-top: 6px; }
+    .proc-stages { display: flex; flex-direction: column; gap: 12px;
+      margin-top: 24px; width: 100%; max-width: 340px; }
+    .proc-stage { display: flex; align-items: center; gap: 14px;
+      padding: 14px 18px;
+      background: rgba(255,255,255,.06);
+      border-radius: var(--r-md);
+      border: 1px solid rgba(255,255,255,.05);
+      text-align: left; transition: all .4s ease; }
+    .proc-stage.active { background: rgba(255,107,91,.18);
+      border-color: rgba(255,107,91,.4); }
+    .proc-stage.done  { background: rgba(54,200,168,.12);
+      border-color: rgba(54,200,168,.25); }
+    .proc-stage-icon { width: 32px; height: 32px; border-radius: var(--r-full);
+      background: rgba(255,255,255,.08);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .proc-stage.active .proc-stage-icon { background: var(--coral); }
+    .proc-stage.done   .proc-stage-icon { background: var(--mint); }
+    .proc-stage-label { font-size: 14px; font-weight: 600; flex: 1; }
+    .proc-stage-sub { font-size: 11px; opacity: .6; margin-top: 2px; }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.3); border-top-color: white;
+      animation: spin .8s linear infinite; }
+    .spinner-dark { border-color: var(--line); border-top-color: var(--coral); }
 
     /* ── Toast ── */
-    #toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--dark);color:#fff;padding:10px 20px;border-radius:12px;font-size:14px;z-index:9999;transition:transform .25s;white-space:nowrap}
-    #toast.show{transform:translateX(-50%) translateY(0)}
+    #toast { position: fixed; top: 20px; left: 50%;
+      transform: translateX(-50%) translateY(-80px);
+      background: var(--ink); color: white; padding: 10px 20px;
+      border-radius: var(--r-md); font-size: 14px; z-index: 9999;
+      transition: transform .25s; white-space: nowrap; }
+    #toast.show { transform: translateX(-50%) translateY(0); }
 
-    /* ── Empty / spinner ── */
-    .empty{text-align:center;padding:40px 20px;color:var(--gray)}
-    .empty p{font-size:14px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .spinner{width:22px;height:22px;border:2px solid var(--border);border-top-color:var(--coral);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 40px 20px; color: var(--ink-3); }
+    .empty p { font-size: 14px; line-height: 1.6; }
 
-    .scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
-    .gap{height:16px}
+    /* Report card */
+    .report-dark { background: linear-gradient(140deg, var(--ink) 0%, #2B2138 100%);
+      color: white; border-radius: var(--r-lg); padding: 20px; }
+
+    /* Pill tags */
+    .pill { display: inline-flex; align-items: center; padding: 2px 8px;
+      font-size: 10px; font-weight: 600; border-radius: var(--r-full);
+      background: var(--bg-soft); color: var(--ink-2); }
+    .pill-math    { background: #E6E2FF; color: #312880; }
+    .pill-chinese { background: #FCEFCE; color: #6B4A0F; }
+    .pill-english { background: #DCF5EE; color: #1B5A4B; }
+    .pill-physics { background: #FFE5DF; color: #7A2A1F; }
+
+    /* Subject tabs */
+    .subj-tabs { display: flex; gap: 8px; overflow-x: auto;
+      padding: 4px 0 4px 16px; scrollbar-width: none; }
+    .subj-tabs::-webkit-scrollbar { display: none; }
+    .subj-tab { padding: 8px 14px; background: var(--surface);
+      border: 1px solid var(--line); border-radius: var(--r-full);
+      font-size: 13px; font-weight: 500; color: var(--ink-2);
+      white-space: nowrap; flex-shrink: 0; cursor: pointer; }
+    .subj-tab.active { background: var(--ink); color: white;
+      border-color: var(--ink); }
+
+    /* Slide-in animation */
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .anim-in   { animation: slideUp .4s cubic-bezier(.2,.8,.2,1) both; }
+    .anim-in-1 { animation-delay: .05s; }
+    .anim-in-2 { animation-delay: .10s; }
+    .anim-in-3 { animation-delay: .15s; }
+    .anim-in-4 { animation-delay: .20s; }
   </style>
 </head>
 <body>
@@ -170,185 +418,233 @@
 <div id="toast"></div>
 
 <!-- ═══ APP ═══ -->
-<div id="app" style="display:flex;flex-direction:column;">
+<div id="app">
 
-  <!-- ── 首页 ── -->
+  <!-- ── 01 · 首页 ── -->
   <div id="s-home" class="screen active">
     <div class="topbar">
       <div>
-        <div class="topbar-title">首页</div>
+        <div class="topbar-title">你好 👋</div>
         <div class="topbar-sub" id="home-date"></div>
       </div>
-      <div class="avatar" id="av1" onclick="changeStudent()" title="点击切换学生">S</div>
+      <div class="avatar" id="av1" onclick="changeStudent()" title="切换学生">S</div>
     </div>
     <div class="scroll-area">
-      <div class="home-hero">
-        <div>
-          <h2>今天要复习<br><span id="home-plan-count" style="color:var(--coral-dark)">—</span> 个知识点</h2>
-          <p>坚持每天复习，进步看得见</p>
+      <div class="greet-card anim-in">
+        <div class="greet-hello">今天该复习</div>
+        <div class="greet-name" id="home-plan-count">— 个知识点</div>
+        <div class="greet-tip">坚持每天复习，进步看得见</div>
+        <div class="greet-streak">🔥 <span id="home-streak">打开 AI 复习</span></div>
+      </div>
+
+      <div class="stat-grid anim-in anim-in-1">
+        <div class="stat-tile stat-tile-coral">
+          <div class="stat-label">已学知识点</div>
+          <div><span class="stat-value" id="st-kp">—</span></div>
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
         </div>
-        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-          <circle cx="32" cy="32" r="28" fill="rgba(248,113,113,0.15)"/>
-          <circle cx="32" cy="32" r="18" fill="rgba(248,113,113,0.3)"/>
-          <text x="32" y="38" text-anchor="middle" font-size="20" font-weight="800" fill="#EF4444">AI</text>
-        </svg>
+        <div class="stat-tile stat-tile-mint">
+          <div class="stat-label">平均掌握度</div>
+          <div><span class="stat-value" id="st-ms">—</span></div>
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="stat-tile stat-tile-amber">
+          <div class="stat-label">薄弱知识点</div>
+          <div><span class="stat-value" id="st-wk">—</span></div>
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="stat-tile stat-tile-violet">
+          <div class="stat-label">今日复习</div>
+          <div><span class="stat-value" id="st-today">—</span></div>
+          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
       </div>
-      <div class="stats-row">
-        <div class="stat-box"><div class="stat-num" id="st-kp">—</div><div class="stat-label">已学知识点</div></div>
-        <div class="stat-box"><div class="stat-num" id="st-ms">—</div><div class="stat-label">平均掌握</div></div>
-        <div class="stat-box"><div class="stat-num" id="st-wk">—</div><div class="stat-label">薄弱点</div></div>
+
+      <div class="section-head">
+        <div class="section-title">最近上传</div>
+        <div class="section-more" onclick="loadHome()" style="cursor:pointer">刷新</div>
       </div>
-      <div class="card">
-        <div class="card-title">最近上传</div>
-        <div id="recent-list"><div class="empty"><p>暂无记录</p></div></div>
+      <div id="recent-list">
+        <div class="empty"><p>暂无记录</p></div>
       </div>
       <div class="gap"></div>
     </div>
   </div>
 
-  <!-- ── 知识 ── -->
+  <!-- ── 05 · 知识画像 ── -->
   <div id="s-knowledge" class="screen">
     <div class="topbar">
       <div>
         <div class="topbar-title">知识画像</div>
         <div class="topbar-sub" id="kp-count">加载中…</div>
       </div>
-      <div class="badge" id="adv-badge"></div>
+      <div class="chip chip-violet" id="adv-badge" style="font-size:12px"></div>
     </div>
     <div class="scroll-area">
-      <div class="card">
-        <div class="card-heading">学科掌握雷达</div>
+      <div class="subj-tabs" id="subj-tabs-wrap"></div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">学科掌握雷达</div>
         <div class="card-sub">与班级平均对比</div>
         <div class="radar-wrap" style="margin-top:16px">
           <canvas id="radar-canvas" width="280" height="280" style="width:100%;height:auto"></canvas>
         </div>
         <div class="radar-legend" style="margin-top:12px">
-          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray)">
-            <div class="legend-dot" style="background:var(--coral)"></div>我的掌握
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)">
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--coral);display:inline-block"></span>我的掌握
           </div>
-          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--gray)">
-            <div class="legend-dot" style="background:var(--blue);border-radius:0;width:12px;height:2px;margin-top:0"></div>班级平均
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)">
+            <span style="width:12px;height:2px;background:var(--violet);display:inline-block;border-radius:1px"></span>班级平均
           </div>
         </div>
       </div>
-      <div class="card">
-        <div class="card-heading">知识点热力图</div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">知识点热力图</div>
         <div class="card-sub">行：能力层级 · 列：知识模块</div>
         <div class="heatmap-wrap" style="margin-top:16px">
           <table class="heatmap-table" id="heatmap-table"></table>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap">
-          <span style="font-size:11px;color:var(--gray)">掌握度：</span>
-          <span style="font-size:11px;color:var(--gray);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#F3F4F6;display:inline-block"></span>未学</span>
-          <span style="font-size:11px;color:var(--gray);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#99F6E4;display:inline-block"></span>入门</span>
-          <span style="font-size:11px;color:var(--gray);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#2DD4BF;display:inline-block"></span>掌握</span>
-          <span style="font-size:11px;color:var(--gray);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#FBBF24;display:inline-block"></span>熟练</span>
-          <span style="font-size:11px;color:var(--gray);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#F87171;display:inline-block"></span>薄弱</span>
+          <span style="font-size:11px;color:var(--ink-3)">掌握度：</span>
+          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#F3F4F6;display:inline-block"></span>未学</span>
+          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#99F6E4;display:inline-block"></span>入门</span>
+          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:var(--mint);display:inline-block"></span>掌握</span>
+          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:var(--amber);display:inline-block"></span>熟练</span>
+          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:var(--rose);display:inline-block"></span>薄弱</span>
         </div>
       </div>
+
+      <div class="section-head"><div class="section-title">薄弱知识点</div></div>
+      <div id="weak-list"><div class="empty"><div class="spinner spinner-dark" style="display:inline-block"></div></div></div>
       <div class="gap"></div>
     </div>
   </div>
 
-  <!-- ── 复习 ── -->
+  <!-- ── 06 · 复习计划 ── -->
   <div id="s-review" class="screen">
     <div class="topbar">
       <div class="topbar-title">今日复习</div>
-      <button class="btn btn-outline btn-sm" onclick="loadReview()">刷新</button>
+      <button class="btn btn-ghost btn-sm" onclick="loadReview()">刷新</button>
     </div>
     <div class="scroll-area">
-      <div class="review-header">
+      <div class="review-hero">
         <h2>今日任务</h2>
         <p id="review-summary">加载中…</p>
       </div>
-      <div class="card">
-        <div id="plan-list"><div class="empty"><div class="spinner"></div></div></div>
+      <div class="section-head" style="padding-top:16px">
+        <div class="section-title">复习清单</div>
+      </div>
+      <div id="plan-list">
+        <div class="empty"><div class="spinner spinner-dark" style="display:inline-block"></div></div>
       </div>
       <div class="gap"></div>
     </div>
   </div>
 
-  <!-- ── 我的 ── -->
+  <!-- ── 07 · 我的 ── -->
   <div id="s-mine" class="screen">
     <div class="topbar"><div class="topbar-title">我的</div></div>
     <div class="scroll-area">
-      <div class="mine-header">
+      <div class="mine-hero">
         <div class="mine-avatar" id="mine-av">S</div>
         <div>
-          <div style="font-size:18px;font-weight:800" id="mine-name">学生</div>
+          <div style="font-size:18px;font-weight:700" id="mine-name">学生</div>
           <div style="font-size:13px;opacity:.8;margin-top:2px" id="mine-id">—</div>
         </div>
       </div>
-      <div class="card" style="padding:0 20px">
-        <div class="mine-menu-item" onclick="loadReport()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <div class="card" style="margin-top:12px;padding:0 20px">
+        <div class="menu-item" onclick="loadReport()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           <span>生成学习报告</span>
-          <svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"/></svg>
+          <svg class="menu-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
-        <div class="mine-menu-item" onclick="doExport()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <div class="menu-item" onclick="doExport()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span>导出 Excel 数据</span>
-          <svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"/></svg>
+          <svg class="menu-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 18 15 12 9 6"/></svg>
         </div>
       </div>
-      <div id="report-card" style="display:none" class="card">
-        <div class="card-title">学习报告</div>
+      <div id="report-card" style="display:none;margin-top:12px">
         <div id="report-content"></div>
       </div>
       <div class="gap"></div>
     </div>
   </div>
 
-  <!-- ── Bottom nav ── -->
-  <nav class="bottom-nav">
-    <div class="nav-item active" id="nav-home" onclick="goScreen('home',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>首页
+  <!-- ── Bottom tab bar (floating pill) ── -->
+  <nav class="tabbar">
+    <div class="tab active" id="tab-home" onclick="goScreen('home',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="tab-label">首页</span>
     </div>
-    <div class="nav-item" id="nav-knowledge" onclick="goScreen('knowledge',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>知识
+    <div class="tab" id="tab-knowledge" onclick="goScreen('knowledge',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      <span class="tab-label">知识</span>
     </div>
-    <div class="nav-center">
-      <div class="cam-btn" onclick="openUpload()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      </div>
+    <div class="tab tab-upload" onclick="openUpload()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span class="tab-label"></span>
     </div>
-    <div class="nav-item" id="nav-review" onclick="goScreen('review',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>复习
+    <div class="tab" id="tab-review" onclick="goScreen('review',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span class="tab-label">复习</span>
     </div>
-    <div class="nav-item" id="nav-mine" onclick="goScreen('mine',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>我的
+    <div class="tab" id="tab-mine" onclick="goScreen('mine',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="tab-label">我的</span>
     </div>
   </nav>
-</div><!-- end #app -->
+</div>
 
-<!-- ── Upload sheet ── -->
+<!-- ═══ Upload sheet ═══ -->
 <div id="upload-modal" onclick="closeUpload(event)">
   <div class="upload-sheet" id="upload-sheet">
     <div class="sheet-handle"></div>
-    <div style="font-size:18px;font-weight:800;margin-bottom:4px">上传作业</div>
-    <div style="font-size:13px;color:var(--gray);margin-bottom:20px">选择图片来源</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px">上传作业</div>
+    <div style="font-size:13px;color:var(--ink-3);margin-bottom:16px">拍照或从相册选择题目图片</div>
     <div class="upload-actions">
       <label class="upload-action-btn">
-        <div class="icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="currentColor"/><circle cx="12" cy="13" r="4" stroke="currentColor"/></svg></div>
-        <div><div style="font-weight:600">拍照上传</div><div style="font-size:12px;color:var(--gray);margin-top:2px">调用相机拍摄作业</div></div>
+        <div class="icon-wrap">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-weight:600">拍照上传</div>
+          <div style="font-size:12px;color:var(--ink-3);margin-top:2px">调用相机拍摄作业</div>
+        </div>
         <input type="file" id="f-camera" accept="image/*" capture="environment" onchange="onFile(this)">
       </label>
       <label class="upload-action-btn">
-        <div class="icon-wrap"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke="currentColor"/><circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor"/><polyline points="21 15 16 10 5 21" stroke="currentColor"/></svg></div>
-        <div><div style="font-weight:600">从相册选择</div><div style="font-size:12px;color:var(--gray);margin-top:2px">选择已有照片</div></div>
+        <div class="icon-wrap">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="2"/><polyline points="21 15 16 10 5 21" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-weight:600">从相册选择</div>
+          <div style="font-size:12px;color:var(--ink-3);margin-top:2px">选择已有照片</div>
+        </div>
         <input type="file" id="f-gallery" accept="image/*" onchange="onFile(this)">
       </label>
     </div>
-    <!-- Preview + progress -->
+
+    <!-- Preview + upload button -->
     <div id="preview-area" style="display:none;margin-top:16px">
-      <img id="prev-img" style="width:100%;max-height:200px;object-fit:cover;border-radius:12px">
-      <div id="proc-area" style="display:none;margin-top:14px">
-        <div class="progress-bar"><div class="progress-fill" id="pfill" style="width:0%"></div></div>
-        <div id="steps-wrap"></div>
-      </div>
+      <img id="prev-img" style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-md)">
       <button class="btn btn-primary" id="upload-btn" style="margin-top:14px" onclick="doUpload()">开始分析</button>
     </div>
   </div>
+</div>
+
+<!-- ═══ Processing overlay (dark full-screen) ═══ -->
+<div id="proc-overlay">
+  <div style="font-size:14px;opacity:.6;margin-bottom:8px">AI 正在分析你的题目…</div>
+  <div class="proc-art">
+    <div class="proc-orb"></div>
+  </div>
+  <div class="proc-label" id="proc-title">分析中</div>
+  <div class="proc-sub" id="proc-sub">请稍候，通常需要 30-60 秒</div>
+  <div class="proc-stages" id="proc-stages"></div>
 </div>
 
 <script>
@@ -360,379 +656,512 @@ let SID = '', pollTimer = null, selFile = null;
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
-function hdr(extra){return Object.assign({'X-Student-Id':SID},extra||{})}
-function toast(msg,dur=2600){const e=document.getElementById('toast');e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),dur)}
-async function api(path,opts={}){
-  const res=await fetch(path,{...opts,headers:{...hdr(),...(opts.headers||{})}});
-  if(!res.ok){const j=await res.json().catch(()=>({}));throw new Error(j.detail||'HTTP '+res.status)}
-  return res
+function hdr(extra){ return Object.assign({'X-Student-Id': SID}, extra || {}); }
+function toast(msg, dur=2600){
+  const e = document.getElementById('toast');
+  e.textContent = msg; e.classList.add('show');
+  setTimeout(() => e.classList.remove('show'), dur);
+}
+async function api(path, opts={}){
+  const res = await fetch(path, {...opts, headers: {...hdr(), ...(opts.headers||{})}});
+  if(!res.ok){ const j = await res.json().catch(() => ({})); throw new Error(j.detail || 'HTTP '+res.status); }
+  return res;
 }
 
 // ─────────────────────────────────────────────
-// Login
+// Student / login
 // ─────────────────────────────────────────────
 function setStudent(v){
-  SID=v||'default_student';
-  const ch=SID[0].toUpperCase();
-  const av=document.getElementById('av1');
-  const av2=document.getElementById('mine-av');
-  if(av)av.textContent=ch;
-  if(av2)av2.textContent=ch;
-  const mn=document.getElementById('mine-name');
-  const mi=document.getElementById('mine-id');
-  if(mn)mn.textContent='学生 '+SID;
-  if(mi)mi.textContent='ID: '+SID;
+  SID = v || 'default_student';
+  const ch = SID[0].toUpperCase();
+  ['av1','mine-av'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = ch; });
+  const mn = document.getElementById('mine-name');
+  const mi = document.getElementById('mine-id');
+  if(mn) mn.textContent = '学生 ' + SID;
+  if(mi) mi.textContent = 'ID: ' + SID;
 }
 function changeStudent(){
-  const v=prompt('输入学生ID:',SID)||SID;
-  setStudent(v.trim()||SID);
+  const v = prompt('输入学生ID:', SID) || SID;
+  setStudent(v.trim() || SID);
   loadAll();
 }
-// Auto-init on load
-window.addEventListener('DOMContentLoaded',()=>{
+
+window.addEventListener('DOMContentLoaded', () => {
   setStudent('default_student');
-  const d=new Date();
-  const hd=document.getElementById('home-date');
-  if(hd)hd.textContent=d.toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'long'});
+  const d = new Date();
+  const hd = document.getElementById('home-date');
+  if(hd) hd.textContent = d.toLocaleDateString('zh-CN', {month:'long', day:'numeric', weekday:'long'});
   loadAll();
 });
 
 // ─────────────────────────────────────────────
 // Screen nav
 // ─────────────────────────────────────────────
-const SCREENS={home:'s-home',knowledge:'s-knowledge',review:'s-review',mine:'s-mine'};
-function goScreen(name,navEl){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+const SCREENS = {home:'s-home', knowledge:'s-knowledge', review:'s-review', mine:'s-mine'};
+const TABS    = {home:'tab-home', knowledge:'tab-knowledge', review:'tab-review', mine:'tab-mine'};
+function goScreen(name, tabEl){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById(SCREENS[name]).classList.add('active');
-  if(navEl)navEl.classList.add('active');
+  const tabId = TABS[name];
+  if(tabId) document.getElementById(tabId).classList.add('active');
 }
 
 // ─────────────────────────────────────────────
 // Upload modal
 // ─────────────────────────────────────────────
-function openUpload(){document.getElementById('upload-modal').classList.add('open')}
-function closeUpload(e){if(e.target===document.getElementById('upload-modal'))document.getElementById('upload-modal').classList.remove('open')}
-
+function openUpload(){
+  document.getElementById('upload-modal').classList.add('open');
+}
+function closeUpload(e){
+  if(e.target === document.getElementById('upload-modal'))
+    document.getElementById('upload-modal').classList.remove('open');
+}
 function onFile(inp){
-  const f=inp.files[0]; if(!f)return;
-  selFile=f;
-  const r=new FileReader();
-  r.onload=e=>{document.getElementById('prev-img').src=e.target.result};
+  const f = inp.files[0]; if(!f) return;
+  selFile = f;
+  const r = new FileReader();
+  r.onload = e => { document.getElementById('prev-img').src = e.target.result; };
   r.readAsDataURL(f);
-  document.getElementById('preview-area').style.display='block';
-  document.getElementById('proc-area').style.display='none';
+  document.getElementById('preview-area').style.display = 'block';
 }
 
 async function doUpload(){
-  if(!selFile){toast('请先选择图片');return}
-  const btn=document.getElementById('upload-btn');
-  btn.textContent='上传中…'; btn.disabled=true;
-  const fd=new FormData(); fd.append('file',selFile);
-  try{
-    const res=await api('/api/upload',{method:'POST',body:fd});
-    const d=await res.json();
-    toast('上传成功，AI 分析中…');
-    document.getElementById('proc-area').style.display='block';
-    btn.style.display='none';
+  if(!selFile){ toast('请先选择图片'); return; }
+  const btn = document.getElementById('upload-btn');
+  btn.textContent = '上传中…'; btn.disabled = true;
+  const fd = new FormData(); fd.append('file', selFile);
+  try {
+    const res = await api('/api/upload', {method:'POST', body:fd});
+    const d = await res.json();
+    // Close sheet, open processing overlay
+    document.getElementById('upload-modal').classList.remove('open');
+    openProcOverlay();
     pollStatus(d.assignment_id);
-  }catch(e){
-    toast('❌ '+e.message,4000);
-    btn.textContent='开始分析'; btn.disabled=false;
+  } catch(e) {
+    toast('❌ ' + e.message, 4000);
+    btn.textContent = '开始分析'; btn.disabled = false;
   }
 }
 
-// ── Poll terminal state sets (matches AssignmentStatus enum) ──
-const POLL_SUCCESS=['ai_done','completed','done'];
-const POLL_FAIL   =['failed','error','ocr_failed','ai_failed'];
-const POLL_MANUAL =['manual_required'];
+// ─────────────────────────────────────────────
+// Processing overlay
+// ─────────────────────────────────────────────
+function openProcOverlay(){
+  document.getElementById('proc-overlay').classList.add('open');
+  renderProcStages('');
+}
+function closeProcOverlay(){
+  document.getElementById('proc-overlay').classList.remove('open');
+  const btn = document.getElementById('upload-btn');
+  btn.textContent = '开始分析'; btn.disabled = false;
+  document.getElementById('preview-area').style.display = 'none';
+  selFile = null;
+}
 
-// ── Infer per-step state from single status string ──
+const POLL_SUCCESS = ['ai_done','completed','done'];
+const POLL_FAIL    = ['failed','error','ocr_failed','ai_failed'];
+const POLL_MANUAL  = ['manual_required'];
+
 function inferStepsFromStatus(s){
-  const OCR_DONE_STATES=['ocr_done','ai_queued','ai_running','ai_done'];
-  const OCR_RUN_STATES =['ocr_queued','ocr_running'];
-  const AI_RUN_STATES  =['ai_queued','ai_running'];
-  const ALL_DONE_STATES=['ai_done'];
+  const OCR_DONE = ['ocr_done','ai_queued','ai_running','ai_done'];
+  const OCR_RUN  = ['ocr_queued','ocr_running'];
+  const AI_RUN   = ['ai_queued','ai_running'];
+  const DONE     = ['ai_done'];
   return {
-    ocr:     ALL_DONE_STATES.includes(s)||OCR_DONE_STATES.includes(s)?'done'
-           : OCR_RUN_STATES.includes(s)?'running':'wait',
-    ai:      ALL_DONE_STATES.includes(s)?'done'
-           : AI_RUN_STATES.includes(s)?'running':'wait',
-    archive: ALL_DONE_STATES.includes(s)?'done':'wait',
-    plan:    ALL_DONE_STATES.includes(s)?'done':'wait',
+    ocr:     DONE.includes(s)||OCR_DONE.includes(s) ? 'done' : OCR_RUN.includes(s) ? 'running' : 'wait',
+    ai:      DONE.includes(s) ? 'done' : AI_RUN.includes(s) ? 'running' : 'wait',
+    archive: DONE.includes(s) ? 'done' : 'wait',
+    plan:    DONE.includes(s) ? 'done' : 'wait',
   };
 }
 
-const STEPS=[
-  {key:'ocr',    label:'OCR 识别',   sub:'提取题目文字'},
-  {key:'ai',     label:'AI 分析',    sub:'识别错误原因'},
-  {key:'archive',label:'知识点归档', sub:'匹配知识体系'},
-  {key:'plan',   label:'生成计划',   sub:'个性化推荐'},
-];
-function renderSteps(statusStr){
-  const inferred=inferStepsFromStatus(statusStr||'');
-  let done=0;
-  const html=STEPS.map(s=>{
-    const st=inferred[s.key]||'';
-    let cls='s-wait',icon='○';
-    if(st==='done'){cls='s-done';icon='✓';done++}
-    else if(st==='running'){cls='s-run';icon='⟳'}
-    return `<div class="step-row"><div class="step-icon ${cls}">${icon}</div><div><div style="font-size:13px;font-weight:500">${s.label}</div><div style="font-size:11px;color:var(--gray)">${s.sub}</div></div></div>`
-  }).join('');
-  document.getElementById('steps-wrap').innerHTML=html;
-  document.getElementById('pfill').style.width=(done/STEPS.length*100)+'%';
+function inferSteps(s){
+  return inferStepsFromStatus(s);
 }
+
+const STAGE_DEFS = [
+  {key:'ocr',     label:'OCR 识别',    sub:'提取题目文字与图形'},
+  {key:'ai',      label:'AI 分析',     sub:'识别错误原因和知识点'},
+  {key:'archive', label:'知识点归档',  sub:'匹配知识体系'},
+  {key:'plan',    label:'生成复习计划', sub:'个性化推荐'},
+];
+
+function renderProcStages(statusStr){
+  const map = inferSteps(statusStr || '');
+  const runningIdx = STAGE_DEFS.findIndex(s => map[s.key] === 'running');
+  const label = runningIdx >= 0 ? STAGE_DEFS[runningIdx].label
+              : POLL_SUCCESS.includes(statusStr) ? '分析完成！' : '分析中';
+  const sub   = runningIdx >= 0 ? STAGE_DEFS[runningIdx].sub
+              : POLL_SUCCESS.includes(statusStr) ? '正在更新你的学习画像' : '请稍候，通常需要 30-60 秒';
+
+  document.getElementById('proc-title').textContent = label;
+  document.getElementById('proc-sub').textContent   = sub;
+
+  document.getElementById('proc-stages').innerHTML = STAGE_DEFS.map(s => {
+    const st = map[s.key];
+    let cls = '', icon = '';
+    if(st === 'done'){
+      cls = 'done';
+      icon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`;
+    } else if(st === 'running'){
+      cls = 'active';
+      icon = `<div class="spinner"></div>`;
+    } else {
+      icon = `<div style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3)"></div>`;
+    }
+    return `<div class="proc-stage ${cls}">
+      <div class="proc-stage-icon">${icon}</div>
+      <div>
+        <div class="proc-stage-label">${s.label}</div>
+        <div class="proc-stage-sub">${s.sub}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderSteps(statusStr){
+  renderProcStages(statusStr);
+}
+
 function pollStatus(id){
-  if(!id)return;
+  if(!id) return;
   clearInterval(pollTimer);
-  pollTimer=setInterval(async()=>{
-    try{
-      const res=await api('/api/assignments/'+id);
-      const d=await res.json();
-      renderSteps(d.status||'');
-      const s=d.status||'';
+  pollTimer = setInterval(async () => {
+    try {
+      const res = await api('/api/assignments/' + id);
+      const d   = await res.json();
+      const s   = d.status || '';
+      renderProcStages(s);
       if(POLL_SUCCESS.includes(s)){
         clearInterval(pollTimer);
-        toast('✅ 分析完成！');
-        document.getElementById('upload-btn').style.display='block';
-        document.getElementById('upload-btn').textContent='开始分析';
-        document.getElementById('upload-btn').disabled=false;
-        document.getElementById('upload-modal').classList.remove('open');
-        loadAll();
-      }else if(POLL_MANUAL.includes(s)){
+        setTimeout(() => {
+          closeProcOverlay();
+          toast('✅ 分析完成！');
+          loadAll();
+        }, 1200);
+      } else if(POLL_MANUAL.includes(s)){
         clearInterval(pollTimer);
-        toast('⚠️ 需要人工复核，请联系老师',4000);
-        document.getElementById('upload-btn').style.display='block';
-        document.getElementById('upload-btn').textContent='重新上传';
-        document.getElementById('upload-btn').disabled=false;
-      }else if(POLL_FAIL.includes(s)){
+        closeProcOverlay();
+        toast('⚠️ 需要人工复核，请联系老师', 4000);
+      } else if(POLL_FAIL.includes(s)){
         clearInterval(pollTimer);
-        toast('❌ 分析失败，请重试',4000);
-        document.getElementById('upload-btn').style.display='block';
-        document.getElementById('upload-btn').textContent='重新分析';
-        document.getElementById('upload-btn').disabled=false;
+        closeProcOverlay();
+        toast('❌ 分析失败，请重试', 4000);
       }
-    }catch(e){}
-  },3000);
+    } catch(e){}
+  }, 3000);
 }
 
 // ─────────────────────────────────────────────
 // Load all data
 // ─────────────────────────────────────────────
-function loadAll(){loadHome();loadKnowledge();loadReview()}
+function loadAll(){ loadHome(); loadKnowledge(); loadReview(); }
 
 // ── Home ──
 async function loadHome(){
-  try{
-    const [pr,wr]=await Promise.all([
+  try {
+    const [pr, wk] = await Promise.all([
       api('/api/students/'+SID+'/profile').then(r=>r.json()).catch(()=>null),
       api('/api/students/'+SID+'/weak-points').then(r=>r.json()).catch(()=>null),
     ]);
     if(pr){
-      const items=pr.knowledge_points||pr.knowledge_mastery||pr.mastery||[];
-      document.getElementById('st-kp').textContent=pr.total_knowledge_points||items.length||0;
-      const mastery=pr.overall_mastery!=null?pr.overall_mastery
-                   :(items.length?items.reduce((a,i)=>a+(i.mastery_score||i.score||0),0)/items.length:0);
-      document.getElementById('st-ms').textContent=Math.round(mastery*100)+'%';
-      document.getElementById('st-wk').textContent=pr.weak_count!=null?pr.weak_count:'—';
+      const items = pr.knowledge_points || pr.knowledge_mastery || pr.mastery || [];
+      document.getElementById('st-kp').textContent = pr.total_knowledge_points || items.length || 0;
+      const m = pr.overall_mastery != null ? pr.overall_mastery
+              : (items.length ? items.reduce((a,i)=>a+(i.mastery_score||i.score||0),0)/items.length : 0);
+      document.getElementById('st-ms').textContent = Math.round(m*100) + '%';
+      document.getElementById('st-wk').textContent = pr.weak_count != null ? pr.weak_count : '—';
     }
-  }catch{}
-  // Recent
-  try{
-    const res=await api('/api/students/'+SID+'/review-tasks');
-    const d=await res.json();
-    const items=d.review_items||d.tasks||d||[];
-    document.getElementById('home-plan-count').textContent=Array.isArray(items)?items.length:'—';
-    document.getElementById('recent-list').innerHTML=Array.isArray(items)&&items.length?
-      items.slice(0,3).map(i=>{
-        const name=i.knowledge_point_name||i.name||'复习任务';
-        const pri=i.priority||'medium';
-        const cc=pri==='high'?'chip-proc':pri==='low'?'chip-done':'chip-proc';
-        const lb=pri==='high'?'重点':'中等';
-        return `<div class="recent-item"><div class="recent-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div><div class="recent-info"><div class="recent-name">${name}</div><div class="recent-sub">${i.estimated_minutes?'约'+i.estimated_minutes+'分钟':''}</div></div><span class="status-chip ${cc}">${lb}</span></div>`
-      }).join('')
-      :'<div class="empty"><p>暂无任务，先上传作业吧</p></div>';
-  }catch{}
+  } catch(e){}
+
+  try {
+    const res = await api('/api/students/'+SID+'/review-tasks');
+    const d   = await res.json();
+    const items = d.review_items || d.tasks || d || [];
+    const arr = Array.isArray(items) ? items : [];
+    document.getElementById('st-today').textContent = arr.length;
+    document.getElementById('home-plan-count').textContent = arr.length + ' 个知识点';
+    document.getElementById('home-streak').textContent =
+      arr.length ? `今天有 ${arr.length} 个待复习` : '暂无复习任务';
+
+    document.getElementById('recent-list').innerHTML = arr.length
+      ? arr.slice(0,3).map(i => {
+          const name = i.knowledge_point_name || i.name || '复习任务';
+          const pri  = i.priority || 'medium';
+          const [barCls, chipCls, chipLabel] =
+            pri==='high'  ? ['','chip-rose','重点']:
+            pri==='low'   ? ['mint','chip-mint','一般']:
+                            ['amber','chip-amber','中等'];
+          return `<div class="task-card anim-in">
+            <div class="task-bar ${barCls}"></div>
+            <div class="task-body">
+              <div class="task-title">${name}</div>
+              <div class="task-meta">
+                ${i.estimated_minutes ? `<span>约 ${i.estimated_minutes} 分钟</span>` : ''}
+                <span class="chip ${chipCls}">${chipLabel}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join('')
+      : '<div class="empty"><p>暂无任务<br>先上传一张作业吧</p></div>';
+  } catch(e){}
 }
 
 // ── Knowledge ──
 async function loadKnowledge(){
-  try{
-    const res=await api('/api/students/'+SID+'/profile');
-    const d=await res.json();
-    const items=d.knowledge_points||d.knowledge_mastery||d.mastery||[];
-    document.getElementById('kp-count').textContent=(d.total_knowledge_points||items.length)+' 个已学知识点';
+  try {
+    const [pr, wk] = await Promise.all([
+      api('/api/students/'+SID+'/profile').then(r=>r.json()).catch(()=>null),
+      api('/api/students/'+SID+'/weak-points').then(r=>r.json()).catch(()=>null),
+    ]);
+    const items = pr ? (pr.knowledge_points || pr.knowledge_mastery || pr.mastery || []) : [];
+    document.getElementById('kp-count').textContent =
+      (pr ? (pr.total_knowledge_points || items.length) : 0) + ' 个已学知识点';
+
+    const adv = items.filter(i => (i.mastery_score||i.score||0) >= 0.75).length;
+    const badge = document.getElementById('adv-badge');
+    badge.textContent = adv ? '优势 '+adv+' 项' : '';
+    badge.style.display = adv ? '' : 'none';
+
     drawRadar(items);
     drawHeatmap(items);
-    // Advantage count
-    const adv=items.filter(i=>(i.mastery_score||i.score||0)>=0.75).length;
-    document.getElementById('adv-badge').textContent=adv?'优势 '+adv+' 项':'';
-  }catch(e){
-    document.getElementById('kp-count').textContent='暂无数据';
+
+    // Subject tabs
+    const subjects = [...new Set(items.map(i => i.subject || extractSubject(i.knowledge_point_name||i.name||'')))].filter(s=>s&&s!=='其他');
+    const tabsWrap = document.getElementById('subj-tabs-wrap');
+    tabsWrap.innerHTML = ['全部', ...subjects].map((s,i) =>
+      `<div class="subj-tab${i===0?' active':''}" onclick="filterSubject('${s}',this)">${s}</div>`
+    ).join('');
+
+    // Weak list
+    const weakArr = wk ? (wk.weak_points || wk || []) : items.filter(i=>(i.mastery_score||i.score||0)<0.5).slice(0,8);
+    const weakList = Array.isArray(weakArr) ? weakArr : [];
+    document.getElementById('weak-list').innerHTML = weakList.length
+      ? weakList.map((w, i) => {
+          const score = w.mastery_score || w.score || 0;
+          const pct   = Math.round(score * 100);
+          const name  = w.knowledge_point_name || w.name || '—';
+          const rkCls = score < 0.3 ? '' : score < 0.5 ? 'amber' : 'mint';
+          const barCls= score < 0.3 ? 'rose' : score < 0.5 ? 'amber' : 'mint';
+          return `<div class="kp-item anim-in anim-in-${Math.min(i+1,4)}">
+            <div class="kp-rank ${rkCls}">${i+1}</div>
+            <div class="kp-body">
+              <div class="kp-title">${name}</div>
+              <div class="kp-meta">
+                <div class="bar" style="flex:1;max-width:120px">
+                  <div class="bar-fill ${barCls}" style="width:${pct}%"></div>
+                </div>
+              </div>
+            </div>
+            <div class="kp-score">${pct}<span style="font-size:11px;color:var(--ink-3);font-weight:400;margin-left:1px">%</span></div>
+          </div>`;
+        }).join('')
+      : '<div class="empty"><p>暂无薄弱知识点</p></div>';
+  } catch(e){
+    document.getElementById('kp-count').textContent = '暂无数据';
   }
 }
 
-// ── Radar chart ──
-function drawRadar(items){
-  const canvas=document.getElementById('radar-canvas');
-  const ctx=canvas.getContext('2d');
-  const W=canvas.width, H=canvas.height, cx=W/2, cy=H/2, R=cx*0.72;
+function filterSubject(sub, el){
+  document.querySelectorAll('.subj-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  // Future: filter heatmap/radar by subject
+}
 
-  // Extract subjects (top 6 by score variety)
-  const subjectMap={};
+// ── Radar ──
+function drawRadar(items){
+  const canvas = document.getElementById('radar-canvas');
+  const ctx    = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height, cx = W/2, cy = H/2, R = cx*0.72;
+
+  const subjectMap = {};
   for(const i of items){
-    const sub=i.subject||i.category||extractSubject(i.knowledge_point_name||i.name||'');
-    if(sub&&sub!=='其他'){
-      if(!subjectMap[sub])subjectMap[sub]={sum:0,count:0};
-      subjectMap[sub].sum+=(i.mastery_score||i.score||0);
-      subjectMap[sub].count++;
+    const sub = i.subject || extractSubject(i.knowledge_point_name||i.name||'');
+    if(sub && sub !== '其他'){
+      if(!subjectMap[sub]) subjectMap[sub] = {sum:0, count:0};
+      subjectMap[sub].sum   += (i.mastery_score||i.score||0);
+      subjectMap[sub].count ++;
     }
   }
-  const DEFAULT_SUBJECTS=['数学','语文','英语','物理','化学','生物'];
-  let labels=Object.keys(subjectMap).slice(0,6);
-  if(labels.length<3)labels=DEFAULT_SUBJECTS;
-  const N=labels.length;
-  const vals=labels.map(l=>subjectMap[l]?(subjectMap[l].sum/subjectMap[l].count):Math.random()*0.3+0.4);
-  // Fake class avg (slightly lower)
-  const avg=vals.map(v=>Math.max(0.2,v-Math.random()*0.15-0.05));
+  const DEFAULT = ['数学','语文','英语','物理','化学','生物'];
+  let labels = Object.keys(subjectMap).slice(0,6);
+  if(labels.length < 3) labels = DEFAULT;
+  const N    = labels.length;
+  const vals = labels.map(l => subjectMap[l] ? subjectMap[l].sum/subjectMap[l].count : Math.random()*.3+.4);
+  const avg  = vals.map(v => Math.max(.2, v - Math.random()*.15 - .05));
 
   ctx.clearRect(0,0,W,H);
-  const angles=labels.map((_,i)=>i*(2*Math.PI/N)-Math.PI/2);
+  const angles = labels.map((_,i) => i*(2*Math.PI/N) - Math.PI/2);
 
-  // Grid rings
-  for(let r=1;r<=5;r++){
+  // Grid
+  for(let r=1; r<=5; r++){
     ctx.beginPath();
-    angles.forEach((a,i)=>{const x=cx+R*(r/5)*Math.cos(a),y=cy+R*(r/5)*Math.sin(a);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
-    ctx.closePath();
-    ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=1; ctx.stroke();
+    angles.forEach((a,i)=>{ const x=cx+R*(r/5)*Math.cos(a),y=cy+R*(r/5)*Math.sin(a); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.closePath(); ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=1; ctx.stroke();
   }
-  // Spokes
   angles.forEach(a=>{
     ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+R*Math.cos(a),cy+R*Math.sin(a));
     ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1; ctx.stroke();
   });
-  // Class avg polygon
+
+  // Class avg (violet dashed)
   ctx.beginPath();
-  angles.forEach((a,i)=>{const x=cx+R*avg[i]*Math.cos(a),y=cy+R*avg[i]*Math.sin(a);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
-  ctx.closePath();
-  ctx.strokeStyle='#818CF8'; ctx.setLineDash([6,4]); ctx.lineWidth=1.5; ctx.stroke();
-  ctx.setLineDash([]);
-  // My polygon
+  angles.forEach((a,i)=>{ const x=cx+R*avg[i]*Math.cos(a),y=cy+R*avg[i]*Math.sin(a); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.closePath(); ctx.strokeStyle='#7A6BFF'; ctx.setLineDash([6,4]); ctx.lineWidth=1.5; ctx.stroke(); ctx.setLineDash([]);
+
+  // My polygon (coral)
   ctx.beginPath();
-  angles.forEach((a,i)=>{const x=cx+R*vals[i]*Math.cos(a),y=cy+R*vals[i]*Math.sin(a);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y)});
-  ctx.closePath();
-  ctx.fillStyle='rgba(248,113,113,0.2)'; ctx.fill();
-  ctx.strokeStyle='#F87171'; ctx.lineWidth=2; ctx.stroke();
+  angles.forEach((a,i)=>{ const x=cx+R*vals[i]*Math.cos(a),y=cy+R*vals[i]*Math.sin(a); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.closePath(); ctx.fillStyle='rgba(255,107,91,0.18)'; ctx.fill();
+  ctx.strokeStyle='#FF6B5B'; ctx.lineWidth=2; ctx.stroke();
+
   // Labels
-  ctx.fillStyle='#44403C'; ctx.font='bold 12px -apple-system,PingFang SC,sans-serif'; ctx.textAlign='center';
-  angles.forEach((a,i)=>{
-    const x=cx+(R+22)*Math.cos(a), y=cy+(R+22)*Math.sin(a)+4;
-    ctx.fillText(labels[i],x,y);
-  });
+  ctx.fillStyle='#4A4B5C'; ctx.font='bold 12px -apple-system, PingFang SC, sans-serif'; ctx.textAlign='center';
+  angles.forEach((a,i)=>{ ctx.fillText(labels[i], cx+(R+22)*Math.cos(a), cy+(R+22)*Math.sin(a)+4); });
 }
 
 function extractSubject(name){
-  for(const s of['数学','语文','英语','物理','化学','生物','历史','地理','政治'])
-    if(name.includes(s))return s;
+  for(const s of ['数学','语文','英语','物理','化学','生物','历史','地理','政治'])
+    if(name.includes(s)) return s;
   return '其他';
 }
 
 // ── Heatmap ──
-const LEVELS=['基础','理解','应用','分析','综合'];
+const LEVELS = ['基础','理解','应用','分析','综合'];
 function drawHeatmap(items){
-  // Group by subject columns
-  const subjects=[...new Set(items.map(i=>i.subject||extractSubject(i.knowledge_point_name||i.name||'')))].filter(s=>s&&s!=='其他').slice(0,8);
-  if(!subjects.length){subjects.push('数学','语文','英语','物理','化学','生物')}
-  const grid={};
-  LEVELS.forEach(l=>{grid[l]={};subjects.forEach(s=>{grid[l][s]=0})});
-  items.forEach(i=>{
-    const sub=i.subject||extractSubject(i.knowledge_point_name||i.name||'');
-    const lvl=i.ability_level||i.level||LEVELS[Math.floor((i.mastery_score||i.score||0)*4)];
-    const score=i.mastery_score||i.score||0;
-    if(grid[lvl]&&grid[lvl][sub]!==undefined){
-      const cls=score===0?0:score<0.4?4:score<0.6?1:score<0.8?2:3;
-      grid[lvl][sub]=cls;
-    }else if(sub&&subjects.includes(sub)){
-      const rowKey=LEVELS[Math.min(4,Math.floor((i.mastery_score||0)*LEVELS.length))];
-      const score2=i.mastery_score||0;
-      const cls=score2===0?0:score2<0.4?4:score2<0.6?1:score2<0.8?2:3;
-      if(grid[rowKey])grid[rowKey][sub]=cls;
-    }
+  const subjects = [...new Set(items.map(i=>i.subject||extractSubject(i.knowledge_point_name||i.name||'')))].filter(s=>s&&s!=='其他').slice(0,8);
+  if(!subjects.length) subjects.push('数学','语文','英语','物理','化学','生物');
+
+  const grid = {};
+  LEVELS.forEach(l => { grid[l] = {}; subjects.forEach(s => { grid[l][s] = 0; }); });
+  items.forEach(i => {
+    const sub = i.subject || extractSubject(i.knowledge_point_name||i.name||'');
+    const score = i.mastery_score || i.score || 0;
+    const cls   = score===0?0 : score<.4?4 : score<.6?1 : score<.8?2 : 3;
+    const lvl   = i.ability_level || i.level || LEVELS[Math.min(4,Math.floor(score*LEVELS.length))];
+    if(grid[lvl] && grid[lvl][sub] !== undefined) grid[lvl][sub] = cls;
   });
 
-  const tbl=document.getElementById('heatmap-table');
-  const colsHtml='<colgroup>'+subjects.map(()=>'<col style="width:40px">').join('')+'</colgroup>';
-  const headHtml='<tr><td></td>'+subjects.map(s=>`<th class="hm-th">${s}</th>`).join('')+'</tr>';
-  const bodyHtml=LEVELS.map(l=>'<tr><td class="hm-row-label">'+l+'</td>'+subjects.map(s=>`<td><div class="hm-cell hm-${grid[l][s]||0}" title="${l}·${s}"></div></td>`).join('')+'</tr>').join('');
-  tbl.innerHTML=colsHtml+'<thead>'+headHtml+'</thead><tbody>'+bodyHtml+'</tbody>';
+  const tbl = document.getElementById('heatmap-table');
+  tbl.innerHTML =
+    '<thead><tr><td></td>'+subjects.map(s=>`<th class="hm-th">${s}</th>`).join('')+'</tr></thead>'+
+    '<tbody>'+LEVELS.map(l=>'<tr><td class="hm-row-label">'+l+'</td>'+subjects.map(s=>`<td><div class="hm-cell hm-${grid[l][s]||0}" title="${l}·${s}"></div></td>`).join('')+'</tr>').join('')+'</tbody>';
 }
 
 // ── Review ──
 async function loadReview(){
-  document.getElementById('plan-list').innerHTML='<div class="empty"><div class="spinner"></div></div>';
-  document.getElementById('review-summary').textContent='加载中…';
-  try{
-    const res=await api('/api/students/'+SID+'/review-tasks');
-    const d=await res.json();
-    const items=d.review_items||d.tasks||d||[];
-    const arr=Array.isArray(items)?items:[];
-    document.getElementById('review-summary').textContent=arr.length?`共 ${arr.length} 个任务，约 ${arr.reduce((a,i)=>a+(i.estimated_minutes||5),0)} 分钟`:'今日没有复习任务';
-    document.getElementById('plan-list').innerHTML=arr.length?arr.map((it,i)=>{
-      const name=it.knowledge_point_name||it.name||`任务${i+1}`;
-      const pri=it.priority||'medium';
-      const pc=pri==='high'?'p-high':pri==='low'?'p-low':'p-med';
-      const pl=pri==='high'?'重点':pri==='low'?'一般':'中等';
-      return`<div class="plan-item"><div class="plan-num">${i+1}</div><div style="flex:1"><div class="plan-name">${name}</div><div class="plan-meta">${it.estimated_minutes?'约'+it.estimated_minutes+'分钟':''}${it.description?' · '+it.description:''}</div></div><span class="priority ${pc}">${pl}</span></div>`
-    }).join(''):'<div class="empty"><p>暂无复习任务<br>请先上传作业</p></div>';
-  }catch(e){
-    document.getElementById('review-summary').textContent='加载失败';
-    document.getElementById('plan-list').innerHTML='<div class="empty"><p>加载失败，请重试</p></div>';
+  document.getElementById('plan-list').innerHTML = '<div class="empty"><div class="spinner spinner-dark" style="display:inline-block"></div></div>';
+  document.getElementById('review-summary').textContent = '加载中…';
+  try {
+    const res  = await api('/api/students/'+SID+'/review-tasks');
+    const d    = await res.json();
+    const items = d.review_items || d.tasks || d || [];
+    const arr  = Array.isArray(items) ? items : [];
+    const mins = arr.reduce((a,i) => a+(i.estimated_minutes||5), 0);
+    document.getElementById('review-summary').textContent =
+      arr.length ? `共 ${arr.length} 个任务，约 ${mins} 分钟` : '今日没有复习任务';
+    document.getElementById('plan-list').innerHTML = arr.length
+      ? arr.map((it, i) => {
+          const name = it.knowledge_point_name || it.name || `任务${i+1}`;
+          const pri  = it.priority || 'medium';
+          const [barCls, chipCls, chipLabel] =
+            pri==='high' ? ['','chip-rose','重点']:
+            pri==='low'  ? ['mint','chip-mint','一般']:
+                           ['amber','chip-amber','中等'];
+          return `<div class="task-card anim-in anim-in-${Math.min(i+1,4)}">
+            <div class="task-bar ${barCls}"></div>
+            <div class="task-body">
+              <div class="task-title">${name}</div>
+              <div class="task-meta">
+                ${it.estimated_minutes?`<span>约 ${it.estimated_minutes} 分钟</span>`:''}
+                <span class="chip ${chipCls}"><span class="dot dot-${pri==='high'?'rose':pri==='low'?'mint':'amber'}"></span>${chipLabel}</span>
+              </div>
+              ${it.description ? `<div class="task-action">📚 开始复习</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')
+      : '<div class="empty"><p>暂无复习任务<br>先上传作业吧 📸</p></div>';
+  } catch(e){
+    document.getElementById('review-summary').textContent = '加载失败';
+    document.getElementById('plan-list').innerHTML = '<div class="empty"><p>加载失败，请重试</p></div>';
   }
 }
 
 // ── Report ──
 async function loadReport(){
-  document.getElementById('report-card').style.display='block';
-  document.getElementById('report-content').innerHTML='<div class="empty"><div class="spinner"></div></div>';
-  try{
-    const res=await api('/api/reports/student/'+SID);
-    const d=await res.json();
-    const mastery=d.overall_mastery!=null?Math.round(d.overall_mastery*100)+'%'
-                 :(d.average_mastery_score!=null?Math.round(d.average_mastery_score*100)+'%':'—');
-    const mastered=d.strong_count!=null?d.strong_count:(d.mastered_knowledge_points||0);
-    const subjectsHtml=(d.subjects&&d.subjects.length)?
-      '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:8px">学科分布</div>'+
-      d.subjects.map(s=>{const pct=Math.round((s.mastery||0)*100);return`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px"><span>${s.subject_name||s.name||'—'}</span><span style="color:var(--coral);font-weight:600">${pct}%</span></div><div style="height:6px;background:var(--border);border-radius:3px"><div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--coral),#FB923C);border-radius:3px"></div></div></div>`}).join('')+
-      '</div>':'';
-    const weakHtml=(d.top_weak_points&&d.top_weak_points.length)?
-      '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:var(--gray);margin-bottom:8px">薄弱知识点</div>'+
-      d.top_weak_points.slice(0,3).map((w,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)"><div style="width:20px;height:20px;border-radius:50%;background:var(--coral-light);color:var(--coral);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div><span style="font-size:13px;flex:1">${w.knowledge_point_name||w.name||'—'}</span><span style="font-size:11px;color:var(--coral);font-weight:600">${Math.round((w.mastery_score||0)*100)}%</span></div>`).join('')+
-      '</div>':'';
-    document.getElementById('report-content').innerHTML=`
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0">
-        <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--coral)">${d.total_knowledge_points||0}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">知识点</div></div>
-        <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--coral)">${mastered}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">已掌握</div></div>
-        <div style="background:var(--cream);border-radius:10px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:800;color:var(--coral)">${mastery}</div><div style="font-size:11px;color:var(--gray);margin-top:2px">平均掌握</div></div>
+  document.getElementById('report-card').style.display = 'block';
+  document.getElementById('report-content').innerHTML =
+    '<div class="card"><div class="empty"><div class="spinner spinner-dark" style="display:inline-block"></div></div></div>';
+  try {
+    const res = await api('/api/reports/student/'+SID);
+    const d   = await res.json();
+    const m   = d.overall_mastery != null ? Math.round(d.overall_mastery*100)+'%'
+              : d.average_mastery_score != null ? Math.round(d.average_mastery_score*100)+'%' : '—';
+    const mastered = d.strong_count != null ? d.strong_count : (d.mastered_knowledge_points || 0);
+
+    const subjectsHtml = (d.subjects && d.subjects.length)
+      ? '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">学科分布</div>'+
+        d.subjects.map(s => {
+          const pct = Math.round((s.mastery||0)*100);
+          return `<div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+              <span>${s.subject_name||s.name||'—'}</span>
+              <span style="color:var(--coral);font-weight:600">${pct}%</span>
+            </div>
+            <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
+          </div>`;
+        }).join('') + '</div>'
+      : '';
+
+    const weakHtml = (d.top_weak_points && d.top_weak_points.length)
+      ? '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">薄弱知识点</div>'+
+        d.top_weak_points.slice(0,3).map((w,i) =>
+          `<div class="kp-item" style="margin:0 0 8px">
+            <div class="kp-rank">${i+1}</div>
+            <div class="kp-body"><div class="kp-title">${w.knowledge_point_name||w.name||'—'}</div></div>
+            <div class="kp-score">${Math.round((w.mastery_score||0)*100)}<span style="font-size:11px;color:var(--ink-3);font-weight:400">%</span></div>
+          </div>`
+        ).join('') + '</div>'
+      : '';
+
+    document.getElementById('report-content').innerHTML = `
+      <div class="report-dark" style="margin:0 16px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:4px">
+          <div style="text-align:center">
+            <div style="font-size:28px;font-weight:700;font-family:var(--font-num);letter-spacing:-0.02em">${d.total_knowledge_points||0}</div>
+            <div style="font-size:11px;opacity:.6;margin-top:4px">知识点</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:28px;font-weight:700;font-family:var(--font-num);letter-spacing:-0.02em">${mastered}</div>
+            <div style="font-size:11px;opacity:.6;margin-top:4px">已掌握</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:28px;font-weight:700;font-family:var(--font-num);letter-spacing:-0.02em">${m}</div>
+            <div style="font-size:11px;opacity:.6;margin-top:4px">平均掌握</div>
+          </div>
+        </div>
+        ${d.summary ? `<p style="font-size:13px;line-height:1.7;opacity:.85;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)">${d.summary}</p>` : ''}
       </div>
-      ${d.summary?`<p style="font-size:14px;line-height:1.7;color:var(--dark);margin-top:8px">${d.summary}</p>`:''}
-      ${subjectsHtml}${weakHtml}
-    `;
-  }catch(e){
-    document.getElementById('report-content').innerHTML='<div class="empty"><p>生成失败，请重试</p></div>';
-    toast('❌ 报告加载失败',3000);
+      <div style="margin:0 16px">${subjectsHtml}${weakHtml}</div>`;
+  } catch(e){
+    document.getElementById('report-content').innerHTML =
+      '<div class="empty"><p>生成失败，请重试</p></div>';
+    toast('❌ 报告加载失败', 3000);
   }
 }
 
 // ── Export ──
 async function doExport(){
-  try{
-    const res=await api('/api/export/student/'+SID+'/knowledge-points');
-    const blob=await res.blob();
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download=SID+'_knowledge.xlsx';a.click();
+  try {
+    const res  = await api('/api/export/student/'+SID+'/knowledge-points');
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = SID+'_knowledge.xlsx'; a.click();
     URL.revokeObjectURL(url);
     toast('导出成功');
-  }catch(e){toast('❌ 导出失败',3000)}
+  } catch(e){ toast('❌ 导出失败', 3000); }
 }
 </script>
 </body>

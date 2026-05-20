@@ -186,7 +186,10 @@ def main():
         try:
             # 1. OCR 识别
             print("\n1. OCR 识别中...")
-            paddleocr_token = os.getenv("PADDLEOCR_TOKEN", "9b7fe06ddc38194934d1f8bbaa94f930c3d80d76")
+            paddleocr_token = os.getenv("PADDLEOCR_TOKEN")
+            if not paddleocr_token:
+                print("\n⚠️  请设置 PADDLEOCR_TOKEN 环境变量")
+                return
             ocr_adapter = PaddleOCRAdapter(token=paddleocr_token)
             
             ocr_result = ocr_adapter.process_file(image_path, "hw_001")

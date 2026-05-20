@@ -53,7 +53,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 编辑 .env 文件，填入你的 PaddleOCR Token
-# PADDLEOCR_TOKEN=9b7fe06ddc38194934d1f8bbaa94f930c3d80d76
+# PADDLEOCR_TOKEN=your_paddleocr_token_here
 ```
 
 ### 3. 运行测试
