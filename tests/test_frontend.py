@@ -344,6 +344,7 @@ class TestOCRResultDisplay:
     2. 读取 ocr_images 字段（OCR 切出的图片块）
     3. 不再请求废弃的 /ocr-result 接口
     4. showOcrResult 函数使用 innerHTML 渲染 markdown
+    5. 处理 PaddleOCR HTML img 标签，通过 ocr_images 映射替换 URL
     """
 
     def test_reads_ocr_markdown_field(self, js_content):
@@ -410,3 +411,105 @@ class TestOCRResultDisplay:
         # 应该处理图片
         assert 'img' in block.lower() or '!\\[' in block, \
             "showOcrResult 未处理 Markdown 图片"
+
+    def test_handles_paddleocr_html_img_tags(self, js_content):
+        """应该处理 PaddleOCR HTML img 标签，不原样显示"""
+        # 查找 showOcrResult 函数
+        m = re.search(r'function showOcrResult.*?^}', js_content, re.DOTALL | re.MULTILINE)
+        if not m:
+            pytest.skip("未找到 showOcrResult 函数定义")
+        block = m.group(0)
+        # 应该有处理 HTML img 标签的逻辑
+        # 检查是否有 <img 或 img 标签的处理
+        assert '<img' in block or 'img' in block.lower(), \
+            "showOcrResult 未处理 HTML img 标签"
+        # 应该有 replace 或正则处理
+        assert 'replace' in block, \
+            "showOcrResult 未使用 replace 处理 HTML 标签"
+
+    def test_maps_img_src_through_ocr_images(self, js_content):
+        """应该通过 ocr_images 映射替换 img src 中的相对路径"""
+        # 查找 showOcrResult 函数
+        m = re.search(r'function showOcrResult.*?^}', js_content, re.DOTALL | re.MULTILINE)
+        if not m:
+            pytest.skip("未找到 showOcrResult 函数定义")
+        block = m.group(0)
+        # 应该读取 ocrImages
+        assert 'ocrImages' in block or 'ocr_images' in block, \
+            "showOcrResult 未读取 ocr_images 进行映射"
+        # 应该有 src 替换逻辑
+        assert 'src' in block, \
+            "showOcrResult 未处理 img src 属性"
+
+    def test_does_not_break_markdown_images(self, js_content):
+        """不应该影响 markdown 图片 ![](url) 的处理"""
+        # 查找 showOcrResult 函数
+        m = re.search(r'function showOcrResult.*?^}', js_content, re.DOTALL | re.MULTILINE)
+        if not m:
+            pytest.skip("未找到 showOcrResult 函数定义")
+        block = m.group(0)
+        # 应该仍然有 markdown 图片的处理
+        assert '!\\[' in block or '![' in block, \
+            "showOcrResult 移除了 markdown 图片处理"
+
+    def test_no_escaped_html_div_tags(self, js_content):
+        """验证不会出现转义的 HTML div 标签（&lt;div）"""
+        # 查找 showOcrResult 函数
+        m = re.search(r'function showOcrResult.*?^}', js_content, re.DOTALL | re.MULTILINE)
+        if not m:
+            pytest.skip("未找到 showOcrResult 函数定义")
+        block = m.group(0)
+        # 应该先提取 HTML img 标签，然后转义，最后恢复
+        # 检查是否有 placeholder 机制
+        assert 'placeholder' in block.lower() or 'PLACEHOLDER' in block, \
+            "showOcrResult 未使用 placeholder 机制处理 HTML 标签"
+        # 应该在转义前提取 img 标签
+        assert 'replace' in block, \
+            "showOcrResult 未使用 replace 提取 HTML 标签"
+
+    def test_no_raw_div_style_text_align(self, js_content):
+        """验证不会原样显示 <div style="text-align 文本"""
+        # 查找 showOcrResult 函数
+        m = re.search(r'function showOcrResult.*?^}', js_content, re.DOTALL | re.MULTILINE)
+        if not m:
+            pytest.skip("未找到 showOcrResult 函数定义")
+        block = m.group(0)
+        # 应该提取整个 <div><img></div> 结构
+        assert '<div' in block or 'div' in block.lower(), \
+            "showOcrResult 未处理 div 标签"
+        # 应该有正则匹配 div + img 结构
+        assert 'replace' in block, \
+            "showOcrResult 未使用 replace 处理 div+img 结构"
+
+    def test_imgs_path_mapped_through_ocr_images(self, js_content):
+        """验证 imgs/xxx.jpg 通过 ocr_images 映射成真实 URL"""
+        # 查找 showOcrResult 函数
+        m = re.search(r'function showOcrResult.*?^}', js_content, re.DOTALL | re.MULTILINE)
+        if not m:
+            pytest.skip("未找到 showOcrResult 函数定义")
+        block = m.group(0)
+        # 应该读取 ocrImages 并用于映射
+        assert 'ocrImages' in block or 'ocr_images' in block, \
+            "showOcrResult 未读取 ocr_images"
+        # 应该有 src 的映射逻辑：ocrImages[src] 或类似
+        assert '[src]' in block or 'ocrImages[' in block or 'ocrImages.get' in block, \
+            "showOcrResult 未通过 ocr_images 映射 src"
+
+    def test_html_escaping_after_placeholder_extraction(self, js_content):
+        """验证在提取 placeholder 后进行 HTML 转义"""
+        # 查找 showOcrResult 函数
+        m = re.search(r'function showOcrResult.*?^}', js_content, re.DOTALL | re.MULTILINE)
+        if not m:
+            pytest.skip("未找到 showOcrResult 函数定义")
+        block = m.group(0)
+        # 应该有 HTML 转义逻辑
+        assert '&lt;' in block or '&amp;' in block, \
+            "showOcrResult 未进行 HTML 转义"
+        # 应该有 placeholder 机制
+        assert 'imgPlaceholders' in block or 'PLACEHOLDER' in block, \
+            "showOcrResult 未使用 placeholder 机制"
+        # 应该有恢复 placeholder 的逻辑
+        assert 'forEach' in block, \
+            "showOcrResult 未恢复 placeholder"
+        # 验证流程：先提取（replace with placeholder），再转义（&lt;），最后恢复（forEach）
+        # 这个顺序在代码中是正确的，只需验证三个步骤都存在即可

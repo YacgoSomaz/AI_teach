@@ -78,7 +78,7 @@ async def _process_ai_analysis_async(task, assignment_id: str):
             assignment.status = AssignmentStatus.AI_RUNNING
             await db.commit()
             
-            # 3. 获取 OCR 结果
+            # 3. 获取 OCR 结果（如果 SKIP_OCR=true 可能不存在）
             ocr_result = await db.execute(
                 select(OCRTaskModel)
                 .where(OCRTaskModel.assignment_id == assignment.id)
@@ -86,8 +86,47 @@ async def _process_ai_analysis_async(task, assignment_id: str):
             )
             ocr_task = ocr_result.scalar_one_or_none()
             
-            if not ocr_task or not ocr_task.markdown:
-                raise ValueError("OCR 结果不存在")
+            # 如果没有 OCR 结果（SKIP_OCR=true），使用原始图片
+            if not ocr_task:
+                # 实验模式：直接使用原始图片进行 AI 分析
+                question_text = ""
+                question_markdown = "请直接根据图片识别题目，并完成知识点分析。"
+                images = []
+                
+                # 读取原始上传图片
+                storage_url = assignment.storage_url or ""
+                local_path = storage_url.removeprefix("file://")
+                if local_path and __import__("os").path.isfile(local_path):
+                    import base64, mimetypes
+                    mime = assignment.mime_type or mimetypes.guess_type(local_path)[0] or "image/jpeg"
+                    with open(local_path, "rb") as _f:
+                        _b64 = base64.b64encode(_f.read()).decode()
+                    images.append(f"data:{mime};base64,{_b64}")
+            else:
+                # 正常模式：使用 OCR 结果
+                question_text = ocr_task.raw_text or ""
+                question_markdown = ocr_task.markdown
+                
+                # 准备图片：优先使用 OCR 切出的图片块，否则使用原始上传图片
+                images = []
+                
+                # 1. 尝试使用 OCR 切出的图片块（PaddleOCR layoutParsingResults.markdown.images）
+                if ocr_task.images:
+                    # ocr_task.images 是 Dict[str, str]，值是图片 URL
+                    for img_url in list(ocr_task.images.values())[:5]:  # 最多 5 张
+                        images.append(img_url)
+                
+                # 2. 如果没有 OCR 图片块，使用原始上传图片
+                if not images:
+                    storage_url = assignment.storage_url or ""
+                    # 本地文件路径（file:// 前缀或绝对路径）
+                    local_path = storage_url.removeprefix("file://")
+                    if local_path and __import__("os").path.isfile(local_path):
+                        import base64, mimetypes
+                        mime = assignment.mime_type or mimetypes.guess_type(local_path)[0] or "image/jpeg"
+                        with open(local_path, "rb") as _f:
+                            _b64 = base64.b64encode(_f.read()).decode()
+                        images.append(f"data:{mime};base64,{_b64}")
             
             # 4. 调用豆包 Seed1.8 分析
             settings.validate_required_for_ai()  # 校验配置
@@ -97,27 +136,6 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                 model=settings.doubao_seed_model,
                 base_url=settings.doubao_seed_base_url,
             )
-            
-            # 准备图片：优先使用 OCR 切出的图片块，否则使用原始上传图片
-            images = []
-            
-            # 1. 尝试使用 OCR 切出的图片块（PaddleOCR layoutParsingResults.markdown.images）
-            if ocr_task.images:
-                # ocr_task.images 是 Dict[str, str]，值是图片 URL
-                for img_url in list(ocr_task.images.values())[:5]:  # 最多 5 张
-                    images.append(img_url)
-            
-            # 2. 如果没有 OCR 图片块，使用原始上传图片
-            if not images:
-                storage_url = assignment.storage_url or ""
-                # 本地文件路径（file:// 前缀或绝对路径）
-                local_path = storage_url.removeprefix("file://")
-                if local_path and __import__("os").path.isfile(local_path):
-                    import base64, mimetypes
-                    mime = assignment.mime_type or mimetypes.guess_type(local_path)[0] or "image/jpeg"
-                    with open(local_path, "rb") as _f:
-                        _b64 = base64.b64encode(_f.read()).decode()
-                    images.append(f"data:{mime};base64,{_b64}")
             
             try:
                 # 记录 AI 分析开始时间
@@ -130,8 +148,8 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                 
                 # 调用 AI 分析（使用 analyze_question 方法，优先使用 markdown）
                 analysis_result = provider.analyze_question(
-                    question_text=ocr_task.raw_text or "",
-                    question_markdown=ocr_task.markdown,  # 优先使用 markdown
+                    question_text=question_text,
+                    question_markdown=question_markdown,  # 优先使用 markdown
                     image_urls=images[:5] if images else None,  # 最多 5 张图片
                 )
                 
@@ -147,7 +165,7 @@ async def _process_ai_analysis_async(task, assignment_id: str):
                 # 但为了兼容旧的 prompt 格式，我们需要调整返回结构
                 # 假设 AI 返回的是单个题目的分析，我们需要包装成 questions 数组
                 questions_data = [{
-                    "question_text": ocr_task.raw_text or ocr_task.markdown,
+                    "question_text": question_text or question_markdown,
                     "question_type": analysis_result.get("question_type", "unknown"),
                     "difficulty": analysis_result.get("difficulty", 3),
                     "knowledge_points": analysis_result.get("knowledge_points", []),

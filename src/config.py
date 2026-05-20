@@ -41,6 +41,11 @@ class Settings(BaseSettings):
         description="PaddleOCR API Token",
     )
     
+    skip_ocr: bool = Field(
+        default=False,
+        description="跳过 OCR，直接进入 AI 分析（实验功能）",
+    )
+    
     # ==================== AI 配置 ====================
     doubao_seed_api_key: Optional[str] = Field(
         default=None,
