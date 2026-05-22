@@ -20,6 +20,7 @@ param(
     [string]$User = "ubuntu",
     [string]$RemotePath = "/home/ubuntu/ai_review_system",
     [string]$ApiBaseUrl = "http://106.53.77.14",
+    [string]$IdentityFile = (Join-Path $HOME ".ssh\ai_review_deploy_ed25519"),
     [switch]$SkipTests,
     [switch]$AllowNonDev,
     [switch]$DryRun
@@ -32,9 +33,7 @@ $script:PassCount = 0
 $script:WarnCount = 0
 $script:FailCount = 0
 $script:StepIndex = 0
-$script:SshControlPath = $null
-$script:SshControlArgs = @()
-$script:SshControlActive = $false
+$script:SshArgs = @()
 
 function Write-Step([string]$title) {
     $script:StepIndex += 1
@@ -94,54 +93,15 @@ function Invoke-RemoteScript([string]$script, [string]$name) {
         [System.Text.Encoding]::ASCII
     )
 
-    & scp @script:SshControlArgs $localScript "${target}:$remoteScript"
+    & scp @script:SshArgs $localScript "${target}:$remoteScript"
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to upload remote script"
     }
 
-    & ssh @script:SshControlArgs $target "bash $remoteScript; rc=`$?; rm -f $remoteScript; exit `$rc"
+    & ssh @script:SshArgs $target "bash $remoteScript; rc=`$?; rm -f $remoteScript; exit `$rc"
     if ($LASTEXITCODE -ne 0) {
         throw "Remote script failed"
     }
-}
-
-function Start-SharedSshConnection() {
-    $target = "${User}@${HostName}"
-    $socketName = "ai_review_deploy_${PID}_$([guid]::NewGuid().ToString('N')).sock"
-    $script:SshControlPath = Join-Path $env:TEMP $socketName
-    $script:SshControlArgs = @(
-        "-o", "ControlMaster=auto",
-        "-o", "ControlPath=$script:SshControlPath"
-    )
-
-    Write-Host "  > ssh shared connection ${target}" -ForegroundColor DarkGray
-    if ($DryRun) {
-        Write-Warn "DryRun: skipped shared SSH connection"
-        return
-    }
-
-    & ssh `
-        "-o" "ControlMaster=yes" `
-        "-o" "ControlPersist=10m" `
-        "-o" "ControlPath=$script:SshControlPath" `
-        "-Nf" `
-        $target
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to establish shared SSH connection"
-    }
-
-    $script:SshControlActive = $true
-    Write-Pass "shared SSH connection ready; later ssh/scp calls reuse it"
-}
-
-function Stop-SharedSshConnection() {
-    if (-not $script:SshControlActive) {
-        return
-    }
-
-    $target = "${User}@${HostName}"
-    & ssh @script:SshControlArgs "-O" "exit" $target 2>$null | Out-Null
-    $script:SshControlActive = $false
 }
 
 function Test-Http200([string]$url, [string]$label) {
@@ -196,6 +156,13 @@ try {
 
     Write-Pass "commit=$fullCommit"
 
+    if (Test-Path $IdentityFile) {
+        $script:SshArgs = @("-i", $IdentityFile)
+        Write-Pass "ssh identity=$IdentityFile"
+    } else {
+        Write-Warn "ssh identity not found at $IdentityFile; ssh/scp may prompt for password"
+    }
+
     Write-Step "Run local smoke tests"
     if ($SkipTests) {
         Write-Warn "tests skipped by -SkipTests"
@@ -242,7 +209,6 @@ try {
     Write-Pass "archive=$archivePath"
 
     Write-Step "Check server connection"
-    Start-SharedSshConnection
     $precheckScript = @(
         "set -e",
         'echo "host=$(hostname)"',
@@ -264,7 +230,7 @@ try {
     if ($DryRun) {
         Write-Warn "DryRun: skipped archive upload"
     } else {
-        & scp @script:SshControlArgs $archivePath $scpTarget
+        & scp @script:SshArgs $archivePath $scpTarget
         if ($LASTEXITCODE -ne 0) {
             Write-Fail "archive upload failed"
             exit 1
@@ -342,6 +308,5 @@ try {
     Write-Host "  api    : $ApiBaseUrl" -ForegroundColor White
     Write-Host "  result : PASS=$($script:PassCount) WARN=$($script:WarnCount) FAIL=$($script:FailCount)" -ForegroundColor White
 } finally {
-    Stop-SharedSshConnection
     Pop-Location
 }
