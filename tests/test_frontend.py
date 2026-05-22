@@ -248,6 +248,7 @@ class TestDOMStructure:
         "upload-modal", "radar-canvas", "heatmap-table",
         "plan-list", "review-summary", "report-card",
         "toast", "upload-btn", "preview-area", "f-camera", "f-gallery",
+        "upload-prepare-status", "proc-upload-metrics", "proc-elapsed",
     ]
 
     @pytest.mark.parametrize("elem_id", REQUIRED_IDS)
@@ -276,7 +277,7 @@ class TestDOMStructure:
 class TestJSFunctions:
     REQUIRED = [
         "setStudent", "changeStudent", "goScreen",
-        "openUpload", "closeUpload", "onFile", "doUpload",
+        "openUpload", "closeUpload", "onFile", "prepareQuestionScan", "doUpload",
         "inferStepsFromStatus", "renderSteps", "pollStatus",
         "loadAll", "loadHome", "loadKnowledge",
         "drawRadar", "drawHeatmap", "extractSubject",
@@ -291,6 +292,38 @@ class TestJSFunctions:
     def test_auto_init_domcontentloaded(self, js_content):
         assert 'DOMContentLoaded' in js_content
         assert 'default_student' in js_content
+
+
+class TestQuestionScanUpload:
+    def test_generates_scan_canvas_with_crop_and_grayscale(self, js_content):
+        block = re.search(
+            r'async function prepareQuestionScan\b.*?^}',
+            js_content,
+            re.DOTALL | re.MULTILINE,
+        )
+        assert block, "未找到 prepareQuestionScan"
+        text = block.group(0)
+        assert "findContentBounds" in text
+        assert "grayscaleCanvas" in text
+        assert "canvas.toBlob" in text
+
+    def test_upload_sends_scan_metrics(self, js_content):
+        block = re.search(
+            r'async function doUpload\b.*?^}',
+            js_content,
+            re.DOTALL | re.MULTILINE,
+        )
+        assert block, "未找到 doUpload"
+        text = block.group(0)
+        assert "prepareQuestionScan(selFile)" in text
+        assert "original_file_size" in text
+        assert "preprocessing_ms" in text
+        assert "scan_profile" in text
+
+    def test_waiting_copy_explains_progress(self, html_content):
+        assert "正在优化题目图片" in html_content
+        assert "正在识别题目内容" in html_content
+        assert "正在生成讲解与复习建议" in html_content
 
 
 # ── 8. API 路径一致性 ─────────────────────────────────────────────────────────

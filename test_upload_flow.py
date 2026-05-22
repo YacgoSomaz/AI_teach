@@ -101,6 +101,37 @@ async def test_upload_valid_image(client):
 
 
 @pytest.mark.asyncio
+async def test_upload_records_scan_metrics(client, test_db):
+    """前端扫描图指标保存在 assignment 状态中，便于评估手机优化效果。"""
+    fake_image = b"\x89PNG\r\n\x1a\n" + b"scan" * 100
+    response = await client.post(
+        "/api/upload",
+        files={"file": ("scan.png", io.BytesIO(fake_image), "image/png")},
+        data={
+            "original_file_size": "4200000",
+            "preprocessing_ms": "83",
+            "scan_profile": "scan_fast",
+            "source_image_width": "3024",
+            "source_image_height": "4032",
+        },
+        headers=AUTH_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assignment_id = response.json()["assignment_id"]
+    status_response = await client.get(
+        f"/api/assignments/{assignment_id}",
+        headers=AUTH_HEADERS,
+    )
+    upload_status = status_response.json()["processing_status"]["upload"]
+    assert upload_status["original_file_size"] == 4200000
+    assert upload_status["prepared_file_size"] == len(fake_image)
+    assert upload_status["preprocessing_ms"] == 83
+    assert upload_status["scan_profile"] == "scan_fast"
+    assert upload_status["source_dimensions"] == {"width": 3024, "height": 4032}
+
+
+@pytest.mark.asyncio
 async def test_upload_duplicate_image(client):
     """测试：上传重复图片（hash 相同）"""
     fake_image = b"\x89PNG\r\n\x1a\n" + b"x" * 100
