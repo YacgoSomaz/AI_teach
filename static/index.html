@@ -677,6 +677,9 @@
     <!-- Preview + upload button -->
     <div id="preview-area" style="display:none;margin-top:16px">
       <img id="prev-img" style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-md)">
+      <div id="upload-prepare-status" style="font-size:12px;color:var(--ink-3);line-height:1.5;margin-top:8px">
+        将先优化题目图片，再开始分析
+      </div>
       <button class="btn btn-primary" id="upload-btn" style="margin-top:14px" onclick="doUpload()">开始分析</button>
     </div>
   </div>
@@ -686,12 +689,14 @@
 <div id="proc-overlay">
   <!-- Phase A: OCR running — centered orb -->
   <div id="phase-ocr" style="display:flex;flex-direction:column;align-items:center;width:100%;flex:1">
-    <div style="font-size:14px;opacity:.6;margin-bottom:8px">正在识别题目…</div>
+    <div style="font-size:14px;opacity:.6;margin-bottom:8px">正在识别题目内容…</div>
     <div class="proc-art">
       <div class="proc-orb"></div>
     </div>
     <div class="proc-label" id="proc-title">OCR 识别中</div>
     <div class="proc-sub" id="proc-sub">正在提取题目文字，请稍候</div>
+    <div id="proc-upload-metrics" style="font-size:12px;opacity:.72;margin-top:12px;text-align:center;line-height:1.5"></div>
+    <div id="proc-elapsed" style="font-size:12px;opacity:.56;margin-top:4px">已用时 0 秒</div>
     <div class="proc-stages" id="proc-stages-ocr" style="width:100%;max-width:340px;margin-top:20px"></div>
   </div>
 
@@ -728,7 +733,7 @@
         </div>
         <div>
           <div class="proc-stage-label" id="ai-stage-label">AI 分析中</div>
-          <div class="proc-stage-sub" id="ai-stage-sub">正在识别知识点和复习建议</div>
+          <div class="proc-stage-sub" id="ai-stage-sub">正在生成讲解与复习建议</div>
         </div>
       </div>
     </div>
@@ -759,6 +764,7 @@
 // State
 // ─────────────────────────────────────────────
 let SID = '', pollTimer = null, selFile = null;
+let procStartedAt = 0, procElapsedTimer = null, lastScanMetrics = null;
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -827,18 +833,163 @@ function closeUpload(e){
 function onFile(inp){
   const f = inp.files[0]; if(!f) return;
   selFile = f;
+  lastScanMetrics = null;
   const r = new FileReader();
   r.onload = e => { document.getElementById('prev-img').src = e.target.result; };
   r.readAsDataURL(f);
   document.getElementById('preview-area').style.display = 'block';
+  setPrepareStatus(`原图 ${formatBytes(f.size)}，开始分析时会先生成识别图`);
+}
+
+const SCAN_FAST_EDGE = 1800;
+const SCAN_FAST_QUALITY = 0.82;
+
+function formatBytes(bytes){
+  if(!Number.isFinite(bytes)) return '—';
+  if(bytes < 1024) return bytes + 'B';
+  if(bytes < 1024 * 1024) return Math.round(bytes / 1024) + 'KB';
+  return (bytes / 1024 / 1024).toFixed(1) + 'MB';
+}
+
+function setPrepareStatus(text){
+  const el = document.getElementById('upload-prepare-status');
+  if(el) el.textContent = text;
+}
+
+function findContentBounds(canvas){
+  const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  if(!ctx) return {x:0, y:0, width:canvas.width, height:canvas.height};
+  const w = canvas.width, h = canvas.height;
+  const data = ctx.getImageData(0, 0, w, h).data;
+  const step = Math.max(2, Math.floor(Math.max(w, h) / 320));
+  let left = w, top = h, right = 0, bottom = 0, hits = 0;
+
+  for(let y=0; y<h; y+=step){
+    for(let x=0; x<w; x+=step){
+      const i = (y*w + x) * 4;
+      const light = data[i] * .299 + data[i+1] * .587 + data[i+2] * .114;
+      // Phone captures often include dark app/screen borders around bright paper.
+      if(light > 42){
+        left = Math.min(left, x); right = Math.max(right, x);
+        top = Math.min(top, y); bottom = Math.max(bottom, y);
+        hits++;
+      }
+    }
+  }
+  if(hits < 80 || right <= left || bottom <= top){
+    return {x:0, y:0, width:w, height:h};
+  }
+  const pad = Math.round(Math.max(w, h) * .025);
+  const x = Math.max(0, left - pad);
+  const y = Math.max(0, top - pad);
+  return {
+    x,
+    y,
+    width: Math.min(w - x, right - left + pad * 2),
+    height: Math.min(h - y, bottom - top + pad * 2),
+  };
+}
+
+function grayscaleCanvas(canvas){
+  const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  if(!ctx) return;
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = img.data;
+  for(let i=0; i<data.length; i+=4){
+    const gray = data[i] * .299 + data[i+1] * .587 + data[i+2] * .114;
+    const contrast = Math.max(0, Math.min(255, (gray - 128) * 1.08 + 132));
+    data[i] = contrast; data[i+1] = contrast; data[i+2] = contrast;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+async function prepareQuestionScan(file){
+  const started = performance.now();
+  if(!file || !/^image\/(jpeg|png|webp)$/i.test(file.type) || typeof createImageBitmap !== 'function'){
+    return {
+      file,
+      metrics: {originalSize:file ? file.size : 0, preprocessingMs:0, profile:'original'},
+    };
+  }
+
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, SCAN_FAST_EDGE / Math.max(bitmap.width, bitmap.height));
+    const stage = document.createElement('canvas');
+    stage.width = Math.max(1, Math.round(bitmap.width * scale));
+    stage.height = Math.max(1, Math.round(bitmap.height * scale));
+    const stageCtx = stage.getContext('2d', {willReadFrequently:true});
+    if(!stageCtx) throw new Error('canvas unavailable');
+    stageCtx.drawImage(bitmap, 0, 0, stage.width, stage.height);
+
+    const bounds = findContentBounds(stage);
+    const scan = document.createElement('canvas');
+    scan.width = bounds.width; scan.height = bounds.height;
+    const scanCtx = scan.getContext('2d', {willReadFrequently:true});
+    if(!scanCtx) throw new Error('scan canvas unavailable');
+    scanCtx.drawImage(
+      stage,
+      bounds.x, bounds.y, bounds.width, bounds.height,
+      0, 0, scan.width, scan.height
+    );
+    grayscaleCanvas(scan);
+
+    const webp = await new Promise(resolve => {
+      scan.toBlob(resolve, 'image/webp', SCAN_FAST_QUALITY);
+    });
+    const jpeg = webp || await new Promise(resolve => {
+      scan.toBlob(resolve, 'image/jpeg', SCAN_FAST_QUALITY);
+    });
+    if(!jpeg || jpeg.size >= file.size * .96) throw new Error('scan not smaller');
+    const isWebp = jpeg.type === 'image/webp';
+    const name = (file.name || 'question').replace(/\.[^.]+$/, '') + (isWebp ? '.webp' : '.jpg');
+    return {
+      file: new File([jpeg], name, {type: jpeg.type, lastModified: file.lastModified || Date.now()}),
+      metrics: {
+        originalSize: file.size,
+        preparedSize: jpeg.size,
+        preprocessingMs: Math.round(performance.now() - started),
+        profile: 'scan_fast',
+        sourceWidth: bitmap.width,
+        sourceHeight: bitmap.height,
+      },
+    };
+  } catch(e) {
+    return {
+      file,
+      metrics: {
+        originalSize: file.size,
+        preparedSize: file.size,
+        preprocessingMs: Math.round(performance.now() - started),
+        profile: 'original',
+        sourceWidth: bitmap ? bitmap.width : null,
+        sourceHeight: bitmap ? bitmap.height : null,
+      },
+    };
+  } finally {
+    if(bitmap && bitmap.close) bitmap.close();
+  }
 }
 
 async function doUpload(){
   if(!selFile){ toast('请先选择图片'); return; }
   const btn = document.getElementById('upload-btn');
-  btn.textContent = '上传中…'; btn.disabled = true;
-  const fd = new FormData(); fd.append('file', selFile);
+  btn.textContent = '优化中…'; btn.disabled = true;
+  setPrepareStatus('正在优化题目图片，保留文字和图形细节…');
   try {
+    const scan = await prepareQuestionScan(selFile);
+    lastScanMetrics = scan.metrics;
+    btn.textContent = '上传中…';
+    setPrepareStatus(
+      `识别图已准备：${formatBytes(scan.metrics.originalSize)} -> ${formatBytes(scan.file.size)}`
+    );
+    const fd = new FormData(); fd.append('file', scan.file);
+    fd.append('original_file_size', String(scan.metrics.originalSize || scan.file.size));
+    fd.append('preprocessing_ms', String(scan.metrics.preprocessingMs || 0));
+    fd.append('scan_profile', scan.metrics.profile || 'original');
+    if(scan.metrics.sourceWidth) fd.append('source_image_width', String(scan.metrics.sourceWidth));
+    if(scan.metrics.sourceHeight) fd.append('source_image_height', String(scan.metrics.sourceHeight));
     const res = await api('/api/upload', {method:'POST', body:fd});
     const d = await res.json();
     // Close sheet, open processing overlay
@@ -865,6 +1016,7 @@ let ocrFetched = false;
 
 function openProcOverlay(){
   ocrFetched = false;
+  procStartedAt = Date.now();
   document.getElementById('phase-ocr').style.display    = 'flex';
   document.getElementById('phase-result').style.display = 'none';
   document.getElementById('proc-summary').style.display  = 'none';
@@ -873,6 +1025,10 @@ function openProcOverlay(){
   if(aiCard){ aiCard.className = 'proc-stage active'; }
   document.getElementById('proc-overlay').classList.add('open');
   renderOcrPhase('');
+  updateProcMetrics(lastScanMetrics);
+  clearInterval(procElapsedTimer);
+  procElapsedTimer = setInterval(updateElapsed, 1000);
+  updateElapsed();
   // Mirror the preview image into the overlay
   const prevImg = document.getElementById('prev-img');
   if(prevImg && prevImg.src) document.getElementById('proc-img').src = prevImg.src;
@@ -881,18 +1037,40 @@ function openProcOverlay(){
 function closeProcOverlay(){
   document.getElementById('proc-overlay').classList.remove('open');
   clearInterval(pollTimer);
+  clearInterval(procElapsedTimer);
   const btn = document.getElementById('upload-btn');
   btn.textContent = '开始分析'; btn.disabled = false;
   document.getElementById('preview-area').style.display = 'none';
   selFile = null;
 }
 
+function updateElapsed(){
+  const el = document.getElementById('proc-elapsed');
+  if(el && procStartedAt){
+    el.textContent = '已用时 ' + Math.max(0, Math.round((Date.now() - procStartedAt) / 1000)) + ' 秒';
+  }
+}
+
+function updateProcMetrics(metrics){
+  const el = document.getElementById('proc-upload-metrics');
+  if(!el) return;
+  if(metrics && metrics.profile === 'scan_fast'){
+    el.textContent = `题目图片已优化：${formatBytes(metrics.originalSize)} -> ${formatBytes(metrics.preparedSize || 0)}`;
+  } else {
+    el.textContent = '题目图片已上传，后台会继续处理';
+  }
+}
+
 // ── Phase A: OCR running ──
 function renderOcrPhase(s){
   const OCR_RUN = ['ocr_queued','ocr_running'];
+  const AI_RUN  = ['ai_queued','ai_running'];
   const stOcr   = OCR_DONE_SET.includes(s) ? 'done' : OCR_RUN.includes(s) ? 'running' : 'wait';
-  const label   = stOcr === 'done' ? 'OCR 完成' : stOcr === 'running' ? 'OCR 识别中' : '等待识别';
-  const sub     = stOcr === 'running' ? '正在提取题目文字与图形'
+  const label   = AI_RUN.includes(s) ? 'AI 分析中'
+                : stOcr === 'done' ? '题目已识别'
+                : stOcr === 'running' ? '正在识别题目内容' : '等待识别';
+  const sub     = AI_RUN.includes(s) ? '正在生成讲解与复习建议'
+                : stOcr === 'running' ? '正在提取题干、图形和选项'
                 : stOcr === 'done'    ? '识别成功' : '即将开始';
 
   const titleEl = document.getElementById('proc-title');

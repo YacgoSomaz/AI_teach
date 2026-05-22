@@ -305,7 +305,7 @@ class TestQuestionScanUpload:
         text = block.group(0)
         assert "findContentBounds" in text
         assert "grayscaleCanvas" in text
-        assert "canvas.toBlob" in text
+        assert ".toBlob" in text
 
     def test_upload_sends_scan_metrics(self, js_content):
         block = re.search(

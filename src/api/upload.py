@@ -13,7 +13,7 @@ POST /api/upload
 - 前端轮询 /api/assignments/{id} 获取进度
 """
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,6 +44,11 @@ class UploadResponse(BaseModel):
 @router.post("/upload", response_model=UploadResponse)
 async def upload_assignment(
     file: UploadFile = File(...),
+    original_file_size: int | None = Form(None),
+    preprocessing_ms: int | None = Form(None),
+    scan_profile: str | None = Form(None),
+    source_image_width: int | None = Form(None),
+    source_image_height: int | None = Form(None),
     student_id: str = Depends(upload_rate_limit),
     db: AsyncSession = Depends(get_db),
 ) -> UploadResponse:
@@ -90,6 +95,28 @@ async def upload_assignment(
         )
 
     # 4. 创建 Assignment 记录
+    upload_status = {
+        "status": "received",
+        "prepared_file_size": uploaded.file_size,
+        "prepared_mime_type": uploaded.mime_type,
+    }
+    if original_file_size and original_file_size > 0:
+        upload_status["original_file_size"] = original_file_size
+    if preprocessing_ms is not None and preprocessing_ms >= 0:
+        upload_status["preprocessing_ms"] = preprocessing_ms
+    if scan_profile:
+        upload_status["scan_profile"] = scan_profile[:32]
+    if (
+        source_image_width
+        and source_image_width > 0
+        and source_image_height
+        and source_image_height > 0
+    ):
+        upload_status["source_dimensions"] = {
+            "width": source_image_width,
+            "height": source_image_height,
+        }
+
     assignment = Assignment(
         student_id=student_id,
         file_id=uploaded.file_id,
@@ -99,6 +126,7 @@ async def upload_assignment(
         mime_type=uploaded.mime_type,
         storage_url=uploaded.storage_url,
         status=AssignmentStatus.UPLOADED,
+        processing_status={"upload": upload_status},
     )
     db.add(assignment)
     await db.commit()
