@@ -693,8 +693,9 @@
     <div class="proc-art">
       <div class="proc-orb"></div>
     </div>
-    <div class="proc-label" id="proc-title">OCR 识别中</div>
+    <div class="proc-label" id="proc-title">AI 识别中</div>
     <div class="proc-sub" id="proc-sub">正在提取题目文字，请稍候</div>
+    <div style="display:none">AI 正在直接读取题目图片</div>
     <div id="proc-upload-metrics" style="font-size:12px;opacity:.72;margin-top:12px;text-align:center;line-height:1.5"></div>
     <div id="proc-elapsed" style="font-size:12px;opacity:.56;margin-top:4px">已用时 0 秒</div>
     <div class="proc-stages" id="proc-stages-ocr" style="width:100%;max-width:340px;margin-top:20px"></div>
@@ -1066,7 +1067,7 @@ function renderOcrPhase(s){
   const OCR_RUN = ['ocr_queued','ocr_running'];
   const AI_RUN  = ['ai_queued','ai_running'];
   const stOcr   = OCR_DONE_SET.includes(s) ? 'done' : OCR_RUN.includes(s) ? 'running' : 'wait';
-  const label   = AI_RUN.includes(s) ? 'AI 分析中'
+  const label   = AI_RUN.includes(s) ? 'AI 正在直接读取题目图片'
                 : stOcr === 'done' ? '题目已识别'
                 : stOcr === 'running' ? '正在识别题目内容' : '等待识别';
   const sub     = AI_RUN.includes(s) ? '正在生成讲解与复习建议'
@@ -1105,6 +1106,10 @@ function inferStepsFromStatus(s){
 
 function renderSteps(statusStr){
   renderOcrPhase(statusStr || '');
+}
+
+function hasOcrResult(data){
+  return Boolean(data && (data.ocr_markdown || data.ocr_text || data.ocr_images));
 }
 
 // ── Phase B: show OCR result + AI loading ──
@@ -1240,7 +1245,7 @@ function pollStatus(id){
       const d   = await res.json();
       const s   = d.status || '';
 
-      if(OCR_DONE_SET.includes(s)){
+      if(OCR_DONE_SET.includes(s) && hasOcrResult(d)){
         showOcrResult(d);
       } else {
         renderOcrPhase(s);

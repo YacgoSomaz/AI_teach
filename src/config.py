@@ -42,8 +42,8 @@ class Settings(BaseSettings):
     )
     
     skip_ocr: bool = Field(
-        default=False,
-        description="跳过 OCR，直接进入 AI 分析（实验功能）",
+        default=True,
+        description="默认跳过 OCR，直接进入多模态 AI 分析",
     )
     
     # ==================== AI 配置 ====================
