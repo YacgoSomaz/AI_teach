@@ -4,7 +4,7 @@
 验证：
 1. SKIP_OCR=false 时，upload 调用 process_ocr.delay
 2. SKIP_OCR=true 时，upload 调用 process_ai_analysis.delay
-3. 默认值为 false
+3. 默认值为 true
 """
 
 import pytest
@@ -15,11 +15,11 @@ class TestSkipOCR:
     """测试 SKIP_OCR 环境变量功能"""
 
     @pytest.mark.asyncio
-    async def test_default_skip_ocr_is_false(self):
-        """默认 SKIP_OCR 应该是 false"""
+    async def test_default_skip_ocr_is_true(self):
+        """拍题主链路默认跳过 OCR，直接进入多模态分析。"""
         from src.config import Settings
         settings = Settings()
-        assert settings.skip_ocr is False
+        assert settings.skip_ocr is True
 
     @pytest.mark.asyncio
     async def test_upload_calls_ocr_when_skip_ocr_false(self):

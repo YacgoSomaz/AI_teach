@@ -325,6 +325,18 @@ class TestQuestionScanUpload:
         assert "正在识别题目内容" in html_content
         assert "正在生成讲解与复习建议" in html_content
 
+    def test_direct_ai_flow_does_not_render_empty_ocr_panel(self, js_content):
+        poll_block = re.search(
+            r'function pollStatus\b.*?^}',
+            js_content,
+            re.DOTALL | re.MULTILINE,
+        )
+        assert poll_block, "未找到 pollStatus"
+        assert "hasOcrResult(d)" in poll_block.group(0)
+
+    def test_direct_ai_status_copy_exists(self, html_content):
+        assert "AI 正在直接读取题目图片" in html_content
+
 
 # ── 8. API 路径一致性 ─────────────────────────────────────────────────────────
 
