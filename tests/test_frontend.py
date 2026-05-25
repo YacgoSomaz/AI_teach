@@ -305,7 +305,9 @@ class TestQuestionScanUpload:
         text = block.group(0)
         assert "findContentBounds" in text
         assert "grayscaleCanvas" in text
-        assert ".toBlob" in text
+        assert "canvasToBlob" in text
+        assert "SCAN_FAST_TARGET_BYTES" in js_content
+        assert "SCAN_FAST_QUALITIES" in js_content
 
     def test_upload_sends_scan_metrics(self, js_content):
         block = re.search(
@@ -319,6 +321,7 @@ class TestQuestionScanUpload:
         assert "original_file_size" in text
         assert "preprocessing_ms" in text
         assert "scan_profile" in text
+        assert "uploadFormDataWithProgress" in text
 
     def test_waiting_copy_explains_progress(self, html_content):
         assert "正在优化题目图片" in html_content

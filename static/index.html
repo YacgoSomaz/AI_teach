@@ -842,8 +842,9 @@ function onFile(inp){
   setPrepareStatus(`原图 ${formatBytes(f.size)}，开始分析时会先生成识别图`);
 }
 
-const SCAN_FAST_EDGE = 1800;
-const SCAN_FAST_QUALITY = 0.82;
+const SCAN_FAST_EDGE = 1500;
+const SCAN_FAST_TARGET_BYTES = 520 * 1024;
+const SCAN_FAST_QUALITIES = [0.78, 0.68, 0.58];
 
 function formatBytes(bytes){
   if(!Number.isFinite(bytes)) return '—';
@@ -869,8 +870,9 @@ function findContentBounds(canvas){
     for(let x=0; x<w; x+=step){
       const i = (y*w + x) * 4;
       const light = data[i] * .299 + data[i+1] * .587 + data[i+2] * .114;
-      // Phone captures often include dark app/screen borders around bright paper.
-      if(light > 42){
+      const spread = Math.max(data[i], data[i+1], data[i+2]) - Math.min(data[i], data[i+1], data[i+2]);
+      // Phone captures often include dark screens, hands, and desks around bright exercise paper.
+      if(light > 118 && spread < 82){
         left = Math.min(left, x); right = Math.max(right, x);
         top = Math.min(top, y); bottom = Math.max(bottom, y);
         hits++;
@@ -898,10 +900,16 @@ function grayscaleCanvas(canvas){
   const data = img.data;
   for(let i=0; i<data.length; i+=4){
     const gray = data[i] * .299 + data[i+1] * .587 + data[i+2] * .114;
-    const contrast = Math.max(0, Math.min(255, (gray - 128) * 1.08 + 132));
+    let contrast = Math.max(0, Math.min(255, (gray - 128) * 1.16 + 136));
+    if(contrast > 205) contrast = 255;
+    else if(contrast < 82) contrast = Math.max(0, contrast - 18);
     data[i] = contrast; data[i+1] = contrast; data[i+2] = contrast;
   }
   ctx.putImageData(img, 0, 0);
+}
+
+function canvasToBlob(canvas, type, quality){
+  return new Promise(resolve => canvas.toBlob(resolve, type, quality));
 }
 
 async function prepareQuestionScan(file){
@@ -936,20 +944,20 @@ async function prepareQuestionScan(file){
     );
     grayscaleCanvas(scan);
 
-    const webp = await new Promise(resolve => {
-      scan.toBlob(resolve, 'image/webp', SCAN_FAST_QUALITY);
-    });
-    const jpeg = webp || await new Promise(resolve => {
-      scan.toBlob(resolve, 'image/jpeg', SCAN_FAST_QUALITY);
-    });
-    if(!jpeg || jpeg.size >= file.size * .96) throw new Error('scan not smaller');
-    const isWebp = jpeg.type === 'image/webp';
+    let output = null;
+    for(const quality of SCAN_FAST_QUALITIES){
+      output = await canvasToBlob(scan, 'image/webp', quality)
+            || await canvasToBlob(scan, 'image/jpeg', quality);
+      if(output && output.size <= SCAN_FAST_TARGET_BYTES) break;
+    }
+    if(!output || output.size >= file.size * .96) throw new Error('scan not smaller');
+    const isWebp = output.type === 'image/webp';
     const name = (file.name || 'question').replace(/\.[^.]+$/, '') + (isWebp ? '.webp' : '.jpg');
     return {
-      file: new File([jpeg], name, {type: jpeg.type, lastModified: file.lastModified || Date.now()}),
+      file: new File([output], name, {type: output.type, lastModified: file.lastModified || Date.now()}),
       metrics: {
         originalSize: file.size,
-        preparedSize: jpeg.size,
+        preparedSize: output.size,
         preprocessingMs: Math.round(performance.now() - started),
         profile: 'scan_fast',
         sourceWidth: bitmap.width,
@@ -973,6 +981,26 @@ async function prepareQuestionScan(file){
   }
 }
 
+function uploadFormDataWithProgress(path, formData, onProgress){
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', path);
+    Object.entries(hdr()).forEach(([k,v]) => xhr.setRequestHeader(k, v));
+    xhr.upload.onprogress = e => {
+      if(e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100));
+    };
+    xhr.onload = () => {
+      let body = {};
+      try { body = xhr.responseText ? JSON.parse(xhr.responseText) : {}; }
+      catch(e) { body = {}; }
+      if(xhr.status >= 200 && xhr.status < 300) resolve(body);
+      else reject(new Error(body.detail || 'HTTP ' + xhr.status));
+    };
+    xhr.onerror = () => reject(new Error('网络连接失败'));
+    xhr.send(formData);
+  });
+}
+
 async function doUpload(){
   if(!selFile){ toast('请先选择图片'); return; }
   const btn = document.getElementById('upload-btn');
@@ -991,8 +1019,9 @@ async function doUpload(){
     fd.append('scan_profile', scan.metrics.profile || 'original');
     if(scan.metrics.sourceWidth) fd.append('source_image_width', String(scan.metrics.sourceWidth));
     if(scan.metrics.sourceHeight) fd.append('source_image_height', String(scan.metrics.sourceHeight));
-    const res = await api('/api/upload', {method:'POST', body:fd});
-    const d = await res.json();
+    const d = await uploadFormDataWithProgress('/api/upload', fd, pct => {
+      setPrepareStatus(`正在上传识别图 ${pct}%：${formatBytes(scan.file.size)}`);
+    });
     // Close sheet, open processing overlay
     document.getElementById('upload-modal').classList.remove('open');
     openProcOverlay();
