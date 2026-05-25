@@ -593,10 +593,10 @@ corrected / excluded：
 
 | 任务 | 说明 |
 |------|------|
-| 建 6 张核心表 | 含种子数据导入脚本 |
+| 建 6 张核心表 | 含种子数据导入脚本（注意：知识点表名为 `grading_taxonomy`，非 `knowledge_points`） |
 | Celery 任务 | preflight → Call 1 → 自洽检查 → Call 2 → 事务写入 → 同步聚合 |
 | Dispute 状态机 | 写入 + 重算逻辑 |
-| Kiro 接口对齐 | **Phase B 开始前**必须确认 student_knowledge_events 与 StudentKnowledgeProfile 的接口边界，不改 Kiro 文件 |
+| Kiro 接口对齐 | ✅ **已确认（2026-05-25）**：两套数据平行运行，边界清晰。`student_knowledge_points`（新）供 Phase D `student.py` 读取；`student_knowledge_profiles`（Kiro）继续供 `review_plan_service.py` 使用，互不干扰。不改 Kiro 任何文件。 |
 
 ### Phase C：前端展示
 
