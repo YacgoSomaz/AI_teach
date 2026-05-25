@@ -21,6 +21,7 @@ app = Celery(
     include=[
         "src.tasks.ocr_tasks",
         "src.tasks.ai_tasks",
+        "src.tasks.grading_tasks",
     ],
 )
 
@@ -52,6 +53,7 @@ app.conf.update(
     task_routes={
         "src.tasks.ocr_tasks.*": {"queue": "ocr"},
         "src.tasks.ai_tasks.*": {"queue": "ai"},
+        "src.tasks.grading_tasks.*": {"queue": "ai"},
     },
 )
 

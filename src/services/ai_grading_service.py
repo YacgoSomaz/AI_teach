@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Protocol
 
+import httpx
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +49,57 @@ class GradingAIClient(Protocol):
         timeout: int,
     ) -> dict[str, Any]:
         """Return a parsed JSON object from an AI provider."""
+
+
+class OpenAICompatibleGradingClient:
+    """Tiny async client for OpenAI-compatible chat completion providers."""
+
+    def __init__(self, *, api_key: str, base_url: str):
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+
+    async def complete_json(
+        self,
+        *,
+        messages: list[dict],
+        model: str,
+        timeout: int,
+    ) -> dict[str, Any]:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.0,
+            "max_tokens": 4096,
+            "response_format": {"type": "json_object"},
+        }
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+        response.raise_for_status()
+        data = response.json()
+        content = data["choices"][0]["message"]["content"] or "{}"
+        return parse_json_response(content)
+
+
+def create_default_grading_ai_client() -> GradingAIClient:
+    api_key = (
+        getattr(settings, "ai_grading_api_key", None)
+        or getattr(settings, "doubao_seed_api_key", None)
+    )
+    if not api_key:
+        raise ValueError("AI_GRADING_API_KEY 或 DOUBAO_SEED_API_KEY 未配置")
+    base_url = (
+        getattr(settings, "ai_grading_base_url", None)
+        or getattr(settings, "doubao_seed_base_url", None)
+    )
+    return OpenAICompatibleGradingClient(api_key=api_key, base_url=base_url)
 
 
 class ImagePreflightError(ValueError):
@@ -459,6 +511,18 @@ def _get_jpeg_size(image_bytes: bytes) -> tuple[int | None, int | None]:
         index += segment_length
 
     return None, None
+
+
+def parse_json_response(text: str) -> dict[str, Any]:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+    return json.loads(stripped)
 
 
 def dumps_json(data: dict[str, Any] | list[Any]) -> str:
