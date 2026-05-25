@@ -685,6 +685,8 @@ Phase B 产生稳定数据后，原有模块消费新数据：
 | `c4c5944` | test: define grade 8 physics taxonomy contract | ✅ 已合并 |
 | `4b5bf28` | feat: add grade 8 physics taxonomy (88 条) | ✅ 已合并 |
 | `e428c41` | feat: add eval script and prompt constants module | ✅ 已合并 |
+| `71abe63` | test: define golden set contract | ✅ 已合并 |
+| `ae41688` | feat: add golden set seed data (24 cases, synthetic_seed) | ✅ 已合并 |
 
 **当前 schema 状态（`57afddd` 后，完全对齐文档）：**
 
@@ -705,7 +707,22 @@ Phase B 产生稳定数据后，原有模块消费新数据：
 1. ✅ Call 1 / Call 2 prompt 设计文档（`docs/PROMPT_DESIGN.md`）
 2. ✅ Eval 脚本（`scripts/run_eval.py`）+ prompt 常量模块（`src/prompts/grading.py`）
 
-**Phase A 下一步（Codex 负责）：**
+**Phase A 当前状态：管道全部就绪，等用户触发第一次 eval。**
+
+```bash
+# 配置好 API key 后运行（.env 里应该已有 DOUBAO_SEED_API_KEY）：
+python scripts/run_eval.py --output-json results/eval_synthetic_v1.json
+
+# ablation：对比有无 few-shot 的差异
+python scripts/run_eval.py --no-few-shot --output-json results/eval_synthetic_v1_nofewshot.json
+```
+
+> **注意**：当前 golden set 全部为 `synthetic_seed`（合成图片）。
+> `schema_parse_success` 和 `taxonomy_top1_hit` 结果可信；
+> `answer_accuracy` 和 `grading_accuracy` 会偏乐观，**不作为最终验收依据**。
+> 正式验收需补充 ≥10 张真实学生拍照样本后重跑。
+
+**Phase A 下一步（用户 / Codex 负责）：**
 
 1. 建 `data/taxonomy/physics_grade8.json`（60–100 条）
 2. 建 golden set（20–30 道题 + 图片）
