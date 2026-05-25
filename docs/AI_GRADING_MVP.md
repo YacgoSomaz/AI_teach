@@ -213,7 +213,7 @@ class Call1Output(BaseModel):
 
 ```python
 class MappedKnowledgePoint(BaseModel):
-    taxonomy_id: str                # knowledge_points.id
+    taxonomy_id: str                # grading_taxonomy.id
     taxonomy_name: str
     confidence: float               # 排序参考
     match_method: Literal["exact", "alias", "ai_mapped"]
@@ -284,16 +284,20 @@ repo/data/taxonomy/physics_grade8.json
 
 ## 七、数据库表设计
 
-### knowledge_points
+> **2026-05-25 重要变更**：AI 批改模块的知识点表从 `knowledge_points` 更名为
+> **`grading_taxonomy`**，以避免与 Kiro 已有的 `knowledge_points`（UUID 主键）冲突。
+> Kiro 的 `knowledge_points` 表**不做任何修改**。两张表独立并存，MVP 阶段不合并。
+
+### grading_taxonomy（AI 批改专用的人工维护 taxonomy 表）
 
 ```sql
-CREATE TABLE knowledge_points (
+CREATE TABLE grading_taxonomy (
     id          VARCHAR(128) PRIMARY KEY,  -- "physics_g8_electricity_ohm_law_closed"
     name        VARCHAR(256) NOT NULL,
     subject     VARCHAR(64)  NOT NULL,
     grade       VARCHAR(64)  NOT NULL,
     chapter     VARCHAR(128) NOT NULL,
-    parent_id   VARCHAR(128) REFERENCES knowledge_points(id),
+    parent_id   VARCHAR(128) REFERENCES grading_taxonomy(id),
     level       SMALLINT     NOT NULL,     -- 1/2/3
     aliases     JSONB        NOT NULL DEFAULT '[]',
     description TEXT,
@@ -350,7 +354,7 @@ CREATE TABLE grading_results (
 CREATE TABLE question_knowledge_points (
     id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     assignment_id       UUID         NOT NULL REFERENCES assignments(id),
-    knowledge_point_id  VARCHAR(128) NOT NULL REFERENCES knowledge_points(id),
+    knowledge_point_id  VARCHAR(128) NOT NULL REFERENCES grading_taxonomy(id),
     role                VARCHAR(16)  NOT NULL DEFAULT 'primary',  -- primary / secondary
     confidence          NUMERIC(4,3) NOT NULL,
     match_method        VARCHAR(16)  NOT NULL,  -- exact / alias / ai_mapped
@@ -365,7 +369,7 @@ CREATE TABLE student_knowledge_events (
     id                    UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id            VARCHAR(128) NOT NULL,
     assignment_id         UUID         NOT NULL REFERENCES assignments(id),
-    knowledge_point_id    VARCHAR(128) NOT NULL REFERENCES knowledge_points(id),
+    knowledge_point_id    VARCHAR(128) NOT NULL REFERENCES grading_taxonomy(id),
 
     -- 答题结果
     result                VARCHAR(16)  NOT NULL,  -- correct / wrong / partial
@@ -393,7 +397,7 @@ CREATE TABLE student_knowledge_events (
 CREATE TABLE student_knowledge_points (
     id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     student_id          VARCHAR(128) NOT NULL,
-    knowledge_point_id  VARCHAR(128) NOT NULL REFERENCES knowledge_points(id),
+    knowledge_point_id  VARCHAR(128) NOT NULL REFERENCES grading_taxonomy(id),
     mastery             NUMERIC(5,4),        -- null = attempts < 3，显示"数据不足"
     attempts            INTEGER      NOT NULL DEFAULT 0,
     correct_count       INTEGER      NOT NULL DEFAULT 0,
