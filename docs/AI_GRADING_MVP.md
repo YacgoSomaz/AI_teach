@@ -682,6 +682,9 @@ Phase B 产生稳定数据后，原有模块消费新数据：
 | `fc8c76e` | fix: align AI grading schema field names | ✅ 已合并 |
 | `fcbf3ba` | test: align AI grading schema with MVP docs | ✅ 已合并 |
 | `57afddd` | fix: align AI grading schema with MVP docs | ✅ 已合并 |
+| `c4c5944` | test: define grade 8 physics taxonomy contract | ✅ 已合并 |
+| `4b5bf28` | feat: add grade 8 physics taxonomy (88 条) | ✅ 已合并 |
+| `e428c41` | feat: add eval script and prompt constants module | ✅ 已合并 |
 
 **当前 schema 状态（`57afddd` 后，完全对齐文档）：**
 
@@ -697,12 +700,12 @@ Phase B 产生稳定数据后，原有模块消费新数据：
 - `StudentKnowledgeEventPayload`：event 层保留 `score` / `max_score`（AI 输出层 `GradingResult.score` 是 0–1 比例，event 层保留原始分值，两者含义不同）
 - 测试结果：**17 passed, 1 warning**
 
-**Phase A 下一步（Claude 负责）：**
+**Phase A 进度（Claude）：**
 
 1. ✅ Call 1 / Call 2 prompt 设计文档（`docs/PROMPT_DESIGN.md`）
-2. Eval 脚本（`scripts/run_eval.py`，依赖 Codex 的 golden set JSON）
+2. ✅ Eval 脚本（`scripts/run_eval.py`）+ prompt 常量模块（`src/prompts/grading.py`）
 
-**Phase A 下一步（Codex 负责 / 双方协作）：**
+**Phase A 下一步（Codex 负责）：**
 
 1. 建 `data/taxonomy/physics_grade8.json`（60–100 条）
 2. 建 golden set（20–30 道题 + 图片）
