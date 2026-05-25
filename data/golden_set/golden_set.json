@@ -1,0 +1,428 @@
+[
+  {
+    "id": "g8_physics_mc_001",
+    "question_type": "multiple_choice",
+    "standard_answer": "B",
+    "student_answer": "A",
+    "expected_is_correct": false,
+    "expected_mistake_type": "concept_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_source_emf_internal_resistance_experiment"
+    ],
+    "acceptable_solution_points": [
+      "能说明需要改变外电路电阻",
+      "能区分电流表和电压表作用"
+    ],
+    "notes": "电学实验器材选择",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_001.jpg"
+  },
+  {
+    "id": "g8_physics_mc_002",
+    "question_type": "multiple_choice",
+    "standard_answer": "C",
+    "student_answer": "C",
+    "expected_is_correct": true,
+    "expected_mistake_type": "correct",
+    "expected_taxonomy_ids": [
+      "physics_g8_ohm_law"
+    ],
+    "acceptable_solution_points": [
+      "能使用欧姆定律",
+      "能正确计算电阻"
+    ],
+    "notes": "欧姆定律选择题",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_002.jpg"
+  },
+  {
+    "id": "g8_physics_mc_003",
+    "question_type": "multiple_choice",
+    "standard_answer": "A",
+    "student_answer": "D",
+    "expected_is_correct": false,
+    "expected_mistake_type": "graph_reading_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_voltage_current_graph"
+    ],
+    "acceptable_solution_points": [
+      "能识别U-I图像斜率含义",
+      "能比较电阻大小"
+    ],
+    "notes": "U-I图像",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_003.jpg"
+  },
+  {
+    "id": "g8_physics_mc_004",
+    "question_type": "multiple_choice",
+    "standard_answer": "B",
+    "student_answer": "B",
+    "expected_is_correct": true,
+    "expected_mistake_type": "correct",
+    "expected_taxonomy_ids": [
+      "physics_g8_series_current_law"
+    ],
+    "acceptable_solution_points": [
+      "知道串联电流处处相等"
+    ],
+    "notes": "串联电流",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_004.jpg"
+  },
+  {
+    "id": "g8_physics_mc_005",
+    "question_type": "multiple_choice",
+    "standard_answer": "D",
+    "student_answer": "B",
+    "expected_is_correct": false,
+    "expected_mistake_type": "concept_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_two_force_balance"
+    ],
+    "acceptable_solution_points": [
+      "能说出二力平衡条件",
+      "能判断同体等大反向共线"
+    ],
+    "notes": "二力平衡",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_005.jpg"
+  },
+  {
+    "id": "g8_physics_mc_006",
+    "question_type": "multiple_choice",
+    "standard_answer": "A",
+    "student_answer": "A",
+    "expected_is_correct": true,
+    "expected_mistake_type": "correct",
+    "expected_taxonomy_ids": [
+      "physics_g8_pressure_formula"
+    ],
+    "acceptable_solution_points": [
+      "能应用p=F/S判断压强变化"
+    ],
+    "notes": "固体压强",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_006.jpg"
+  },
+  {
+    "id": "g8_physics_mc_007",
+    "question_type": "multiple_choice",
+    "standard_answer": "C",
+    "student_answer": "A",
+    "expected_is_correct": false,
+    "expected_mistake_type": "concept_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_buoyancy_archimedes"
+    ],
+    "acceptable_solution_points": [
+      "知道浮力等于排开液体的重力"
+    ],
+    "notes": "浮力",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_007.jpg"
+  },
+  {
+    "id": "g8_physics_mc_008",
+    "question_type": "multiple_choice",
+    "standard_answer": "D",
+    "student_answer": "D",
+    "expected_is_correct": true,
+    "expected_mistake_type": "correct",
+    "expected_taxonomy_ids": [
+      "physics_g8_light_reflection_law"
+    ],
+    "acceptable_solution_points": [
+      "知道反射角等于入射角"
+    ],
+    "notes": "光反射",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_008.jpg"
+  },
+  {
+    "id": "g8_physics_mc_009",
+    "question_type": "multiple_choice",
+    "standard_answer": "B",
+    "student_answer": "C",
+    "expected_is_correct": false,
+    "expected_mistake_type": "concept_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_lens_convex_rule"
+    ],
+    "acceptable_solution_points": [
+      "能根据物距与焦距判断凸透镜成像性质"
+    ],
+    "notes": "凸透镜",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_009.jpg"
+  },
+  {
+    "id": "g8_physics_mc_010",
+    "question_type": "multiple_choice",
+    "standard_answer": "A",
+    "student_answer": "A",
+    "expected_is_correct": true,
+    "expected_mistake_type": "correct",
+    "expected_taxonomy_ids": [
+      "physics_g8_sound_pitch_loudness_timbre"
+    ],
+    "acceptable_solution_points": [
+      "能区分音调与频率关系"
+    ],
+    "notes": "声现象",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_mc_010.jpg"
+  },
+  {
+    "id": "g8_physics_fill_001",
+    "question_type": "fill_blank",
+    "standard_answer": "0.3A；9V",
+    "student_answer": "0.3A；9V",
+    "expected_is_correct": true,
+    "expected_mistake_type": "correct",
+    "expected_taxonomy_ids": [
+      "physics_g8_series_current_law",
+      "physics_g8_series_voltage_law"
+    ],
+    "acceptable_solution_points": [
+      "串联电流处处相等",
+      "总电压等于各部分电压之和"
+    ],
+    "notes": "串联填空",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_fill_001.jpg"
+  },
+  {
+    "id": "g8_physics_fill_002",
+    "question_type": "fill_blank",
+    "standard_answer": "20m/s",
+    "student_answer": "72m/s",
+    "expected_is_correct": false,
+    "expected_mistake_type": "calculation_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_motion_average_speed"
+    ],
+    "acceptable_solution_points": [
+      "能把72km/h换算为20m/s"
+    ],
+    "notes": "速度单位换算",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_fill_002.jpg"
+  },
+  {
+    "id": "g8_physics_fill_003",
+    "question_type": "fill_blank",
+    "standard_answer": "竖直向下",
+    "student_answer": "垂直向下",
+    "expected_is_correct": false,
+    "expected_mistake_type": "concept_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_force_gravity"
+    ],
+    "acceptable_solution_points": [
+      "重力方向总是竖直向下"
+    ],
+    "notes": "重力方向",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_fill_003.jpg"
+  },
+  {
+    "id": "g8_physics_fill_004",
+    "question_type": "fill_blank",
+    "standard_answer": "不变；变小",
+    "student_answer": "不变；变大",
+    "expected_is_correct": false,
+    "expected_mistake_type": "concept_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_pressure_formula"
+    ],
+    "acceptable_solution_points": [
+      "压力不变时受力面积增大压强变小"
+    ],
+    "notes": "压强填空",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_fill_004.jpg"
+  },
+  {
+    "id": "g8_physics_fill_005",
+    "question_type": "fill_blank",
+    "standard_answer": "吸热",
+    "student_answer": null,
+    "expected_is_correct": null,
+    "expected_mistake_type": "no_answer",
+    "expected_taxonomy_ids": [
+      "physics_g8_state_vaporization_liquefaction"
+    ],
+    "acceptable_solution_points": [
+      "汽化过程吸热"
+    ],
+    "notes": "未作答",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_fill_005.jpg"
+  },
+  {
+    "id": "g8_physics_calc_001",
+    "question_type": "calculation",
+    "standard_answer": "R=20Ω",
+    "student_answer": "R=2Ω",
+    "expected_is_correct": false,
+    "expected_mistake_type": "calculation_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_ohm_law"
+    ],
+    "acceptable_solution_points": [
+      "使用R=U/I",
+      "6除以0.3等于20"
+    ],
+    "notes": "欧姆定律计算",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_calc_001.jpg"
+  },
+  {
+    "id": "g8_physics_calc_002",
+    "question_type": "calculation",
+    "standard_answer": "s=100m",
+    "student_answer": "s=100m",
+    "expected_is_correct": true,
+    "expected_mistake_type": "correct",
+    "expected_taxonomy_ids": [
+      "physics_g8_motion_average_speed"
+    ],
+    "acceptable_solution_points": [
+      "使用s=vt",
+      "单位统一"
+    ],
+    "notes": "路程计算",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_calc_002.jpg"
+  },
+  {
+    "id": "g8_physics_calc_003",
+    "question_type": "calculation",
+    "standard_answer": "p=2000Pa",
+    "student_answer": "p=500Pa",
+    "expected_is_correct": false,
+    "expected_mistake_type": "formula_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_pressure_formula"
+    ],
+    "acceptable_solution_points": [
+      "使用p=F/S",
+      "面积单位换算正确"
+    ],
+    "notes": "压强计算",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_calc_003.jpg"
+  },
+  {
+    "id": "g8_physics_calc_004",
+    "question_type": "calculation",
+    "standard_answer": "F浮=2N",
+    "student_answer": "F浮=2N",
+    "expected_is_correct": true,
+    "expected_mistake_type": "correct",
+    "expected_taxonomy_ids": [
+      "physics_g8_buoyancy_archimedes"
+    ],
+    "acceptable_solution_points": [
+      "利用F浮=G排",
+      "正确计算rho g V"
+    ],
+    "notes": "浮力计算",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_calc_004.jpg"
+  },
+  {
+    "id": "g8_physics_calc_005",
+    "question_type": "calculation",
+    "standard_answer": "η=80%",
+    "student_answer": "η=80%",
+    "expected_is_correct": true,
+    "expected_mistake_type": "correct",
+    "expected_taxonomy_ids": [
+      "physics_g8_mechanical_efficiency_formula"
+    ],
+    "acceptable_solution_points": [
+      "机械效率等于有用功除以总功"
+    ],
+    "notes": "机械效率",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_calc_005.jpg"
+  },
+  {
+    "id": "g8_physics_exp_001",
+    "question_type": "experiment",
+    "standard_answer": "滑动变阻器一上一下接入，电流表串联，电压表并联",
+    "student_answer": "电流表并联，电压表串联",
+    "expected_is_correct": false,
+    "expected_mistake_type": "experiment_design_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_voltammetry_resistance",
+      "physics_g8_current_meter_use",
+      "physics_g8_voltage_meter_use"
+    ],
+    "acceptable_solution_points": [
+      "电流表应串联",
+      "电压表应并联",
+      "滑动变阻器一上一下接入"
+    ],
+    "notes": "伏安法实验",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_exp_001.jpg"
+  },
+  {
+    "id": "g8_physics_exp_002",
+    "question_type": "experiment",
+    "standard_answer": "多次测量取平均值减小误差",
+    "student_answer": "多测几次让结果更大",
+    "expected_is_correct": false,
+    "expected_mistake_type": "concept_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_density_measure_experiment"
+    ],
+    "acceptable_solution_points": [
+      "理解多次测量取平均值",
+      "减少实验误差"
+    ],
+    "notes": "密度实验",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_exp_002.jpg"
+  },
+  {
+    "id": "g8_physics_exp_003",
+    "question_type": "experiment",
+    "standard_answer": "同一深度液体向各个方向压强相等，深度越大压强越大",
+    "student_answer": "深度越大压强越大",
+    "expected_is_correct": false,
+    "expected_mistake_type": "partial",
+    "expected_taxonomy_ids": [
+      "physics_g8_liquid_pressure"
+    ],
+    "acceptable_solution_points": [
+      "深度越大压强越大",
+      "同一深度各方向压强相等"
+    ],
+    "notes": "液体压强实验",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_exp_003.jpg"
+  },
+  {
+    "id": "g8_physics_exp_004",
+    "question_type": "experiment",
+    "standard_answer": "使物体在水平桌面上做匀速直线运动，拉力等于摩擦力",
+    "student_answer": "拉得越快摩擦力越大",
+    "expected_is_correct": false,
+    "expected_mistake_type": "experiment_design_error",
+    "expected_taxonomy_ids": [
+      "physics_g8_friction_factors",
+      "physics_g8_two_force_balance"
+    ],
+    "acceptable_solution_points": [
+      "匀速直线运动时二力平衡",
+      "拉力大小等于摩擦力"
+    ],
+    "notes": "摩擦力实验",
+    "source_type": "synthetic_seed",
+    "image_path": "data/golden_set/images/g8_physics_exp_004.jpg"
+  }
+]
