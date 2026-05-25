@@ -1,10 +1,14 @@
 import pytest
 
+from src.models.grading import GradingResult as GradingResultModel
 from src.schemas.ai_grading import AIGradingResult, KnowledgeMappingResult
 from src.services.ai_grading_service import (
+    AIGradingPipelineResult,
     AIGradingService,
+    ImagePreflightResult,
     ImagePreflightError,
     derive_event_result,
+    persist_pipeline_result,
     should_write_mastery_event,
 )
 
@@ -203,3 +207,57 @@ def test_event_result_uses_partial_for_fractional_scores():
     assert derive_event_result(is_correct=True, score=None) == "correct"
     assert derive_event_result(is_correct=False, score=None) == "wrong"
     assert derive_event_result(is_correct=False, score=0.6) == "partial"
+
+
+def test_post_ai_checks_returns_copied_quality_flags():
+    result = AIGradingResult.model_validate(
+        valid_call1_payload(
+            grading={**valid_call1_payload()["grading"], "correct_answer": "B"}
+        )
+    )
+    service = AIGradingService(ai_client=FakeAIClient())
+
+    checked = service.apply_post_ai_checks(result)
+
+    assert result.quality_flags.answer_solution_mismatch is False
+    assert checked.quality_flags.answer_solution_mismatch is True
+
+
+@pytest.mark.asyncio
+async def test_persist_pipeline_result_preserves_existing_dispute_status(mocker):
+    assignment_id = "94ee850e-6562-4c9b-ac7c-15cdd1383c4e"
+    existing = GradingResultModel(
+        assignment_id=assignment_id,
+        student_id="student_001",
+        correct_answer="A",
+        status="disputed",
+    )
+    db = mocker.AsyncMock()
+    existing_result = mocker.MagicMock()
+    existing_result.scalar_one_or_none.return_value = existing
+    db.execute.return_value = existing_result
+
+    pipeline_result = AIGradingPipelineResult(
+        call1_result=AIGradingResult.model_validate(valid_call1_payload()),
+        mapping_result=KnowledgeMappingResult.model_validate(valid_mapping_payload()),
+        preflight=ImagePreflightResult(
+            mime_type="image/jpeg",
+            size_bytes=90_000,
+            width=320,
+            height=240,
+        ),
+    )
+
+    await persist_pipeline_result(
+        db=db,
+        assignment_id=assignment_id,
+        student_id="student_001",
+        pipeline_result=pipeline_result,
+    )
+
+    added_grading = [
+        call.args[0]
+        for call in db.add.call_args_list
+        if isinstance(call.args[0], GradingResultModel)
+    ][0]
+    assert added_grading.status == "disputed"
