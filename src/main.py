@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from src.api.export import router as export_router
+from src.api.grading import router as grading_router
 from src.api.health import router as health_router
 from src.api.report import router as report_router
 from src.api.review import router as review_router
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(upload_router)
+    app.include_router(grading_router)
     app.include_router(student_router)
     app.include_router(review_router)
     app.include_router(report_router)
