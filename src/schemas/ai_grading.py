@@ -23,16 +23,18 @@ QuestionType = Literal[
 ]
 
 MistakeType = Literal[
+    "correct",
     "concept_error",
     "calculation_error",
     "graph_reading_error",
     "experiment_design_error",
-    "careless_error",
-    "missing_answer",
-    "unknown",
+    "formula_error",
+    "no_answer",
+    "partial",
 ]
 
-KnowledgeRole = Literal["primary", "secondary", "prerequisite"]
+KnowledgeRole = Literal["primary", "secondary"]
+MatchMethod = Literal["exact", "alias", "ai_mapped"]
 KnowledgeEventResult = Literal["correct", "partial", "wrong"]
 SupportStatus = Literal[
     "supported",
@@ -54,50 +56,45 @@ class QuestionStruct(StrictSchema):
     grade: str = Field(min_length=1, max_length=32)
     question_type: QuestionType
     stem: str = Field(min_length=1)
-    options: dict[str, str] = Field(default_factory=dict)
-    student_answer: str | None = None
-    correct_answer: str | None = None
+    options: dict[str, str] | None = None
     diagrams: list[str] = Field(default_factory=list)
     known_conditions: list[str] = Field(default_factory=list)
-    target: str | None = None
+    target: str = Field(min_length=1)
 
 
 class SolutionStep(StrictSchema):
-    index: int = Field(ge=1)
+    step: int = Field(ge=1)
     title: str = Field(min_length=1, max_length=80)
     content: str = Field(min_length=1)
     used_knowledge: list[str] = Field(default_factory=list)
 
 
 class SolutionResult(StrictSchema):
-    answer: str | None = None
-    summary: str = Field(min_length=1)
-    steps: list[SolutionStep] = Field(min_length=1)
+    answer: str = Field(min_length=1)
+    solution_steps: list[SolutionStep] = Field(min_length=1)
+    reasoning_summary: str = Field(min_length=1)
 
 
 class GradingResult(StrictSchema):
+    student_answer: str | None = None
+    correct_answer: str = Field(min_length=1)
     is_correct: bool | None = None
-    score: float = Field(ge=0)
-    max_score: float = Field(gt=0)
-    mistake_type: MistakeType = "unknown"
-    feedback: str = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def validate_score_bounds(self) -> "GradingResult":
-        if self.score > self.max_score:
-            raise ValueError("score must be less than or equal to max_score")
-        return self
+    score: float | None = Field(default=None, ge=0, le=1)
+    mistake_type: MistakeType | None = None
+    mistake_reason: str | None = None
+    feedback: str | None = None
 
 
 class KnowledgeCandidate(StrictSchema):
-    name: str = Field(min_length=1, max_length=128)
-    reason: str = Field(min_length=1)
+    raw_name: str = Field(min_length=1, max_length=128)
+    confidence: float = Field(ge=0, le=1)
 
 
-class QualityGate(StrictSchema):
-    review_required: bool
-    quality_flags: list[str] = Field(default_factory=list)
-    evidence: list[str] = Field(default_factory=list)
+class QualityFlags(StrictSchema):
+    low_payload_size: bool = False
+    missing_student_answer: bool = False
+    answer_solution_mismatch: bool = False
+    incomplete_schema: bool = False
 
 
 class AIGradingResult(StrictSchema):
@@ -109,33 +106,32 @@ class AIGradingResult(StrictSchema):
     question_struct: QuestionStruct
     solution: SolutionResult
     grading: GradingResult
-    raw_knowledge_candidates: list[KnowledgeCandidate] = Field(default_factory=list)
-    quality_gate: QualityGate
+    knowledge_candidates: list[KnowledgeCandidate] = Field(
+        default_factory=list,
+        max_length=5,
+    )
+    quality_flags: QualityFlags = Field(default_factory=QualityFlags)
+    review_required: bool
+    review_reasons: list[str] = Field(default_factory=list)
 
 
 class MappedKnowledgePoint(StrictSchema):
     taxonomy_id: str = Field(min_length=1, max_length=128)
-    name: str = Field(min_length=1, max_length=128)
-    role: KnowledgeRole
+    taxonomy_name: str = Field(min_length=1, max_length=128)
     confidence: float = Field(ge=0, le=1)
-
-
-class UnmappedKnowledgeCandidate(StrictSchema):
-    name: str = Field(min_length=1, max_length=128)
-    reason: Literal["taxonomy_missing_or_uncertain", "ambiguous", "out_of_scope"]
+    match_method: MatchMethod
+    role: KnowledgeRole
 
 
 class KnowledgeMappingResult(StrictSchema):
     """Second AI call output: map candidates to the fixed taxonomy."""
 
-    mapped_points: list[MappedKnowledgePoint] = Field(default_factory=list)
-    unmapped_candidates: list[UnmappedKnowledgeCandidate] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def require_mapping_or_unmapped_reason(self) -> "KnowledgeMappingResult":
-        if not self.mapped_points and not self.unmapped_candidates:
-            raise ValueError("mapping must contain mapped_points or unmapped_candidates")
-        return self
+    primary_knowledge_points: list[MappedKnowledgePoint] = Field(
+        default_factory=list,
+        max_length=3,
+    )
+    unmapped_candidates: list[str] = Field(default_factory=list)
+    overall_confidence: float = Field(ge=0, le=1)
 
 
 class StudentKnowledgeEventPayload(StrictSchema):
@@ -149,7 +145,7 @@ class StudentKnowledgeEventPayload(StrictSchema):
     grading_status: GradingStatus = "ai_final"
     score: float = Field(ge=0)
     max_score: float = Field(gt=0)
-    mistake_type: MistakeType = "unknown"
+    mistake_type: MistakeType | None = None
     created_at: datetime
 
     @model_validator(mode="after")
