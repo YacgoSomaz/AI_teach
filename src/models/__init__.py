@@ -5,6 +5,15 @@ from src.models.ocr_task import OCRTask, OCRTaskStatus
 from src.models.question import Question
 from src.models.knowledge_point import KnowledgePoint
 from src.models.student_profile import StudentKnowledgeProfile
+# AI grading models (Codex-owned; parallel to Kiro's knowledge/profile tables)
+from src.models.grading import (
+    AssignmentAnalysis,
+    GradingResult,
+    GradingTaxonomy,
+    QuestionKnowledgePoint,
+    StudentKnowledgeEvent,
+    StudentKnowledgePoint,
+)
 
 __all__ = [
     "Base",
@@ -15,4 +24,10 @@ __all__ = [
     "Question",
     "KnowledgePoint",
     "StudentKnowledgeProfile",
+    "AssignmentAnalysis",
+    "GradingResult",
+    "GradingTaxonomy",
+    "QuestionKnowledgePoint",
+    "StudentKnowledgeEvent",
+    "StudentKnowledgePoint",
 ]
