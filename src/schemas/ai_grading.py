@@ -15,11 +15,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 QuestionType = Literal[
-    "choice",
+    "multiple_choice",
     "fill_blank",
     "calculation",
     "experiment",
-    "short_answer",
     "open_ended",
 ]
 
@@ -34,7 +33,14 @@ MistakeType = Literal[
 ]
 
 KnowledgeRole = Literal["primary", "secondary", "prerequisite"]
-KnowledgeEventResult = Literal["correct", "partial", "wrong", "uncertain"]
+KnowledgeEventResult = Literal["correct", "partial", "wrong"]
+SupportStatus = Literal[
+    "supported",
+    "unsupported_subject",
+    "unsupported_grade",
+    "uncertain",
+]
+GradingStatus = Literal["ai_final", "disputed", "corrected", "excluded"]
 
 
 class StrictSchema(BaseModel):
@@ -97,7 +103,10 @@ class QualityGate(StrictSchema):
 class AIGradingResult(StrictSchema):
     """First AI call output: understand, solve, and grade one question."""
 
-    question: QuestionStruct
+    detected_subject: str = Field(min_length=1, max_length=32)
+    detected_grade: str = Field(min_length=1, max_length=32)
+    support_status: SupportStatus
+    question_struct: QuestionStruct
     solution: SolutionResult
     grading: GradingResult
     raw_knowledge_candidates: list[KnowledgeCandidate] = Field(default_factory=list)
@@ -137,6 +146,7 @@ class StudentKnowledgeEventPayload(StrictSchema):
     question_id: str = Field(min_length=1)
     knowledge_point_id: str = Field(min_length=1, max_length=128)
     result: KnowledgeEventResult
+    grading_status: GradingStatus = "ai_final"
     score: float = Field(ge=0)
     max_score: float = Field(gt=0)
     mistake_type: MistakeType = "unknown"
