@@ -1,6 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -87,7 +87,7 @@ class FakeTask:
 
     def __init__(self, retries=0):
         self.request = SimpleNamespace(retries=retries)
-        self.retry = AsyncMock(side_effect=RuntimeError("retry called"))
+        self.retry = MagicMock(side_effect=RuntimeError("retry called"))
 
 
 def make_assignment(tmp_path: Path):

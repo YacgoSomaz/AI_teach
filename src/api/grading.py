@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_current_student_id
 from src.db.session import get_db
-from src.models.assignment import Assignment
+from src.models.assignment import Assignment, AssignmentStatus
 from src.models.grading import (
     AssignmentAnalysis,
     GradingResult,
@@ -55,6 +55,12 @@ async def start_ai_grading(
     db: AsyncSession = Depends(get_db),
 ) -> StartGradingResponse:
     assignment = await get_owned_assignment(db, assignment_id, current_student_id)
+    if assignment.status in (AssignmentStatus.AI_RUNNING, AssignmentStatus.AI_DONE):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="批改任务已存在，请勿重复提交",
+        )
+
     process_ai_grading.delay(str(assignment.id))
     return StartGradingResponse(
         success=True,
@@ -124,6 +130,11 @@ async def dispute_ai_grading(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="批改结果不存在",
+        )
+    if grading.status != "ai_final":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"当前状态 '{grading.status}' 不允许申请复议",
         )
 
     grading.status = "disputed"

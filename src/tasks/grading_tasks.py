@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from uuid import UUID
 
@@ -19,10 +20,12 @@ from src.services.ai_grading_service import (
     create_default_grading_ai_client,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class AIGradingTask(Task):
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        print(f"AI 批改任务失败: {task_id}, 错误: {exc}")
+        logger.error("AI 批改任务失败: task_id=%s, error=%s", task_id, exc)
 
 
 @app.task(base=AIGradingTask, bind=True, max_retries=settings.celery_max_retries)
@@ -43,26 +46,33 @@ async def _process_ai_grading_async(task, assignment_id: str):
             if assignment is None:
                 raise ValueError(f"Assignment {assignment_id} 不存在")
 
+            storage_url = assignment.storage_url
+            mime_type = assignment.mime_type
+            student_id = assignment.student_id
+            existing_status = assignment.processing_status or {}
+
             assignment.status = AssignmentStatus.AI_RUNNING
             assignment.processing_status = {
-                **(assignment.processing_status or {}),
+                **existing_status,
                 "grading": {"status": "running"},
             }
             await db.commit()
 
-            image_bytes, mime_type = read_assignment_image(assignment)
+            image_bytes, mime_type = read_assignment_image_from_values(
+                storage_url,
+                mime_type,
+            )
             service = AIGradingService(ai_client=create_default_grading_ai_client())
             pipeline_result = await service.analyze_and_persist(
                 db=db,
                 assignment_id=str(assignment.id),
-                student_id=assignment.student_id,
+                student_id=student_id,
                 image_bytes=image_bytes,
                 mime_type=mime_type,
             )
 
             assignment.status = AssignmentStatus.AI_DONE
             assignment.processing_status = {
-                **(assignment.processing_status or {}),
                 "grading": {
                     "status": "done",
                     "support_status": pipeline_result.call1_result.support_status,
@@ -86,7 +96,6 @@ async def _process_ai_grading_async(task, assignment_id: str):
             if assignment is not None:
                 assignment.status = AssignmentStatus.MANUAL_REQUIRED
                 assignment.processing_status = {
-                    **(assignment.processing_status or {}),
                     "grading": {"status": "rejected", "reason": exc.reason},
                 }
                 assignment.error_message = str(exc)
@@ -102,7 +111,6 @@ async def _process_ai_grading_async(task, assignment_id: str):
             if assignment is not None:
                 assignment.status = AssignmentStatus.AI_FAILED
                 assignment.processing_status = {
-                    **(assignment.processing_status or {}),
                     "grading": {
                         "status": "failed",
                         "error": str(exc),
@@ -120,9 +128,21 @@ async def _process_ai_grading_async(task, assignment_id: str):
 def read_assignment_image(assignment) -> tuple[bytes, str]:
     """Load the local uploaded image for a grading task."""
 
-    storage_url = assignment.storage_url or ""
+    return read_assignment_image_from_values(
+        assignment.storage_url,
+        assignment.mime_type,
+    )
+
+
+def read_assignment_image_from_values(
+    storage_url: str | None,
+    mime_type: str | None,
+) -> tuple[bytes, str]:
+    """Load an image using values cached before a session commit."""
+
+    storage_url = storage_url or ""
     local_path = storage_url.removeprefix("file://")
     path = Path(local_path)
     if not path.is_file():
         raise FileNotFoundError(f"作业图片不存在: {local_path}")
-    return path.read_bytes(), assignment.mime_type or "image/jpeg"
+    return path.read_bytes(), mime_type or "image/jpeg"

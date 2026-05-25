@@ -206,31 +206,36 @@ class AIGradingService:
     def apply_post_ai_checks(self, result: AIGradingResult) -> AIGradingResult:
         """Apply deterministic quality gates after Call 1."""
 
-        checked = result.model_copy(deep=True)
-        reasons = list(dict.fromkeys(checked.review_reasons))
+        reasons = list(dict.fromkeys(result.review_reasons))
+        flag_updates: dict[str, bool] = {}
 
         def flag(reason: str) -> None:
             if reason not in reasons:
                 reasons.append(reason)
 
-        if checked.solution.answer.strip() != checked.grading.correct_answer.strip():
-            checked.quality_flags.answer_solution_mismatch = True
+        if result.solution.answer.strip() != result.grading.correct_answer.strip():
+            flag_updates["answer_solution_mismatch"] = True
             flag("answer_solution_mismatch")
 
-        if checked.grading.student_answer is None and checked.grading.is_correct is not None:
-            checked.quality_flags.missing_student_answer = True
+        if result.grading.student_answer is None and result.grading.is_correct is not None:
+            flag_updates["missing_student_answer"] = True
             flag("missing_student_answer_inconsistent")
 
-        if checked.support_status == "uncertain":
+        if result.support_status == "uncertain":
             flag("support_status_uncertain")
 
-        if len(checked.question_struct.stem.strip()) < 5:
-            checked.quality_flags.incomplete_schema = True
+        if len(result.question_struct.stem.strip()) < 5:
+            flag_updates["incomplete_schema"] = True
             flag("stem_too_short")
 
-        checked.review_reasons = reasons
-        checked.review_required = checked.review_required or bool(reasons)
-        return checked
+        return result.model_copy(
+            update={
+                "quality_flags": result.quality_flags.model_copy(update=flag_updates),
+                "review_reasons": reasons,
+                "review_required": result.review_required or bool(reasons),
+            },
+            deep=True,
+        )
 
     async def analyze_and_persist(
         self,
@@ -332,6 +337,13 @@ async def persist_pipeline_result(
     assignment_uuid = uuid.UUID(str(assignment_id))
     call1 = pipeline_result.call1_result
     mapping = pipeline_result.mapping_result
+    existing_grading_result = await db.execute(
+        select(GradingResultModel).where(
+            GradingResultModel.assignment_id == assignment_uuid
+        )
+    )
+    existing_grading = existing_grading_result.scalar_one_or_none()
+    grading_status = existing_grading.status if existing_grading else "ai_final"
 
     await db.execute(
         delete(QuestionKnowledgePoint).where(
@@ -384,7 +396,7 @@ async def persist_pipeline_result(
             mistake_type=call1.grading.mistake_type,
             mistake_reason=call1.grading.mistake_reason,
             feedback=call1.grading.feedback,
-            status="ai_final",
+            status=grading_status,
         )
     )
 
@@ -413,7 +425,7 @@ async def persist_pipeline_result(
                         score=score_for_event(call1),
                         max_score=Decimal("1.0"),
                         mistake_type=call1.grading.mistake_type,
-                        grading_status="ai_final",
+                        grading_status=grading_status,
                         excluded_from_mastery=False,
                     )
                 )
