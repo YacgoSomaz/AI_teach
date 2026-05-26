@@ -33,7 +33,7 @@ def html_content():
 
 @pytest.fixture(scope="module")
 def js_content(html_content):
-    match = re.search(r"<script>(.*?)</script>", html_content, re.DOTALL)
+    match = re.search(r"<script[^>]*>(.*?)</script>", html_content, re.DOTALL)
     assert match, "未找到 <script> 块"
     return match.group(1)
 
