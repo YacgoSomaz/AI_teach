@@ -1,1616 +1,1044 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>AI 复习导航</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
-  <style>
-    /* ── Design Tokens ── */
-    :root {
-      --bg:           #F1F7FB;
-      --bg-soft:      #E4EFF7;
-      --surface:      #FFFFFF;
-      --ink:          #3A4A5C;
-      --ink-2:        #6B7A8D;
-      --ink-3:        #9BA8B5;
-      --ink-4:        #C5CDD6;
-      --coral:        #FFC8D2;
-      --coral-deep:   #D95F80;
-      --coral-soft:   #FFE8EE;
-      --coral-tint:   #FFF4F7;
-      --mint:         #BDE5D0;
-      --mint-soft:    #E0F5EB;
-      --mint-deep:    #3E9E7A;
-      --amber:        #FFE89E;
-      --amber-soft:   #FFF6D6;
-      --amber-deep:   #C08020;
-      --rose:         #FFB8C4;
-      --rose-soft:    #FFE0E8;
-      --violet:       #B8DDF0;
-      --violet-soft:  #DDF0FA;
-      --violet-deep:  #4080B0;
-      --line:         #D0DDE8;
-      --line-2:       #BCCAD8;
-      --r-xs:  6px;   --r-sm: 10px; --r-md: 14px;
-      --r-lg:  20px;  --r-xl: 28px; --r-full: 9999px;
-      --shadow-sm:   3px 3px 0 0 var(--ink);
-      --shadow-md:   4px 4px 0 0 var(--ink);
-      --shadow-coral: 3px 3px 0 0 var(--ink);
-      --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC",
-                   "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
-      --font-display: "ZCOOL KuaiLe", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-      --font-num: "SF Pro Display", "DM Sans", -apple-system, system-ui, sans-serif;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 复习导航</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    color: #0F0F12; -webkit-font-smoothing: antialiased; background: #EEF2F7;
+  }
+  button { font-family: inherit; }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0;
-      -webkit-tap-highlight-color: transparent; }
-    html, body { height: 100%; background: var(--bg); font-family: var(--font-sans);
-      color: var(--ink); -webkit-font-smoothing: antialiased; }
-    button { font-family: inherit; cursor: pointer; border: none;
-      background: none; color: inherit; }
-    input { font-family: inherit; }
-    input[type=file] { display: none; }
+  .h-card { cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+  .h-card:hover { transform: translateY(-1px); }
+  .h-card:hover .h-play { background: #0A0A0A; color: #fff; }
+  .h-play { transition: background .15s, color .15s; }
 
-    /* ── App Shell ── */
-    #app { max-width: 480px; margin: 0 auto; min-height: 100vh;
-      display: flex; flex-direction: column; position: relative; background: var(--bg); }
+  @keyframes flashIn {
+    0%   { transform: translateY(-12px); opacity: 0; box-shadow: 0 0 0 4px rgba(0,0,0,0); }
+    40%  { transform: translateY(0); opacity: 1; box-shadow: 0 0 0 4px rgba(0,0,0,0.06); }
+    100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+  }
+  .h-card-new { animation: flashIn .9s cubic-bezier(.2,.7,.2,1); }
 
-    /* ── Screens ── */
-    .screen { display: none; flex-direction: column; flex: 1;
-      padding-bottom: 100px; min-height: 100vh; }
-    .screen.active { display: flex; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; }
 
-    /* ── Scroll area ── */
-    .scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    .scroll-area::-webkit-scrollbar { display: none; }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .shimmer-bg {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
 
-    /* ── Top bar ── */
-    .topbar { display: flex; align-items: center;
-      justify-content: space-between; padding: 18px 20px 12px; }
-    .topbar-title { font-family: var(--font-display);
-      font-size: 24px; font-weight: 400; letter-spacing: .01em; }
-    .topbar-sub { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
-    .avatar { width: 44px; height: 44px; border-radius: var(--r-full);
-      background: var(--amber);
-      color: var(--ink); font-weight: 700; font-size: 15px;
-      display: flex; align-items: center; justify-content: center;
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-sm); cursor: pointer; flex-shrink: 0; }
+  .sheet-backdrop {
+    position: absolute; inset: 0; background: rgba(10,12,18,0.32);
+    opacity: 0; pointer-events: none; transition: opacity .25s ease; z-index: 100;
+  }
+  .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: #fff; border-radius: 28px 28px 0 0;
+    transform: translateY(105%);
+    transition: transform .35s cubic-bezier(.2,.7,.2,1);
+    z-index: 101; box-shadow: 0 -20px 50px -10px rgba(0,0,0,0.18);
+    padding-bottom: 38px;
+  }
+  .sheet.open { transform: translateY(0); }
 
-    /* ── Cards ── */
-    .card { background: var(--surface); border-radius: var(--r-md);
-      padding: 18px;
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-sm);
-      margin: 0 16px; }
-    .card + .card { margin-top: 12px; }
-    .card-title { font-size: 15px; font-weight: 700; color: var(--ink);
-      letter-spacing: -0.005em; }
-    .card-sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
-    .gap { height: 16px; }
+  @keyframes tileIn {
+    from { opacity: 0; transform: translateY(14px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .sheet.open .subj-tile { animation: tileIn .45s cubic-bezier(.2,.7,.2,1) backwards; }
+  .subj-tile { transition: transform .12s ease; }
+  .subj-tile:active { transform: scale(.97); }
 
-    /* ── Greeting banner ── */
-    .greet-card { margin: 0 16px;
-      background: linear-gradient(135deg, #FFE89E 0%, #FFD480 60%, #FFBD6A 100%);
-      border-radius: var(--r-lg);
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-md);
-      padding: 20px; position: relative; overflow: hidden; }
-    .greet-card::before { content: ''; position: absolute; right: -20px; top: -20px;
-      width: 110px; height: 110px; border-radius: 50%;
-      background: rgba(255,255,255,.35); pointer-events: none; }
-    .greet-card::after { content: ''; position: absolute; right: 28px; top: 18px;
-      width: 50px; height: 50px; border-radius: 50%;
-      background: rgba(255,220,100,.5); pointer-events: none; }
-    .greet-hello { font-size: 13px; color: var(--ink); opacity: .7; }
-    .greet-name { font-family: var(--font-display);
-      font-size: 24px; font-weight: 400; color: var(--ink);
-      letter-spacing: .01em; margin-top: 2px; position: relative; z-index: 1; }
-    .greet-tip { font-size: 12px; color: var(--ink); margin-top: 8px;
-      line-height: 1.5; max-width: 220px; position: relative; z-index: 1; opacity: .75; }
-    .greet-streak { margin-top: 14px; display: inline-flex; align-items: center;
-      gap: 6px; padding: 5px 12px;
-      background: rgba(255,255,255,.7);
-      border: 1.5px solid var(--ink);
-      border-radius: var(--r-full); font-size: 12px; font-weight: 600;
-      color: var(--ink); position: relative; z-index: 1; }
+  .upload-overlay {
+    position: absolute; inset: 0;
+    background: rgba(245,247,251,0.88);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 110; animation: fadeIn .2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  .upload-card {
+    background: #fff; border-radius: 28px;
+    padding: 28px 28px 22px; width: 76%; max-width: 300px;
+    box-shadow: 0 20px 50px -10px rgba(0,0,0,0.2);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .upload-shutter {
+    width: 72px; height: 72px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .shutter-ring {
+    position: absolute; inset: -8px; border-radius: 50%;
+    border: 2px solid; opacity: .35; animation: pulse 1.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { transform: scale(.9); opacity: .55 }
+    100% { transform: scale(1.25); opacity: 0 }
+  }
+  .upload-bar {
+    margin-top: 18px; width: 100%; height: 4px; border-radius: 2px;
+    background: #F0F1F4; overflow: hidden;
+  }
+  .upload-bar-fill {
+    height: 100%; width: 0; border-radius: 2px;
+    animation: barFill 1.7s cubic-bezier(.4,.05,.2,1) forwards;
+  }
+  @keyframes barFill { 0% { width: 0 } 60% { width: 78% } 100% { width: 100% } }
 
-    /* ── Stat grid 2×2 ── */
-    .stat-grid { display: grid; grid-template-columns: 1fr 1fr;
-      gap: 10px; margin: 12px 16px 0; }
-    .stat-tile { border-radius: var(--r-md); padding: 16px;
-      position: relative; overflow: hidden; min-height: 96px;
-      display: flex; flex-direction: column; justify-content: space-between;
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-sm); }
-    .stat-tile-coral { background: var(--coral-soft); color: var(--ink); }
-    .stat-tile-mint  { background: var(--mint-soft);  color: var(--ink); }
-    .stat-tile-amber { background: var(--amber-soft); color: var(--ink); }
-    .stat-tile-violet{ background: var(--violet-soft);color: var(--ink); }
-    .stat-label { font-size: 12px; font-weight: 600; opacity: .7; }
-    .stat-value { font-size: 32px; font-weight: 700; font-family: var(--font-num);
-      letter-spacing: -0.02em; line-height: 1; }
-    .stat-unit { font-size: 14px; font-weight: 600; opacity: .7; margin-left: 2px; }
-    .stat-trend { font-size: 11px; font-weight: 600; opacity: .6; margin-top: 4px; }
-    .stat-icon { position: absolute; top: 14px; right: 14px;
-      width: 26px; height: 26px; opacity: .35; }
+  .toast {
+    position: absolute; left: 50%; bottom: 170px;
+    transform: translateX(-50%);
+    background: rgba(15,15,18,0.94); color: #fff;
+    padding: 10px 14px 10px 12px; border-radius: 999px;
+    font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 10px;
+    z-index: 120; max-width: 86%;
+    box-shadow: 0 12px 28px -8px rgba(0,0,0,0.45);
+    animation: toastIn .25s cubic-bezier(.2,.7,.2,1);
+  }
+  @keyframes toastIn {
+    from { transform: translate(-50%, 10px); opacity: 0 }
+    to   { transform: translate(-50%, 0); opacity: 1 }
+  }
 
-    /* ── Section header ── */
-    .section-head { display: flex; align-items: center;
-      justify-content: space-between; padding: 20px 20px 8px; }
-    .section-title { font-family: var(--font-display);
-      font-size: 18px; font-weight: 400; letter-spacing: .01em; }
-    .section-more { font-size: 12px; color: var(--ink-3); }
+  /* detail overlay slide */
+  .detail {
+    position: absolute; inset: 0; background: #FBFCFD; z-index: 130;
+    transform: translateX(100%); transition: transform .32s cubic-bezier(.2,.7,.2,1);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .detail.open { transform: translateX(0); }
 
-    /* ── Task cards ── */
-    .task-card { background: var(--surface); border-radius: var(--r-md);
-      padding: 14px 16px;
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-sm);
-      display: flex; gap: 14px; align-items: flex-start;
-      margin: 0 16px 10px; }
-    .task-bar { width: 4px; align-self: stretch; border-radius: var(--r-full);
-      background: var(--rose); flex-shrink: 0; }
-    .task-bar.amber { background: var(--amber); }
-    .task-bar.mint  { background: var(--mint); }
-    .task-body { flex: 1; min-width: 0; }
-    .task-title { font-size: 14px; font-weight: 600; }
-    .task-meta { display: flex; align-items: center; gap: 8px;
-      margin-top: 6px; font-size: 11px; color: var(--ink-3); }
-    .task-action { display: inline-flex; align-items: center; gap: 4px;
-      font-size: 12px; font-weight: 600; color: var(--ink);
-      background: var(--amber); border: 1.5px solid var(--ink);
-      padding: 5px 12px;
-      border-radius: var(--r-full); margin-top: 10px; }
+  /* expandable card */
+  .ex-row { cursor: pointer; transition: background .15s; }
+  .ex-row:active { background: rgba(0,0,0,0.02); }
 
-    /* ── Chips ── */
-    .chip { display: inline-flex; align-items: center; gap: 4px;
-      font-size: 11px; font-weight: 600; padding: 4px 9px;
-      border-radius: var(--r-full);
-      border: 1.5px solid var(--ink);
-      background: var(--bg-soft); color: var(--ink-2); }
-    .chip-mint   { background: var(--mint-soft);   color: var(--ink); }
-    .chip-amber  { background: var(--amber-soft);  color: var(--ink); }
-    .chip-rose   { background: var(--rose-soft);   color: var(--ink); }
-    .chip-violet { background: var(--violet-soft); color: var(--ink); }
-    .chip-coral  { background: var(--coral-soft);  color: var(--ink); }
-    .dot { width: 6px; height: 6px; border-radius: var(--r-full); display: inline-block; }
-    .dot-rose   { background: var(--coral-deep); }
-    .dot-amber  { background: var(--amber-deep); }
-    .dot-mint   { background: var(--mint-deep); }
+  /* checkbox */
+  .check {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 2px solid #D2D4DA; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .18s, border-color .18s, transform .12s;
+    cursor: pointer; background: #fff;
+  }
+  .check.done { background: #0A0A0A; border-color: #0A0A0A; }
+  .check:active { transform: scale(.92); }
+  .check svg { opacity: 0; transition: opacity .18s; }
+  .check.done svg { opacity: 1; }
 
-    /* ── KP item ── */
-    .kp-item { display: flex; align-items: center; gap: 12px;
-      padding: 14px 16px; background: var(--surface);
-      border-radius: var(--r-md);
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-sm);
-      margin: 0 16px 10px; }
-    .kp-rank { width: 30px; height: 30px; border-radius: var(--r-sm);
-      background: var(--rose-soft); color: var(--ink);
-      border: 1.5px solid var(--ink);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 13px; font-family: var(--font-num); flex-shrink: 0; }
-    .kp-rank.amber  { background: var(--amber-soft); }
-    .kp-rank.mint   { background: var(--mint-soft); }
-    .kp-body { flex: 1; min-width: 0; }
-    .kp-title { font-size: 14px; font-weight: 600; }
-    .kp-meta { font-size: 11px; color: var(--ink-3); margin-top: 3px;
-      display: flex; gap: 8px; align-items: center; }
-    .kp-score { font-size: 14px; font-weight: 700; font-family: var(--font-num); }
+  .hist-scroll::-webkit-scrollbar, .page-scroll::-webkit-scrollbar { width: 0; }
 
-    /* ── Progress bar ── */
-    .bar { height: 8px; background: var(--bg-soft);
-      border-radius: var(--r-full);
-      border: 1.5px solid var(--ink);
-      overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: var(--r-full);
-      background: var(--coral-deep);
-      transition: width .6s cubic-bezier(.2,.8,.2,1); }
-    .bar-fill.mint  { background: var(--mint-deep); }
-    .bar-fill.amber { background: var(--amber-deep); }
-    .bar-fill.rose  { background: var(--coral-deep); }
+  /* mastery bar */
+  .mb { height: 5px; border-radius: 3px; background: #F0F1F4; overflow: hidden; }
+  .mb > div { height: 100%; border-radius: 3px; transition: width .6s cubic-bezier(.2,.7,.2,1); }
 
-    /* ── Radar ── */
-    .radar-wrap { position: relative; width: 100%; aspect-ratio: 1;
-      max-width: 280px; margin: 0 auto; }
-    .radar-legend { display: flex; gap: 16px; justify-content: center; margin-top: 12px; }
-
-    /* ── Heatmap ── */
-    .heatmap-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .heatmap-table { border-collapse: separate; border-spacing: 4px;
-      min-width: 380px; width: 100%; }
-    .hm-th { font-size: 10px; color: var(--ink-3); font-weight: 500;
-      padding: 0 2px; text-align: center; white-space: nowrap; }
-    .hm-row-label { font-size: 10px; color: var(--ink-3); font-weight: 500;
-      padding: 0 6px 0 0; white-space: nowrap; }
-    .hm-cell { width: 36px; height: 28px; border-radius: 6px; cursor: default;
-      border: 1.5px solid var(--ink); transition: opacity .2s; }
-    .hm-cell:hover { opacity: .8; }
-    .hm-0 { background: var(--bg-soft); }
-    .hm-1 { background: var(--mint-soft); }
-    .hm-2 { background: var(--mint); }
-    .hm-3 { background: var(--amber); }
-    .hm-4 { background: var(--rose); }
-
-    /* ── Buttons ── */
-    .btn { display: inline-flex; align-items: center; justify-content: center;
-      gap: 8px; font-weight: 700; font-size: 15px;
-      border-radius: var(--r-full); padding: 14px 22px;
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-sm);
-      transition: transform .1s ease, box-shadow .1s ease; white-space: nowrap; }
-    .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 var(--ink); }
-    .btn-primary { background: var(--ink); color: white; width: 100%; }
-    .btn-ghost { background: var(--surface); color: var(--ink); }
-    .btn-sm { padding: 8px 16px; font-size: 13px;
-      box-shadow: 2px 2px 0 0 var(--ink); }
-
-    /* ── Bottom nav (floating pill) ── */
-    .tabbar { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
-      width: calc(100% - 32px); max-width: 448px;
-      background: var(--surface);
-      border-radius: var(--r-xl); padding: 10px 8px;
-      box-shadow: var(--shadow-md);
-      display: grid; grid-template-columns: repeat(5, 1fr);
-      border: 2px solid var(--ink); z-index: 200; }
-    .tab { display: flex; flex-direction: column; align-items: center; gap: 3px;
-      padding: 6px 0; color: var(--ink-3); font-size: 10px; font-weight: 600;
-      cursor: pointer; transition: color .15s ease; }
-    .tab.active { color: var(--coral-deep); }
-    .tab svg { width: 22px; height: 22px; stroke-width: 1.8; }
-    .tab-upload { background: var(--ink); color: white !important;
-      margin: -10px 6px; border-radius: var(--r-full);
-      box-shadow: var(--shadow-sm); padding: 14px 0 12px;
-      border: 2px solid var(--ink); }
-    .tab-upload .tab-label { display: none; }
-    .tab-upload svg { width: 26px; height: 26px; }
-
-    /* ── Review header card ── */
-    .review-hero { margin: 10px 16px 0;
-      background: var(--violet-soft);
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-md);
-      border-radius: var(--r-lg); padding: 20px; color: var(--ink); }
-    .review-hero h2 { font-family: var(--font-display);
-      font-size: 22px; font-weight: 400; }
-    .review-hero p { font-size: 13px; opacity: .75; margin-top: 4px; }
-
-    /* ── Profile / Mine ── */
-    .mine-hero { margin: 10px 16px 0;
-      background: var(--mint-soft);
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-md);
-      border-radius: var(--r-lg); padding: 22px 20px; color: var(--ink);
-      display: flex; align-items: center; gap: 16px; }
-    .mine-avatar { width: 56px; height: 56px; border-radius: var(--r-full);
-      background: var(--amber);
-      border: 2px solid var(--ink);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px; font-weight: 800; flex-shrink: 0; }
-    .menu-item { display: flex; align-items: center; gap: 14px;
-      padding: 16px 0; border-bottom: 1.5px solid var(--line); cursor: pointer; }
-    .menu-item:last-child { border-bottom: none; }
-    .menu-item svg { stroke: var(--ink-3); width: 20px; height: 20px; flex-shrink: 0; }
-    .menu-item span { flex: 1; font-size: 15px; }
-    .menu-arr { stroke: var(--line-2) !important; width: 16px !important;
-      height: 16px !important; }
-
-    /* ── Upload sheet ── */
-    #upload-modal { position: fixed; inset: 0;
-      background: rgba(58,74,92,.4); z-index: 500;
-      display: none; align-items: flex-end; justify-content: center; }
-    #upload-modal.open { display: flex; }
-    .upload-sheet { background: var(--surface);
-      border-radius: var(--r-xl) var(--r-xl) 0 0;
-      border-top: 2px solid var(--ink);
-      border-left: 2px solid var(--ink);
-      border-right: 2px solid var(--ink);
-      padding: 24px 24px 48px; width: 100%; max-width: 480px; }
-    .sheet-handle { width: 40px; height: 4px; background: var(--line);
-      border-radius: 2px; margin: 0 auto 20px; }
-    .upload-zone { position: relative; border-radius: var(--r-lg);
-      background: var(--bg-soft);
-      border: 2px dashed var(--ink); padding: 32px 24px;
-      text-align: center; cursor: pointer; }
-    .upload-icon-wrap { width: 72px; height: 72px; border-radius: var(--r-full);
-      background: var(--amber);
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-sm);
-      margin: 0 auto 16px;
-      display: flex; align-items: center; justify-content: center; }
-    .upload-title { font-family: var(--font-display);
-      font-size: 18px; font-weight: 400; }
-    .upload-sub { font-size: 12px; color: var(--ink-3); margin-top: 6px;
-      max-width: 240px; margin-left: auto; margin-right: auto;
-      line-height: 1.5; }
-    .upload-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
-    .upload-action-btn { display: flex; align-items: center; gap: 14px;
-      padding: 14px 18px;
-      border: 2px solid var(--ink);
-      box-shadow: 2px 2px 0 0 var(--ink);
-      border-radius: var(--r-md); cursor: pointer; background: var(--surface);
-      font-size: 15px; font-weight: 500; width: 100%; text-align: left;
-      transition: transform .1s, box-shadow .1s; }
-    .upload-action-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 0 var(--ink); }
-    .upload-action-btn .icon-wrap { width: 44px; height: 44px;
-      border-radius: var(--r-sm);
-      background: var(--coral-soft);
-      border: 1.5px solid var(--ink);
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .upload-action-btn svg { stroke: var(--coral-deep); stroke-width: 2; }
-
-    /* ── Processing overlay (light illustrated) ── */
-    #proc-overlay { position: fixed; inset: 0; z-index: 900;
-      background: var(--bg);
-      color: var(--ink); display: none;
-      flex-direction: column; align-items: center;
-      padding: 60px 24px 40px; text-align: center; }
-    #proc-overlay.open { display: flex; }
-    .proc-art { flex: 1; display: flex; align-items: center;
-      justify-content: center; position: relative; width: 100%; }
-    .proc-orb { width: 180px; height: 180px; border-radius: var(--r-full);
-      background: radial-gradient(circle at 35% 30%,
-        #FFF8C0 0%, var(--amber) 55%, #E8B830 100%);
-      border: 3px solid var(--ink);
-      box-shadow: 5px 5px 0 0 var(--ink);
-      position: relative;
-      animation: orbPulse 3s ease-in-out infinite; }
-    .proc-orb::after { content: ''; position: absolute; inset: -24px;
-      border-radius: var(--r-full);
-      border: 2px dashed rgba(58,74,92,.25);
-      animation: orbRing 3s ease-in-out infinite; }
-    .proc-orb::before { content: ''; position: absolute; inset: -46px;
-      border-radius: var(--r-full);
-      border: 2px dashed rgba(58,74,92,.12);
-      animation: orbRing 3s ease-in-out infinite .5s; }
-    @keyframes orbPulse {
-      0%,100% { transform: scale(1); }
-      50%      { transform: scale(1.04); }
-    }
-    @keyframes orbRing {
-      0%,100% { transform: scale(1); opacity: .8; }
-      50%      { transform: scale(1.12); opacity: .3; }
-    }
-    .proc-label { font-family: var(--font-display);
-      font-size: 22px; font-weight: 400; margin-top: 4px; }
-    .proc-sub { font-size: 13px; color: var(--ink-3); margin-top: 6px; }
-    .proc-stages { display: flex; flex-direction: column; gap: 10px;
-      margin-top: 24px; width: 100%; max-width: 340px; }
-    .proc-stage { display: flex; align-items: center; gap: 14px;
-      padding: 14px 18px;
-      background: var(--surface);
-      border-radius: var(--r-md);
-      border: 2px solid var(--ink);
-      box-shadow: 2px 2px 0 0 var(--ink);
-      text-align: left; transition: all .3s ease; }
-    .proc-stage.active { background: var(--amber-soft);
-      box-shadow: 3px 3px 0 0 var(--ink); }
-    .proc-stage.done  { background: var(--mint-soft); }
-    .proc-stage-icon { width: 32px; height: 32px; border-radius: var(--r-full);
-      background: var(--bg-soft);
-      border: 1.5px solid var(--ink);
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .proc-stage.active .proc-stage-icon { background: var(--amber); }
-    .proc-stage.done   .proc-stage-icon { background: var(--mint); }
-    .proc-stage-label { font-size: 14px; font-weight: 600; flex: 1; }
-    .proc-stage-sub { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
-
-    /* ── Spinner ── */
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner { width: 14px; height: 14px; border-radius: 50%;
-      border: 2px solid var(--line); border-top-color: var(--ink);
-      animation: spin .8s linear infinite; }
-    .spinner-dark { border-color: var(--line); border-top-color: var(--ink); }
-
-    /* ── Toast ── */
-    #toast { position: fixed; top: 20px; left: 50%;
-      transform: translateX(-50%) translateY(-80px);
-      background: var(--ink); color: white; padding: 10px 20px;
-      border-radius: var(--r-md);
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-sm);
-      font-size: 14px; z-index: 9999;
-      transition: transform .25s; white-space: nowrap; }
-    #toast.show { transform: translateX(-50%) translateY(0); }
-
-    /* ── Empty state ── */
-    .empty { text-align: center; padding: 40px 20px; color: var(--ink-3); }
-    .empty p { font-size: 14px; line-height: 1.6; }
-
-    /* Report card */
-    .report-dark { background: var(--ink);
-      color: white; border-radius: var(--r-lg); padding: 20px;
-      border: 2px solid var(--ink);
-      box-shadow: var(--shadow-sm); }
-
-    /* Pill tags */
-    .pill { display: inline-flex; align-items: center; padding: 3px 9px;
-      font-size: 10px; font-weight: 600; border-radius: var(--r-full);
-      border: 1.5px solid var(--ink);
-      background: var(--bg-soft); color: var(--ink); }
-    .pill-math    { background: var(--violet-soft); }
-    .pill-chinese { background: var(--amber-soft); }
-    .pill-english { background: var(--mint-soft); }
-    .pill-physics { background: var(--coral-soft); }
-
-    /* Subject tabs */
-    .subj-tabs { display: flex; gap: 8px; overflow-x: auto;
-      padding: 4px 0 4px 16px; scrollbar-width: none; }
-    .subj-tabs::-webkit-scrollbar { display: none; }
-    .subj-tab { padding: 7px 14px; background: var(--surface);
-      border: 2px solid var(--ink); border-radius: var(--r-full);
-      font-size: 13px; font-weight: 500; color: var(--ink-2);
-      white-space: nowrap; flex-shrink: 0; cursor: pointer;
-      box-shadow: 2px 2px 0 0 var(--ink); }
-    .subj-tab.active { background: var(--ink); color: white; }
-
-    /* Slide-in animation */
-    @keyframes slideUp {
-      from { transform: translateY(16px); opacity: 0; }
-      to   { transform: translateY(0);    opacity: 1; }
-    }
-    .anim-in   { animation: slideUp .35s cubic-bezier(.2,.8,.2,1) both; }
-    .anim-in-1 { animation-delay: .05s; }
-    .anim-in-2 { animation-delay: .10s; }
-    .anim-in-3 { animation-delay: .15s; }
-    .anim-in-4 { animation-delay: .20s; }
-  </style>
+  /* tab indicator slide */
+  .tab-pill { transition: background .15s, color .15s; }
+</style>
 </head>
 <body>
+  <div id="root"></div>
 
-<div id="toast"></div>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
 
-<!-- ═══ APP ═══ -->
-<div id="app">
+  <script type="text/babel" data-presets="react">
 
-  <!-- ── 01 · 首页 ── -->
-  <div id="s-home" class="screen active">
-    <div class="topbar">
-      <div>
-        <div class="topbar-title">你好 👋</div>
-        <div class="topbar-sub" id="home-date"></div>
-      </div>
-      <div class="avatar" id="av1" onclick="changeStudent()" title="切换学生">S</div>
-    </div>
-    <div class="scroll-area">
-      <div class="greet-card anim-in">
-        <div class="greet-hello">今天该复习</div>
-        <div class="greet-name" id="home-plan-count">— 个知识点</div>
-        <div class="greet-tip">坚持每天复习，进步看得见</div>
-        <div class="greet-streak">🔥 <span id="home-streak">打开 AI 复习</span></div>
-      </div>
+const { useState, useRef, useEffect, useMemo } = React;
 
-      <div class="stat-grid anim-in anim-in-1">
-        <div class="stat-tile stat-tile-coral">
-          <div class="stat-label">已学知识点</div>
-          <div><span class="stat-value" id="st-kp">—</span></div>
-          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        </div>
-        <div class="stat-tile stat-tile-mint">
-          <div class="stat-label">平均掌握度</div>
-          <div><span class="stat-value" id="st-ms">—</span></div>
-          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        </div>
-        <div class="stat-tile stat-tile-amber">
-          <div class="stat-label">薄弱知识点</div>
-          <div><span class="stat-value" id="st-wk">—</span></div>
-          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        </div>
-        <div class="stat-tile stat-tile-violet">
-          <div class="stat-label">今日复习</div>
-          <div><span class="stat-value" id="st-today">—</span></div>
-          <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        </div>
-      </div>
+// ─── API 层 ──────────────────────────────────────────────────────────────────
+const STUDENT_ID = 'default_student';
 
-      <div class="section-head">
-        <div class="section-title">最近上传</div>
-        <div class="section-more" onclick="loadHome()" style="cursor:pointer">刷新</div>
-      </div>
-      <div id="recent-list">
-        <div class="empty"><p>暂无记录</p></div>
-      </div>
-      <div class="gap"></div>
-    </div>
-  </div>
+const SUBJECT_FROM_NAME = {
+  '物理': 'phys', '数学': 'math', '语文': 'cn',
+  '英语': 'en',   '化学': 'chem', '生物': 'bio',
+};
 
-  <!-- ── 05 · 知识画像 ── -->
-  <div id="s-knowledge" class="screen">
-    <div class="topbar">
-      <div>
-        <div class="topbar-title">知识画像</div>
-        <div class="topbar-sub" id="kp-count">加载中…</div>
-      </div>
-      <div class="chip chip-violet" id="adv-badge" style="font-size:12px"></div>
-    </div>
-    <div class="scroll-area">
-      <div class="subj-tabs" id="subj-tabs-wrap"></div>
-      <div class="card" style="margin-top:12px">
-        <div class="card-title">学科掌握雷达</div>
-        <div class="card-sub">与班级平均对比</div>
-        <div class="radar-wrap" style="margin-top:16px">
-          <canvas id="radar-canvas" width="280" height="280" style="width:100%;height:auto"></canvas>
-        </div>
-        <div class="radar-legend" style="margin-top:12px">
-          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)">
-            <span style="width:8px;height:8px;border-radius:50%;background:var(--coral);display:inline-block"></span>我的掌握
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3)">
-            <span style="width:12px;height:2px;background:var(--violet);display:inline-block;border-radius:1px"></span>班级平均
-          </div>
-        </div>
-      </div>
-      <div class="card" style="margin-top:12px">
-        <div class="card-title">知识点热力图</div>
-        <div class="card-sub">行：能力层级 · 列：知识模块</div>
-        <div class="heatmap-wrap" style="margin-top:16px">
-          <table class="heatmap-table" id="heatmap-table"></table>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap">
-          <span style="font-size:11px;color:var(--ink-3)">掌握度：</span>
-          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#F3F4F6;display:inline-block"></span>未学</span>
-          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#99F6E4;display:inline-block"></span>入门</span>
-          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:var(--mint);display:inline-block"></span>掌握</span>
-          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:var(--amber);display:inline-block"></span>熟练</span>
-          <span style="font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:var(--rose);display:inline-block"></span>薄弱</span>
-        </div>
-      </div>
-
-      <div class="section-head"><div class="section-title">薄弱知识点</div></div>
-      <div id="weak-list"><div class="empty"><div class="spinner spinner-dark" style="display:inline-block"></div></div></div>
-      <div class="gap"></div>
-    </div>
-  </div>
-
-  <!-- ── 06 · 复习计划 ── -->
-  <div id="s-review" class="screen">
-    <div class="topbar">
-      <div class="topbar-title">今日复习</div>
-      <button class="btn btn-ghost btn-sm" onclick="loadReview()">刷新</button>
-    </div>
-    <div class="scroll-area">
-      <div class="review-hero">
-        <h2>今日任务</h2>
-        <p id="review-summary">加载中…</p>
-      </div>
-      <div class="section-head" style="padding-top:16px">
-        <div class="section-title">复习清单</div>
-      </div>
-      <div id="plan-list">
-        <div class="empty"><div class="spinner spinner-dark" style="display:inline-block"></div></div>
-      </div>
-      <div class="gap"></div>
-    </div>
-  </div>
-
-  <!-- ── 07 · 我的 ── -->
-  <div id="s-mine" class="screen">
-    <div class="topbar"><div class="topbar-title">我的</div></div>
-    <div class="scroll-area">
-      <div class="mine-hero">
-        <div class="mine-avatar" id="mine-av">S</div>
-        <div>
-          <div style="font-size:18px;font-weight:700" id="mine-name">学生</div>
-          <div style="font-size:13px;opacity:.8;margin-top:2px" id="mine-id">—</div>
-        </div>
-      </div>
-      <div class="card" style="margin-top:12px;padding:0 20px">
-        <div class="menu-item" onclick="loadReport()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          <span>生成学习报告</span>
-          <svg class="menu-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 18 15 12 9 6"/></svg>
-        </div>
-        <div class="menu-item" onclick="doExport()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span>导出 Excel 数据</span>
-          <svg class="menu-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 18 15 12 9 6"/></svg>
-        </div>
-      </div>
-      <div id="report-card" style="display:none;margin-top:12px">
-        <div id="report-content"></div>
-      </div>
-      <div class="gap"></div>
-    </div>
-  </div>
-
-  <!-- ── Bottom tab bar (floating pill) ── -->
-  <nav class="tabbar">
-    <div class="tab active" id="tab-home" onclick="goScreen('home',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      <span class="tab-label">首页</span>
-    </div>
-    <div class="tab" id="tab-knowledge" onclick="goScreen('knowledge',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-      <span class="tab-label">知识</span>
-    </div>
-    <div class="tab tab-upload" onclick="openUpload()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      <span class="tab-label"></span>
-    </div>
-    <div class="tab" id="tab-review" onclick="goScreen('review',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <span class="tab-label">复习</span>
-    </div>
-    <div class="tab" id="tab-mine" onclick="goScreen('mine',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <span class="tab-label">我的</span>
-    </div>
-  </nav>
-</div>
-
-<!-- ═══ Upload sheet ═══ -->
-<div id="upload-modal" onclick="closeUpload(event)">
-  <div class="upload-sheet" id="upload-sheet">
-    <div class="sheet-handle"></div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:4px">上传作业</div>
-    <div style="font-size:13px;color:var(--ink-3);margin-bottom:16px">拍照或从相册选择题目图片</div>
-    <div class="upload-actions">
-      <label class="upload-action-btn">
-        <div class="icon-wrap">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="2"/>
-          </svg>
-        </div>
-        <div>
-          <div style="font-weight:600">拍照上传</div>
-          <div style="font-size:12px;color:var(--ink-3);margin-top:2px">调用相机拍摄作业</div>
-        </div>
-        <input type="file" id="f-camera" accept="image/*" capture="environment" onchange="onFile(this)">
-      </label>
-      <label class="upload-action-btn">
-        <div class="icon-wrap">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="2"/><polyline points="21 15 16 10 5 21" stroke="currentColor" stroke-width="2"/>
-          </svg>
-        </div>
-        <div>
-          <div style="font-weight:600">从相册选择</div>
-          <div style="font-size:12px;color:var(--ink-3);margin-top:2px">选择已有照片</div>
-        </div>
-        <input type="file" id="f-gallery" accept="image/*" onchange="onFile(this)">
-      </label>
-    </div>
-
-    <!-- Preview + upload button -->
-    <div id="preview-area" style="display:none;margin-top:16px">
-      <img id="prev-img" style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--r-md)">
-      <div id="upload-prepare-status" style="font-size:12px;color:var(--ink-3);line-height:1.5;margin-top:8px">
-        将先优化题目图片，再开始分析
-      </div>
-      <button class="btn btn-primary" id="upload-btn" style="margin-top:14px" onclick="doUpload()">开始分析</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ Processing overlay (dark full-screen) ═══ -->
-<div id="proc-overlay">
-  <!-- Phase A: OCR running — centered orb -->
-  <div id="phase-ocr" style="display:flex;flex-direction:column;align-items:center;width:100%;flex:1">
-    <div style="font-size:14px;opacity:.6;margin-bottom:8px">正在识别题目内容…</div>
-    <div class="proc-art">
-      <div class="proc-orb"></div>
-    </div>
-    <div class="proc-label" id="proc-title">AI 识别中</div>
-    <div class="proc-sub" id="proc-sub">正在提取题目文字，请稍候</div>
-    <div style="display:none">AI 正在直接读取题目图片</div>
-    <div id="proc-upload-metrics" style="font-size:12px;opacity:.72;margin-top:12px;text-align:center;line-height:1.5"></div>
-    <div id="proc-elapsed" style="font-size:12px;opacity:.56;margin-top:4px">已用时 0 秒</div>
-    <div class="proc-stages" id="proc-stages-ocr" style="width:100%;max-width:340px;margin-top:20px"></div>
-  </div>
-
-  <!-- Phase B: OCR done → show image + text + AI loading -->
-  <div id="phase-result" style="display:none;flex-direction:column;width:100%;flex:1;overflow-y:auto;padding-bottom:20px">
-    <div style="font-size:14px;color:var(--ink-3);text-align:center;margin-bottom:12px">识别完成</div>
-
-    <!-- Uploaded image thumbnail -->
-    <div style="width:100%;max-width:340px;margin:0 auto 16px">
-      <img id="proc-img" style="width:100%;border-radius:var(--r-md);max-height:180px;object-fit:cover;border:2px solid var(--ink);box-shadow:var(--shadow-sm)">
-    </div>
-
-    <!-- OCR text result -->
-    <div style="width:100%;max-width:340px;margin:0 auto">
-      <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
-        识别内容
-        <span id="proc-confidence" style="float:right"></span>
-      </div>
-      <div id="proc-ocr-text"
-           style="background:var(--surface);border:2px solid var(--ink);
-                  box-shadow:var(--shadow-sm);
-                  border-radius:var(--r-md);padding:14px;font-size:13px;line-height:1.7;
-                  max-height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;
-                  color:var(--ink)">
-        等待识别结果…
-      </div>
-    </div>
-
-    <!-- AI analysis status (below OCR) -->
-    <div id="proc-ai-status" style="width:100%;max-width:340px;margin:16px auto 0">
-      <div class="proc-stage active" id="ai-stage-card">
-        <div class="proc-stage-icon">
-          <div class="spinner"></div>
-        </div>
-        <div>
-          <div class="proc-stage-label" id="ai-stage-label">AI 分析中</div>
-          <div class="proc-stage-sub" id="ai-stage-sub">正在生成讲解与复习建议</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Result summary (shown after AI done) -->
-    <div id="proc-summary" style="display:none;width:100%;max-width:340px;margin:12px auto 0;
-         background:var(--mint-soft);border:2px solid var(--ink);
-         box-shadow:var(--shadow-sm);
-         border-radius:var(--r-md);padding:14px">
-      <div style="font-size:13px;font-weight:700;color:var(--mint-deep);margin-bottom:6px">✓ 分析完成</div>
-      <div id="proc-summary-text" style="font-size:13px;color:var(--ink);line-height:1.6"></div>
-    </div>
-
-    <!-- AI failure note (only shown on ai_failed, but OCR kept) -->
-    <div id="proc-ai-fail" style="display:none;width:100%;max-width:340px;margin:12px auto 0;
-         background:var(--coral-soft);border:2px solid var(--ink);
-         box-shadow:var(--shadow-sm);
-         border-radius:var(--r-md);padding:14px">
-      <div style="font-size:13px;font-weight:700;color:var(--coral-deep);margin-bottom:4px">⚠ AI 分析遇到问题</div>
-      <div style="font-size:12px;color:var(--ink-2);line-height:1.6">OCR 识别结果已保存。<br>AI 分析将在后台重试，请稍后查看复习计划。</div>
-      <button onclick="closeProcOverlay()" class="btn btn-ghost btn-sm" style="margin-top:12px">关闭</button>
-    </div>
-  </div>
-</div>
-
-<script>
-// ─────────────────────────────────────────────
-// State
-// ─────────────────────────────────────────────
-let SID = '', pollTimer = null, selFile = null;
-let procStartedAt = 0, procElapsedTimer = null, lastScanMetrics = null;
-
-// ─────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────
-function hdr(extra){ return Object.assign({'X-Student-Id': SID}, extra || {}); }
-function toast(msg, dur=2600){
-  const e = document.getElementById('toast');
-  e.textContent = msg; e.classList.add('show');
-  setTimeout(() => e.classList.remove('show'), dur);
+async function apiGet(path) {
+  const r = await fetch(path, { headers: { 'X-Student-Id': STUDENT_ID } });
+  if (!r.ok) throw new Error('GET ' + path + ' => ' + r.status);
+  return r.json();
 }
-async function api(path, opts={}){
-  const res = await fetch(path, {...opts, headers: {...hdr(), ...(opts.headers||{})}});
-  if(!res.ok){ const j = await res.json().catch(() => ({})); throw new Error(j.detail || 'HTTP '+res.status); }
-  return res;
+async function apiPost(path, body) {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Student-Id': STUDENT_ID },
+    body: JSON.stringify(body || {}),
+  });
+  if (!r.ok) throw new Error('POST ' + path + ' => ' + r.status);
+  return r.json();
+}
+async function apiUpload(formData) {
+  const r = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'X-Student-Id': STUDENT_ID },
+    body: formData,
+  });
+  if (!r.ok) throw new Error('upload => ' + r.status);
+  return r.json();
 }
 
-// ─────────────────────────────────────────────
-// Student / login
-// ─────────────────────────────────────────────
-function setStudent(v){
-  SID = v || 'default_student';
-  const ch = SID[0].toUpperCase();
-  ['av1','mine-av'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent = ch; });
-  const mn = document.getElementById('mine-name');
-  const mi = document.getElementById('mine-id');
-  if(mn) mn.textContent = '学生 ' + SID;
-  if(mi) mi.textContent = 'ID: ' + SID;
-}
-function changeStudent(){
-  const v = prompt('输入学生ID:', SID) || SID;
-  setStudent(v.trim() || SID);
-  loadAll();
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-  setStudent('default_student');
-  const d = new Date();
-  const hd = document.getElementById('home-date');
-  if(hd) hd.textContent = d.toLocaleDateString('zh-CN', {month:'long', day:'numeric', weekday:'long'});
-  loadAll();
-});
-
-// ─────────────────────────────────────────────
-// Screen nav
-// ─────────────────────────────────────────────
-const SCREENS = {home:'s-home', knowledge:'s-knowledge', review:'s-review', mine:'s-mine'};
-const TABS    = {home:'tab-home', knowledge:'tab-knowledge', review:'tab-review', mine:'tab-mine'};
-function goScreen(name, tabEl){
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(SCREENS[name]).classList.add('active');
-  const tabId = TABS[name];
-  if(tabId) document.getElementById(tabId).classList.add('active');
-}
-
-// ─────────────────────────────────────────────
-// Upload modal
-// ─────────────────────────────────────────────
-function openUpload(){
-  document.getElementById('upload-modal').classList.add('open');
-}
-function closeUpload(e){
-  if(e.target === document.getElementById('upload-modal'))
-    document.getElementById('upload-modal').classList.remove('open');
-}
-function onFile(inp){
-  const f = inp.files[0]; if(!f) return;
-  selFile = f;
-  lastScanMetrics = null;
-  const r = new FileReader();
-  r.onload = e => { document.getElementById('prev-img').src = e.target.result; };
-  r.readAsDataURL(f);
-  document.getElementById('preview-area').style.display = 'block';
-  setPrepareStatus(`原图 ${formatBytes(f.size)}，开始分析时会先生成识别图`);
-}
-
-const SCAN_FAST_EDGE = 1500;
-const SCAN_FAST_TARGET_BYTES = 520 * 1024;
-const SCAN_FAST_QUALITIES = [0.78, 0.68, 0.58];
-
-function formatBytes(bytes){
-  if(!Number.isFinite(bytes)) return '—';
-  if(bytes < 1024) return bytes + 'B';
-  if(bytes < 1024 * 1024) return Math.round(bytes / 1024) + 'KB';
-  return (bytes / 1024 / 1024).toFixed(1) + 'MB';
-}
-
-function setPrepareStatus(text){
-  const el = document.getElementById('upload-prepare-status');
-  if(el) el.textContent = text;
-}
-
-function findContentBounds(canvas){
-  const ctx = canvas.getContext('2d', {willReadFrequently:true});
-  if(!ctx) return {x:0, y:0, width:canvas.width, height:canvas.height};
-  const w = canvas.width, h = canvas.height;
-  const data = ctx.getImageData(0, 0, w, h).data;
-  const step = Math.max(2, Math.floor(Math.max(w, h) / 320));
-  let left = w, top = h, right = 0, bottom = 0, hits = 0;
-
-  for(let y=0; y<h; y+=step){
-    for(let x=0; x<w; x+=step){
-      const i = (y*w + x) * 4;
-      const light = data[i] * .299 + data[i+1] * .587 + data[i+2] * .114;
-      const spread = Math.max(data[i], data[i+1], data[i+2]) - Math.min(data[i], data[i+1], data[i+2]);
-      // Phone captures often include dark screens, hands, and desks around bright exercise paper.
-      if(light > 118 && spread < 82){
-        left = Math.min(left, x); right = Math.max(right, x);
-        top = Math.min(top, y); bottom = Math.max(bottom, y);
-        hits++;
-      }
-    }
-  }
-  if(hits < 80 || right <= left || bottom <= top){
-    return {x:0, y:0, width:w, height:h};
-  }
-  const pad = Math.round(Math.max(w, h) * .025);
-  const x = Math.max(0, left - pad);
-  const y = Math.max(0, top - pad);
+function mapGradingResult(data) {
+  const g = data.grading || {};
+  const kps = Array.isArray(data.knowledge_points) ? data.knowledge_points : [];
+  const isOk = g.is_correct === true;
+  const ratio = parseFloat(g.score || 0) / Math.max(parseFloat(g.max_score || 1), 0.001);
+  const verdict = isOk ? 'correct' : ratio > 0 ? 'partial' : 'wrong';
+  const weakPoints = isOk ? [] :
+    kps.map(k => k.name || k.knowledge_point_name || k.knowledge_point_id || '').filter(Boolean).slice(0, 3);
+  const questions = [{
+    q: 'AI 自动识别题目',
+    yourAnswer: g.student_answer || '（未作答）',
+    correctAnswer: g.correct_answer || '（无）',
+    correct: isOk,
+    explanation: g.feedback || g.mistake_reason || '暂无详细解析',
+  }];
   return {
-    x,
-    y,
-    width: Math.min(w - x, right - left + pad * 2),
-    height: Math.min(h - y, bottom - top + pad * 2),
+    verdict,
+    score: isOk ? 1 : 0,
+    total: 1,
+    weakPoints: weakPoints.length ? weakPoints : (isOk ? [] : ['待分析']),
+    questions,
   };
 }
+// ─── API 层结束 ───────────────────────────────────────────────────────────────
 
-function grayscaleCanvas(canvas){
-  const ctx = canvas.getContext('2d', {willReadFrequently:true});
-  if(!ctx) return;
-  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = img.data;
-  for(let i=0; i<data.length; i+=4){
-    const gray = data[i] * .299 + data[i+1] * .587 + data[i+2] * .114;
-    let contrast = Math.max(0, Math.min(255, (gray - 128) * 1.16 + 136));
-    if(contrast > 205) contrast = 255;
-    else if(contrast < 82) contrast = Math.max(0, contrast - 18);
-    data[i] = contrast; data[i+1] = contrast; data[i+2] = contrast;
-  }
-  ctx.putImageData(img, 0, 0);
-}
-
-function canvasToBlob(canvas, type, quality){
-  return new Promise(resolve => canvas.toBlob(resolve, type, quality));
-}
-
-async function prepareQuestionScan(file){
-  const started = performance.now();
-  if(!file || !/^image\/(jpeg|png|webp)$/i.test(file.type) || typeof createImageBitmap !== 'function'){
-    return {
-      file,
-      metrics: {originalSize:file ? file.size : 0, preprocessingMs:0, profile:'original'},
-    };
-  }
-
-  let bitmap;
-  try {
-    bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, SCAN_FAST_EDGE / Math.max(bitmap.width, bitmap.height));
-    const stage = document.createElement('canvas');
-    stage.width = Math.max(1, Math.round(bitmap.width * scale));
-    stage.height = Math.max(1, Math.round(bitmap.height * scale));
-    const stageCtx = stage.getContext('2d', {willReadFrequently:true});
-    if(!stageCtx) throw new Error('canvas unavailable');
-    stageCtx.drawImage(bitmap, 0, 0, stage.width, stage.height);
-
-    const bounds = findContentBounds(stage);
-    const scan = document.createElement('canvas');
-    scan.width = bounds.width; scan.height = bounds.height;
-    const scanCtx = scan.getContext('2d', {willReadFrequently:true});
-    if(!scanCtx) throw new Error('scan canvas unavailable');
-    scanCtx.drawImage(
-      stage,
-      bounds.x, bounds.y, bounds.width, bounds.height,
-      0, 0, scan.width, scan.height
-    );
-    grayscaleCanvas(scan);
-
-    let output = null;
-    for(const quality of SCAN_FAST_QUALITIES){
-      output = await canvasToBlob(scan, 'image/webp', quality)
-            || await canvasToBlob(scan, 'image/jpeg', quality);
-      if(output && output.size <= SCAN_FAST_TARGET_BYTES) break;
-    }
-    if(!output || output.size >= file.size * .96) throw new Error('scan not smaller');
-    const isWebp = output.type === 'image/webp';
-    const name = (file.name || 'question').replace(/\.[^.]+$/, '') + (isWebp ? '.webp' : '.jpg');
-    return {
-      file: new File([output], name, {type: output.type, lastModified: file.lastModified || Date.now()}),
-      metrics: {
-        originalSize: file.size,
-        preparedSize: output.size,
-        preprocessingMs: Math.round(performance.now() - started),
-        profile: 'scan_fast',
-        sourceWidth: bitmap.width,
-        sourceHeight: bitmap.height,
-      },
-    };
-  } catch(e) {
-    return {
-      file,
-      metrics: {
-        originalSize: file.size,
-        preparedSize: file.size,
-        preprocessingMs: Math.round(performance.now() - started),
-        profile: 'original',
-        sourceWidth: bitmap ? bitmap.width : null,
-        sourceHeight: bitmap ? bitmap.height : null,
-      },
-    };
-  } finally {
-    if(bitmap && bitmap.close) bitmap.close();
-  }
-}
-
-function uploadFormDataWithProgress(path, formData, onProgress){
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', path);
-    Object.entries(hdr()).forEach(([k,v]) => xhr.setRequestHeader(k, v));
-    xhr.upload.onprogress = e => {
-      if(e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100));
-    };
-    xhr.onload = () => {
-      let body = {};
-      try { body = xhr.responseText ? JSON.parse(xhr.responseText) : {}; }
-      catch(e) { body = {}; }
-      if(xhr.status >= 200 && xhr.status < 300) resolve(body);
-      else reject(new Error(body.detail || 'HTTP ' + xhr.status));
-    };
-    xhr.onerror = () => reject(new Error('网络连接失败'));
-    xhr.send(formData);
-  });
-}
-
-async function doUpload(){
-  if(!selFile){ toast('请先选择图片'); return; }
-  const btn = document.getElementById('upload-btn');
-  btn.textContent = '优化中…'; btn.disabled = true;
-  setPrepareStatus('正在优化题目图片，保留文字和图形细节…');
-  try {
-    const scan = await prepareQuestionScan(selFile);
-    lastScanMetrics = scan.metrics;
-    btn.textContent = '上传中…';
-    setPrepareStatus(
-      `识别图已准备：${formatBytes(scan.metrics.originalSize)} -> ${formatBytes(scan.file.size)}`
-    );
-    const fd = new FormData(); fd.append('file', scan.file);
-    fd.append('original_file_size', String(scan.metrics.originalSize || scan.file.size));
-    fd.append('preprocessing_ms', String(scan.metrics.preprocessingMs || 0));
-    fd.append('scan_profile', scan.metrics.profile || 'original');
-    if(scan.metrics.sourceWidth) fd.append('source_image_width', String(scan.metrics.sourceWidth));
-    if(scan.metrics.sourceHeight) fd.append('source_image_height', String(scan.metrics.sourceHeight));
-    const d = await uploadFormDataWithProgress('/api/upload', fd, pct => {
-      setPrepareStatus(`正在上传识别图 ${pct}%：${formatBytes(scan.file.size)}`);
-    });
-    // Close sheet, open processing overlay
-    document.getElementById('upload-modal').classList.remove('open');
-    openProcOverlay();
-    pollStatus(d.assignment_id);
-  } catch(e) {
-    toast('❌ ' + e.message, 4000);
-    btn.textContent = '开始分析'; btn.disabled = false;
-  }
-}
-
-// ─────────────────────────────────────────────
-// Processing overlay — two-phase
-// ─────────────────────────────────────────────
-const POLL_SUCCESS  = ['ai_done','completed','done'];
-const POLL_AI_FAIL  = ['ai_failed'];
-const POLL_FAIL     = ['failed','error','ocr_failed','ai_failed'];
-const POLL_MANUAL   = ['manual_required'];
-const OCR_DONE_SET  = ['ocr_done','ai_queued','ai_running','ai_done','ai_failed'];
-const ALL_DONE_STATES = ['ai_done'];
-
-let ocrFetched = false;
-
-function openProcOverlay(){
-  ocrFetched = false;
-  procStartedAt = Date.now();
-  document.getElementById('phase-ocr').style.display    = 'flex';
-  document.getElementById('phase-result').style.display = 'none';
-  document.getElementById('proc-summary').style.display  = 'none';
-  document.getElementById('proc-ai-fail').style.display  = 'none';
-  const aiCard = document.getElementById('ai-stage-card');
-  if(aiCard){ aiCard.className = 'proc-stage active'; }
-  document.getElementById('proc-overlay').classList.add('open');
-  renderOcrPhase('');
-  updateProcMetrics(lastScanMetrics);
-  clearInterval(procElapsedTimer);
-  procElapsedTimer = setInterval(updateElapsed, 1000);
-  updateElapsed();
-  // Mirror the preview image into the overlay
-  const prevImg = document.getElementById('prev-img');
-  if(prevImg && prevImg.src) document.getElementById('proc-img').src = prevImg.src;
-}
-
-function closeProcOverlay(){
-  document.getElementById('proc-overlay').classList.remove('open');
-  clearInterval(pollTimer);
-  clearInterval(procElapsedTimer);
-  const btn = document.getElementById('upload-btn');
-  btn.textContent = '开始分析'; btn.disabled = false;
-  document.getElementById('preview-area').style.display = 'none';
-  selFile = null;
-}
-
-function updateElapsed(){
-  const el = document.getElementById('proc-elapsed');
-  if(el && procStartedAt){
-    el.textContent = '已用时 ' + Math.max(0, Math.round((Date.now() - procStartedAt) / 1000)) + ' 秒';
-  }
-}
-
-function updateProcMetrics(metrics){
-  const el = document.getElementById('proc-upload-metrics');
-  if(!el) return;
-  if(metrics && metrics.profile === 'scan_fast'){
-    el.textContent = `题目图片已优化：${formatBytes(metrics.originalSize)} -> ${formatBytes(metrics.preparedSize || 0)}`;
-  } else {
-    el.textContent = '题目图片已上传，后台会继续处理';
-  }
-}
-
-// ── Phase A: OCR running ──
-function renderOcrPhase(s){
-  const OCR_RUN = ['ocr_queued','ocr_running'];
-  const AI_RUN  = ['ai_queued','ai_running'];
-  const stOcr   = OCR_DONE_SET.includes(s) ? 'done' : OCR_RUN.includes(s) ? 'running' : 'wait';
-  const label   = AI_RUN.includes(s) ? 'AI 正在直接读取题目图片'
-                : stOcr === 'done' ? '题目已识别'
-                : stOcr === 'running' ? '正在识别题目内容' : '等待识别';
-  const sub     = AI_RUN.includes(s) ? '正在生成讲解与复习建议'
-                : stOcr === 'running' ? '正在提取题干、图形和选项'
-                : stOcr === 'done'    ? '识别成功' : '即将开始';
-
-  const titleEl = document.getElementById('proc-title');
-  const subEl   = document.getElementById('proc-sub');
-  if(titleEl) titleEl.textContent = label;
-  if(subEl)   subEl.textContent   = sub;
-
-  const stagesEl = document.getElementById('proc-stages-ocr');
-  if(!stagesEl) return;
-  function stageIcon(st){
-    if(st==='done')    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`;
-    if(st==='running') return `<div class="spinner"></div>`;
-    return `<div style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3)"></div>`;
-  }
-  stagesEl.innerHTML = `
-    <div class="proc-stage ${stOcr==='done'?'done':stOcr==='running'?'active':''}">
-      <div class="proc-stage-icon">${stageIcon(stOcr)}</div>
-      <div><div class="proc-stage-label">OCR 识别</div><div class="proc-stage-sub">提取题目文字与图形</div></div>
-    </div>`;
-}
-
-function inferStepsFromStatus(s){
-  const OCR_RUN = ['ocr_queued','ocr_running'];
-  const AI_RUN  = ['ai_queued','ai_running'];
-  return {
-    ocr: OCR_DONE_SET.includes(s) ? 'done' : OCR_RUN.includes(s) ? 'running' : 'wait',
-    ai: ALL_DONE_STATES.includes(s) ? 'done' : AI_RUN.includes(s) ? 'running' : 'wait',
-    archive: ALL_DONE_STATES.includes(s) ? 'done' : 'wait',
-    plan: ALL_DONE_STATES.includes(s) ? 'done' : 'wait',
-  };
-}
-
-function renderSteps(statusStr){
-  renderOcrPhase(statusStr || '');
-}
-
-function hasOcrResult(data){
-  return Boolean(data && (data.ocr_markdown || data.ocr_text || data.ocr_images));
-}
-
-// ── Phase B: show OCR result + AI loading ──
-function showOcrResult(data){
-  if(ocrFetched) return;
-  ocrFetched = true;
-
-  document.getElementById('phase-ocr').style.display    = 'none';
-  document.getElementById('phase-result').style.display = 'flex';
-
-  // 优先使用 ocr_markdown，降级到 ocr_text
-  let markdown = data.ocr_markdown || data.ocr_text || '';
-  const conf = data.processing_status && data.processing_status.ocr && data.processing_status.ocr.confidence != null
-    ? Math.round(data.processing_status.ocr.confidence * 100) + '% 置信度'
-    : '';
-
-  // OCR 图片映射（用于替换 PaddleOCR HTML img 标签中的相对路径）
-  const ocrImages = data.ocr_images || {};
-
-  // 第一步：提取所有 PaddleOCR HTML 结构（<div>...</div> 包含 <img>）
-  // 替换为 placeholder，避免后续转义
-  const imgPlaceholders = [];
-
-  // 匹配 <div ...><img src="..." /></div> 结构
-  markdown = markdown.replace(/<div\s+[^>]*?>\s*<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)\s*\/?\s*>\s*<\/div>/gi, (match, before, src, after) => {
-    // 从 ocrImages 映射中查找真实 URL
-    const realUrl = ocrImages[src] || src;
-    const placeholder = `__IMG_PLACEHOLDER_${imgPlaceholders.length}__`;
-    // 生成我们自己的安全 img 标签（不保留原始 div）
-    imgPlaceholders.push(`<img src="${realUrl}" style="max-width:100%;border-radius:8px;margin:8px 0;opacity:.9">`);
-    return placeholder;
-  });
-
-  // 匹配单独的 <img> 标签（不在 div 中）
-  markdown = markdown.replace(/<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)\s*\/?\s*>/gi, (match, before, src, after) => {
-    // 从 ocrImages 映射中查找真实 URL
-    const realUrl = ocrImages[src] || src;
-    const placeholder = `__IMG_PLACEHOLDER_${imgPlaceholders.length}__`;
-    imgPlaceholders.push(`<img src="${realUrl}" style="max-width:100%;border-radius:8px;margin:8px 0;opacity:.9">`);
-    return placeholder;
-  });
-
-  // 第二步：转义所有剩余的 HTML 标签（包括其他 div）
-  let html = markdown
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br>')
-    // 图片：![alt](url) -> <img>（markdown 格式）
-    .replace(/!\[([^\]]*)\]\(([^\)]+)\)/g, '<br><img src="$2" alt="$1" style="max-width:100%;border-radius:8px;margin:8px 0;opacity:.9"><br>')
-    // LaTeX 块公式：$$...$$
-    .replace(/\$\$([^\$]+)\$\$/g, '<div style="background:rgba(255,255,255,.12);padding:12px;border-radius:8px;margin:8px 0;font-family:monospace;font-size:12px">$1</div>')
-    // LaTeX 行内公式：$...$（简单标记，不实际渲染）
-    .replace(/\$([^\$]+)\$/g, '<code style="background:rgba(255,255,255,.12);padding:2px 6px;border-radius:4px;font-size:12px">$1</code>')
-    // 粗体：**text**
-    .replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>')
-    // 标题：## text
-    .replace(/^## (.+)$/gm, '<div style="font-size:14px;font-weight:700;margin-top:10px;margin-bottom:4px">$1</div>');
-
-  // 第三步：恢复 img placeholders（这些是安全的，已经过处理）
-  imgPlaceholders.forEach((imgHtml, i) => {
-    html = html.replace(`__IMG_PLACEHOLDER_${i}__`, imgHtml);
-  });
-
-
-  const ocrEl  = document.getElementById('proc-ocr-text');
-  const confEl = document.getElementById('proc-confidence');
-  const imgEl  = document.getElementById('proc-img');
-
-  // 使用 innerHTML 而非 textContent 以支持 markdown 渲染
-  if(ocrEl)  ocrEl.innerHTML = html || '（未识别到文字内容）';
-  if(confEl) confEl.textContent = conf;
-  if(imgEl && data.image_url) imgEl.src = data.image_url;
-
-  // 显示 OCR 图片块（最多 3 张）- 只显示未在 markdown 中使用的图片
-  const usedImages = new Set();
-  imgPlaceholders.forEach(img => {
-    const match = img.match(/src=["']([^"']+)["']/);
-    if(match) usedImages.add(match[1]);
-  });
-  const unusedImageUrls = Object.values(ocrImages).filter(url => !usedImages.has(url)).slice(0, 3);
-  if(unusedImageUrls.length > 0){
-    const imagesHtml = unusedImageUrls.map(url =>
-      `<img src="${url}" style="max-width:100%;border-radius:8px;margin:4px 0;opacity:.85">`
-    ).join('');
-    const imagesDiv = document.createElement('div');
-    imagesDiv.style.cssText = 'margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)';
-    imagesDiv.innerHTML = `
-      <div style="font-size:11px;font-weight:600;opacity:.5;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">
-        其他 OCR 图片块 (${unusedImageUrls.length})
+// ═══════════════════════════════════════════════════════════
+// 简化版 iOS 边框
+// ═══════════════════════════════════════════════════════════
+function IOSFrame({ children, width = 402, height = 874 }) {
+  return (
+    <div style={{
+      width, height, borderRadius: 48, overflow: 'hidden',
+      position: 'relative', background: '#F2F2F7',
+      boxShadow: '0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)'
+    }}>
+      <div style={{
+        position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
+        width: 126, height: 37, borderRadius: 24, background: '#000', zIndex: 50
+      }} />
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '19px 28px 0'
+      }}>
+        <span style={{ fontWeight: 600, fontSize: 17 }}>9:41</span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx=".5" fill="#000" /><rect x="5" y="5" width="3" height="7" rx=".5" fill="#000" /><rect x="10" y="2" width="3" height="10" rx=".5" fill="#000" /><rect x="15" y="0" width="3" height="12" rx=".5" fill="#000" /></svg>
+          <svg width="26" height="12" viewBox="0 0 26 12"><rect x="0.5" y="0.5" width="22" height="11" rx="3" stroke="#000" strokeOpacity="0.35" fill="none" /><rect x="2" y="2" width="19" height="8" rx="1.5" fill="#000" /><path d="M24 4v4c.7-.3 1.3-1 1.3-2s-.6-1.7-1.3-2z" fill="#000" opacity=".4" /></svg>
+        </div>
       </div>
-      ${imagesHtml}
-    `;
-    if(ocrEl && ocrEl.parentNode) ocrEl.parentNode.appendChild(imagesDiv);
-  }
+      <div style={{ height: '100%' }}>{children}</div>
+      <div style={{
+        position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+        width: 139, height: 5, borderRadius: 100, background: 'rgba(0,0,0,0.25)', zIndex: 60
+      }} />
+    </div>);
 }
 
-// ── Phase B → AI done ──
-function showAiDone(){
-  const aiCard = document.getElementById('ai-stage-card');
-  if(aiCard){
-    aiCard.className = 'proc-stage done';
-    const icon = aiCard.querySelector('.proc-stage-icon');
-    if(icon) icon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`;
-  }
-  const lblEl = document.getElementById('ai-stage-label');
-  const subEl = document.getElementById('ai-stage-sub');
-  if(lblEl) lblEl.textContent = '分析完成';
-  if(subEl) subEl.textContent = '已归档知识点并更新复习计划';
-  const sumDiv = document.getElementById('proc-summary');
-  if(sumDiv){
-    sumDiv.style.display = 'block';
-    const txtEl = document.getElementById('proc-summary-text');
-    if(txtEl) txtEl.textContent = '知识点已归档，复习计划已更新。';
-  }
+// ═══════════════════════════════════════════════════════════
+// 数据
+// ═══════════════════════════════════════════════════════════
+const SUBJECTS = [
+{ id: 'cn',   name: '语文', short: '语', color: '#E89A98', soft: '#FBEEEC', sub: '阅读·作文·古诗文' },
+{ id: 'math', name: '数学', short: '数', color: '#8FB4E8', soft: '#ECF2FB', sub: '代数·几何·函数' },
+{ id: 'en',   name: '英语', short: 'A',      color: '#B7A4DE', soft: '#F1ECF8', sub: '词汇·阅读·完形' },
+{ id: 'phys', name: '物理', short: '物', color: '#8DCED4', soft: '#E8F4F5', sub: '力学·电学·光学' },
+{ id: 'chem', name: '化学', short: '化', color: '#EFB888', soft: '#FBEFE0', sub: '方程式·有机·无机' },
+{ id: 'bio',  name: '生物', short: '生', color: '#9ED1B0', soft: '#E8F4ED', sub: '细胞·遗传·生态' }];
+
+const subjectMap = Object.fromEntries(SUBJECTS.map(s => [s.id, s]));
+
+const SAMPLE_TITLES = {
+  cn:   ['文言文阅读《赤壁赋》断句', '议论文范文·论“知行合一”', '古诗鉴赏·边塞诗手法'],
+  math: ['函数与导数综合题', '立体几何·二面角求解', '解析几何·温圆轨迹方程'],
+  en:   ['完形填空训练第 4 单元', '阅读理解·科普类长文', '语法填空·非谓语动词'],
+  phys: ['电磁感应·双杆模型', '动能定理综合应用', '匀变速直线运动图像题'],
+  chem: ['化学方程式专项·氧化还原', '溶液配制与稀释计算', '有机推断·烃的衍生物'],
+  bio:  ['细胞呼吸与光合作用', '遗传规律·基因自由组合', '稳态调节·神经-体液']
+};
+
+const SAMPLE_RESULT = {
+  verdict: 'partial', score: 4, total: 5,
+  weakPoints: ['函数单调性判断', '导数符号分析'],
+  questions: [
+    { q: '设 f(x)=x³-3x+1，求 f(x) 在 [-2, 2] 上的最大值。', yourAnswer: '3', correctAnswer: '3', correct: true, explanation: '令 f′(x)=3x²-3=0，得 x=±1。比较 f(-2)=-1, f(-1)=3, f(1)=-1, f(2)=3，最大值为 3。' },
+    { q: '判断函数 g(x)=ln x - x 在 (0, +∞) 上的单调性。', yourAnswer: '单调递增', correctAnswer: '在 (0,1) 单调递增；在 (1,+∞) 单调递减', correct: false, explanation: 'g′(x)=1/x - 1 = (1-x)/x。当 0<x<1 时 g′(x)>0；当 x>1 时 g′(x)<0。所以是先增后减，分段判断。' },
+    { q: '求曲线 y=x²+1 在点 (1,2) 处的切线方程。', yourAnswer: 'y = 2x', correctAnswer: 'y = 2x', correct: true, explanation: 'y′=2x，在 x=1 处斜率为 2。切线方程 y-2=2(x-1)，即 y=2x。' }
+  ]
+};
+
+const INITIAL_HISTORY = [
+{ id: 'h1', subjectId: 'math', title: '函数与导数综合题', count: 5, time: '2 分钟前', status: 'graded', result: SAMPLE_RESULT },
+{ id: 'h2', subjectId: 'cn',   title: '文言文阅读《赤壁赋》断句', count: 3, time: '昨天', status: 'graded', result: SAMPLE_RESULT },
+{ id: 'h3', subjectId: 'chem', title: '化学方程式专项·氧化还原', count: 8, time: '3 天前', status: 'graded', result: SAMPLE_RESULT },
+{ id: 'h4', subjectId: 'en',   title: '阅读理解·科普类长文', count: 4, time: '5 天前', status: 'graded', result: SAMPLE_RESULT }];
+
+const INITIAL_TASKS = [
+{ id: 't1', subjectId: 'math', title: '函数单调性判断', count: 3, done: false, hint: '近 7 天错 2 题' },
+{ id: 't2', subjectId: 'chem', title: '氧化还原反应配平', count: 4, done: true,  hint: '巳延复习' },
+{ id: 't3', subjectId: 'cn',   title: '文言虚词「之」用法', count: 5, done: false, hint: '掌握度 62%' },
+{ id: 't4', subjectId: 'phys', title: '匀变速运动图像分析', count: 3, done: true,  hint: '巳延复习' },
+{ id: 't5', subjectId: 'en',   title: '非谓语动词作状语', count: 4, done: false, hint: '高频考点' }];
+
+const PHYS_NODES = [
+  { id: 'p0', name: '物理',         x: 180, y: 270, r: 38, isSubject: true },
+  { id: 'p1', name: '牛顿运动定律', x: 100, y: 200, r: 25, mastery: 68, total: 16, wrong: 5, recent: ['受力分析综合题', '牛二定律应用', '连接体问题'] },
+  { id: 'p2', name: '匀变速运动', x:  65, y:  95, r: 22, mastery: 74, total: 12, wrong: 3, recent: ['匀变速直线运动图像题', 'v-t 图分析'] },
+  { id: 'p3', name: '动能定理',  x:  50, y: 320, r: 22, mastery: 66, total: 14, wrong: 4, recent: ['动能定理综合应用', '变力做功问题'] },
+  { id: 'p4', name: '动量守恒',  x: 130, y: 415, r: 22, mastery: 58, total: 11, wrong: 5, recent: ['碰撞模型分析', '反冲与爆炸'] },
+  { id: 'p5', name: '圆周运动',  x: 215, y: 130, r: 24, mastery: 72, total: 13, wrong: 3, recent: ['竖直平面圆周运动', '向心力分析'] },
+  { id: 'p6', name: '万有引力',  x: 305, y:  65, r: 22, mastery: 89, total:  8, wrong: 1, recent: ['卫星轨道计算', '宇宙速度'] },
+  { id: 'p7', name: '电场',          x: 320, y: 170, r: 22, mastery: 70, total: 12, wrong: 4, recent: ['点电荷电场叠加', '电势能与电势'] },
+  { id: 'p8', name: '恒定电流',  x: 330, y: 265, r: 22, mastery: 64, total: 14, wrong: 5, recent: ['闭合电路欧姆定律', '电表改装与测量'] },
+  { id: 'p9', name: '磁场·安培力', x: 295, y: 365, r: 22, mastery: 55, total: 13, wrong: 6, recent: ['通电导线在磁场中受力', '洛伦兹力分析'] },
+  { id: 'pA', name: '电磁感应',  x: 215, y: 445, r: 24, mastery: 48, total:  9, wrong: 5, recent: ['电磁感应·双杆模型', '楞次定律应用', '感应电动势计算'] },
+];
+
+const PHYS_EDGES = [
+  ['p0','p1','primary'],['p0','p5','primary'],['p0','p7','primary'],['p0','p8','primary'],['p0','pA','primary'],
+  ['p1','p2','solid'],['p1','p3','solid'],['p1','p4','solid'],['p1','p5','solid'],
+  ['p5','p6','solid'],['p3','p4','dashed'],
+  ['p7','p8','solid'],['p8','p9','solid'],['p9','pA','solid'],
+  ['p5','p9','dashed'],['pA','p3','dashed'],
+];
+
+function masteryLevel(m) {
+  if (m < 60) return { label: '待加强', color: '#E89A98', soft: '#FBEEEC' };
+  if (m < 80) return { label: '掌握中', color: '#EFB888', soft: '#FBEFE0' };
+  return { label: '已掌握', color: '#9ED1B0', soft: '#E8F4ED' };
 }
 
-// ── Phase B → AI failed (OCR result stays) ──
-function showAiFailed(){
-  const aiStatus = document.getElementById('proc-ai-status');
-  const aiFail   = document.getElementById('proc-ai-fail');
-  if(aiStatus) aiStatus.style.display = 'none';
-  if(aiFail)   aiFail.style.display   = 'block';
+// ═══════════════════════════════════════════════════════════
+// 图标
+// ═══════════════════════════════════════════════════════════
+const Icon = {
+  camera:  (s=22) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5l-2 2.5H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-3.5l-2-2.5Z"/><circle cx="12" cy="13" r="3.6"/></svg>,
+  send:    (s=18) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>,
+  sparkle: (s=16) => <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2z"/><path d="M19 14l.9 2.6L22.5 17.5l-2.6.9L19 21l-.9-2.6L15.5 17.5l2.6-.9L19 14z" opacity=".7"/></svg>,
+  chevron: (s=16) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6"/></svg>,
+  chevDown:(s=16) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>,
+  close:   (s=22) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>,
+  back:    (s=22) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6"/></svg>,
+  check:   (s=14) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7"/></svg>,
+  spinner: (s=18,color='currentColor') => <svg className="spin" width={s} height={s} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke={color} strokeOpacity=".18" strokeWidth="3"/><path d="M21 12a9 9 0 0 0-9-9" stroke={color} strokeWidth="3" strokeLinecap="round"/></svg>,
+  book:    (s=18) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>,
+  calendar:(s=18) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>,
+  history: (s=18) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>,
+  logo:    (s=22) => <svg width={s+4} height={s} viewBox="0 0 28 22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M3 19c0-7 4.5-12 11-12s11 5 11 12"/><path d="M7 19c0-4.5 3-7.5 7-7.5s7 3 7 7.5"/><path d="M11 19c0-2 1.3-3.2 3-3.2s3 1.2 3 3.2"/></svg>
+};
+
+// ═══════════════════════════════════════════════════════════
+// 公共组件
+// ═══════════════════════════════════════════════════════════
+function BrandHeader({ subtitle }) {
+  return (
+    <div style={{ padding: '12px 22px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {Icon.logo(22)}
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1 }}>AI 复习导航</div>
+          {subtitle && <div style={{ fontSize: 11.5, color: '#8A8B93', marginTop: 2 }}>{subtitle}</div>}
+        </div>
+      </div>
+      <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg,#FFE0B8,#EFB888)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'inset 0 0 0 2px #fff, 0 0 0 1.5px #EFB888', fontWeight: '900', fontSize: '14px', fontFamily: '"Noto Sans SC"' }}>我</div>
+    </div>);
 }
 
-// ── Main poll loop ──
-function pollStatus(id){
-  if(!id) return;
-  clearInterval(pollTimer);
-  pollTimer = setInterval(async () => {
-    try {
-      const res = await api('/api/assignments/' + id);
-      const d   = await res.json();
-      const s   = d.status || '';
-
-      if(OCR_DONE_SET.includes(s) && hasOcrResult(d)){
-        showOcrResult(d);
-      } else {
-        renderOcrPhase(s);
-      }
-
-      if(POLL_SUCCESS.includes(s)){
-        clearInterval(pollTimer);
-        showAiDone();
-        setTimeout(() => { closeProcOverlay(); toast('✅ 分析完成！'); loadAll(); }, 2500);
-      } else if(POLL_AI_FAIL.includes(s)){
-        clearInterval(pollTimer);
-        showAiFailed();
-        loadAll();
-      } else if(POLL_MANUAL.includes(s)){
-        clearInterval(pollTimer);
-        closeProcOverlay();
-        toast('⚠️ 需要人工复核，请联系老师', 4000);
-      } else if(POLL_FAIL.includes(s)){
-        clearInterval(pollTimer);
-        closeProcOverlay();
-        toast('❌ 识别失败，请重试', 4000);
-      }
-    } catch(e){}
-  }, 3000);
+function SectionTitle({ title, count, action }) {
+  return (
+    <div style={{ padding: '4px 22px 10px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{title}</div>
+        {count != null && <div style={{ fontSize: 12, color: '#9CA0A8' }}>{count}</div>}
+      </div>
+      {action && <div style={{ fontSize: 12.5, color: '#7A7B83' }}>{action}</div>}
+    </div>);
 }
 
-// ─────────────────────────────────────────────
-// Load all data
-// ─────────────────────────────────────────────
-function loadAll(){ loadHome(); loadKnowledge(); loadReview(); }
+// ═══════════════════════════════════════════════════════════
+// 历史卡片
+// ═══════════════════════════════════════════════════════════
+function HistoryCard({ item, isNew, onClick }) {
+  const s = subjectMap[item.subjectId] || SUBJECTS[1];
+  const grading = item.status === 'grading';
+  return (
+    <div onClick={() => !grading && onClick(item)}
+      className={'h-card' + (isNew ? ' h-card-new' : '')}
+      style={{ background: s.soft, borderRadius: 22, padding: 14, display: 'grid', gridTemplateColumns: '44px 1fr 36px', alignItems: 'center', gap: 12, position: 'relative', overflow: 'hidden', cursor: grading ? 'default' : 'pointer' }}>
+      {grading && <div className="shimmer-bg" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'soft-light' }} />}
+      <div style={{ width: 44, height: 44, borderRadius: 14, background: s.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 20, boxShadow: `0 6px 14px -4px ${s.color}88`, opacity: grading ? 0.7 : 1 }}>{s.short}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 15.5, fontWeight: 600, color: grading ? '#9094A0' : '#0F0F12', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</div>
+        <div style={{ marginTop: 4, fontSize: 12, color: '#7A7B83', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontWeight: 600, color: s.color }}>{s.name}</span>
+          <span style={{ opacity: .4 }}>·</span>
+          {grading
+            ? <span style={{ color: s.color, fontWeight: 600 }}>AI 批改中…</span>
+            : <><span>{item.count} 道题</span><span style={{ opacity: .4 }}>·</span><span>{item.time}</span></>}
+        </div>
+      </div>
+      {grading
+        ? <div style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.color }}>{Icon.spinner(20, s.color)}</div>
+        : <button className="h-play" style={{ width: 36, height: 36, borderRadius: '50%', background: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0A0A0A', boxShadow: '0 1px 2px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.05)' }}>{Icon.chevron(15)}</button>}
+    </div>);
+}
 
-// ── Home ──
-async function loadHome(){
-  try {
-    const [pr, wk] = await Promise.all([
-      api('/api/students/'+SID+'/profile').then(r=>r.json()).catch(()=>null),
-      api('/api/students/'+SID+'/weak-points').then(r=>r.json()).catch(()=>null),
-    ]);
-    if(pr){
-      const items = pr.knowledge_points || pr.knowledge_mastery || pr.mastery || [];
-      document.getElementById('st-kp').textContent = pr.total_knowledge_points || items.length || 0;
-      const m = pr.overall_mastery != null ? pr.overall_mastery
-              : (items.length ? items.reduce((a,i)=>a+(i.mastery_score||i.score||0),0)/items.length : 0);
-      document.getElementById('st-ms').textContent = Math.round(m*100) + '%';
-      document.getElementById('st-wk').textContent = pr.weak_count != null ? pr.weak_count : '—';
-    }
-  } catch(e){}
+function ReadyPrompt() {
+  return (
+    <div style={{ margin: '0 18px 8px', padding: '12px 14px', borderRadius: 18, background: 'linear-gradient(180deg,#F7F4EE 0%,#F1ECE3 100%)', display: 'flex', alignItems: 'center', gap: 12, border: '1px solid rgba(0,0,0,0.04)' }}>
+      <div style={{ width: 36, height: 36, borderRadius: 12, background: '#0A0A0A', color: '#FFD56B', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{Icon.sparkle(18)}</div>
+      <div style={{ minWidth: 0, lineHeight: 1.3 }}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>AI 小助手准备就绪</div>
+        <div style={{ fontSize: 12.5, color: '#6F7079', marginTop: 2 }}>有什么问题就问我吧</div>
+      </div>
+      <div style={{ marginLeft: 'auto', fontSize: 11.5, color: '#8A8B93', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#9ED1B0', boxShadow: '0 0 0 4px rgba(158,209,176,.28)' }} />
+        在线
+      </div>
+    </div>);
+}
 
-  try {
-    const res = await api('/api/students/'+SID+'/review-tasks');
-    const d   = await res.json();
-    const items = d.review_items || d.tasks || d || [];
-    const arr = Array.isArray(items) ? items : [];
-    document.getElementById('st-today').textContent = arr.length;
-    document.getElementById('home-plan-count').textContent = arr.length + ' 个知识点';
-    document.getElementById('home-streak').textContent =
-      arr.length ? `今天有 ${arr.length} 个待复习` : '暂无复习任务';
+// ═══════════════════════════════════════════════════════════
+// Dock + TabBar
+// ═══════════════════════════════════════════════════════════
+function BottomDock({ onCamera, onAsk }) {
+  const [text, setText] = useState('');
+  return (
+    <div style={{ padding: '6px 14px 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <button onClick={onCamera} style={{ width: 48, height: 48, borderRadius: '50%', background: '#0A0A0A', color: '#fff', border: 'none', cursor: 'pointer', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 24px -8px rgba(0,0,0,0.45)' }}>{Icon.camera(22)}</button>
+      <div style={{ flex: 1, height: 48, borderRadius: 999, background: '#F2F2F4', display: 'flex', alignItems: 'center', padding: '0 4px 0 16px', border: '1px solid rgba(0,0,0,0.04)' }}>
+        <input value={text} onChange={e => setText(e.target.value)} placeholder="问 AI 小助手任何问题…" style={{ flex: 1, height: '100%', border: 'none', outline: 'none', background: 'transparent', fontSize: 14, fontFamily: 'inherit' }} onKeyDown={e => { if (e.key === 'Enter' && text.trim()) { onAsk(text.trim()); setText(''); } }} />
+        <button onClick={() => { if (text.trim()) { onAsk(text.trim()); setText(''); } }} disabled={!text.trim()} style={{ width: 38, height: 38, borderRadius: '50%', background: text.trim() ? '#0A0A0A' : '#D7D8DD', color: '#fff', border: 'none', cursor: text.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s' }}>{Icon.send(16)}</button>
+      </div>
+    </div>);
+}
 
-    document.getElementById('recent-list').innerHTML = arr.length
-      ? arr.slice(0,3).map(i => {
-          const name = i.knowledge_point_name || i.name || '复习任务';
-          const pri  = i.priority || 'medium';
-          const [barCls, chipCls, chipLabel] =
-            pri==='high'  ? ['','chip-rose','重点']:
-            pri==='low'   ? ['mint','chip-mint','一般']:
-                            ['amber','chip-amber','中等'];
-          return `<div class="task-card anim-in">
-            <div class="task-bar ${barCls}"></div>
-            <div class="task-body">
-              <div class="task-title">${name}</div>
-              <div class="task-meta">
-                ${i.estimated_minutes ? `<span>约 ${i.estimated_minutes} 分钟</span>` : ''}
-                <span class="chip ${chipCls}">${chipLabel}</span>
-              </div>
+function TabBar({ value, onChange }) {
+  const tabs = [
+    { id: 'today',   label: '今日复习', icon: Icon.calendar },
+    { id: 'library', label: '知识库',       icon: Icon.book },
+    { id: 'history', label: '历史',             icon: Icon.history }];
+  return (
+    <div style={{ display: 'flex', padding: '8px 14px 28px', borderTop: '0.5px solid rgba(0,0,0,0.06)', background: '#fff' }}>
+      {tabs.map(t => {
+        const active = value === t.id;
+        return (
+          <button key={t.id} onClick={() => onChange(t.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, border: 'none', background: 'transparent', cursor: 'pointer', color: active ? '#0A0A0A' : '#9CA0A8', padding: '6px 0' }}>
+            {t.icon(22)}
+            <span style={{ fontSize: 11, fontWeight: active ? 700 : 500 }}>{t.label}</span>
+          </button>);
+      })}
+    </div>);
+}
+
+// ═══════════════════════════════════════════════════════════
+// Page 1 — 今日复习
+// ═══════════════════════════════════════════════════════════
+function TodayPage({ tasks, onToggle }) {
+  const total = tasks.length, done = tasks.filter(t => t.done).length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  const allDone = total > 0 && done === total, empty = total === 0;
+  return (
+    <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 16px' }}>
+      <div style={{ padding: '0 18px 14px' }}>
+        <div style={{ borderRadius: 24, padding: '20px 20px 18px', background: allDone ? 'linear-gradient(135deg,#E8F4ED 0%,#DAEBE2 100%)' : 'linear-gradient(135deg,#0F0F12 0%,#23232A 100%)', color: allDone ? '#1F4634' : '#fff', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', right: -40, top: -40, width: 160, height: 160, borderRadius: '50%', background: allDone ? 'rgba(158,209,176,.45)' : 'rgba(255,213,107,.12)', pointerEvents: 'none' }} />
+          <div style={{ position: 'relative' }}>
+            <div style={{ fontSize: 11.5, letterSpacing: '0.1em', opacity: .75, fontWeight: 600 }}>今 · 5 月 26 日</div>
+            <div style={{ marginTop: 6, fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+              {empty ? '今日暂无复习任务' : allDone ? '今日复习已完成 🎉' : `今日复习 ${total} 项`}
             </div>
-          </div>`;
-        }).join('')
-      : '<div class="empty"><p>暂无任务<br>先上传一张作业吧</p></div>';
-  } catch(e){}
+            <div style={{ marginTop: 6, fontSize: 13, opacity: .8, lineHeight: 1.5 }}>
+              {empty ? 'AI 会根据近期错题为你生成复习计划。'
+                : allDone ? '坚持每天复习，错题不再犯。明天继续加油。'
+                : <>已完成 <span style={{ fontWeight: 700, color: allDone ? '#1F4634' : '#FFD56B' }}>{done}</span> / {total} 项 · 预计 {Math.max(1, (total - done) * 4)} 分钟</>}
+            </div>
+            {!empty && <div style={{ marginTop: 16, height: 6, borderRadius: 4, background: allDone ? 'rgba(31,70,52,.18)' : 'rgba(255,255,255,.12)', overflow: 'hidden' }}><div style={{ height: '100%', width: pct + '%', background: allDone ? '#1F4634' : '#FFD56B', borderRadius: 4, transition: 'width .5s cubic-bezier(.2,.7,.2,1)' }} /></div>}
+          </div>
+        </div>
+      </div>
+      {empty ? <EmptyToday /> : <>
+        <SectionTitle title="复习任务" count={`${done} / ${total}`} />
+        <div style={{ padding: '0 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {tasks.map(t => <TaskRow key={t.id} task={t} onToggle={onToggle} />)}
+        </div>
+        <div style={{ margin: '18px 18px 0', padding: '12px 14px', borderRadius: 16, background: '#FBFCFD', border: '1px dashed rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, color: '#7A7B83', fontSize: 12.5 }}>
+          {Icon.sparkle(16)}
+          <span>任务由 AI 根据你的错题自动生成 · 完成后会更新知识库掌握度</span>
+        </div>
+      </>}
+    </div>);
 }
 
-// ── Knowledge ──
-async function loadKnowledge(){
-  try {
-    const [pr, wk] = await Promise.all([
-      api('/api/students/'+SID+'/profile').then(r=>r.json()).catch(()=>null),
-      api('/api/students/'+SID+'/weak-points').then(r=>r.json()).catch(()=>null),
-    ]);
-    const items = pr ? (pr.knowledge_points || pr.knowledge_mastery || pr.mastery || []) : [];
-    document.getElementById('kp-count').textContent =
-      (pr ? (pr.total_knowledge_points || items.length) : 0) + ' 个已学知识点';
+function TaskRow({ task, onToggle }) {
+  const s = subjectMap[task.subjectId] || SUBJECTS[1];
+  return (
+    <div onClick={() => onToggle(task.id)} style={{ background: '#fff', borderRadius: 18, padding: '12px 14px', display: 'grid', gridTemplateColumns: '36px 1fr 26px', alignItems: 'center', gap: 12, border: '1px solid rgba(0,0,0,0.05)', opacity: task.done ? .55 : 1, cursor: 'pointer', transition: 'opacity .2s' }}>
+      <div style={{ width: 36, height: 36, borderRadius: 11, background: s.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>{s.short}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, textDecoration: task.done ? 'line-through' : 'none', color: '#0F0F12' }}>{task.title}</div>
+        <div style={{ marginTop: 2, fontSize: 11.5, color: '#8A8B93', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>{s.name}</span><span style={{ opacity: .4 }}>·</span><span>{task.count} 题</span><span style={{ opacity: .4 }}>·</span><span>{task.hint}</span>
+        </div>
+      </div>
+      <div className={'check' + (task.done ? ' done' : '')}>{Icon.check(13)}</div>
+    </div>);
+}
 
-    const adv = items.filter(i => (i.mastery_score||i.score||0) >= 0.75).length;
-    const badge = document.getElementById('adv-badge');
-    badge.textContent = adv ? '优势 '+adv+' 项' : '';
-    badge.style.display = adv ? '' : 'none';
+function EmptyToday() {
+  return (
+    <div style={{ padding: '40px 36px', textAlign: 'center', color: '#8A8B93' }}>
+      <div style={{ width: 88, height: 88, margin: '0 auto 16px', borderRadius: 24, background: '#F2F2F4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C2C5CC' }}>{Icon.calendar(40)}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: '#0F0F12' }}>暂无复习任务</div>
+      <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.6 }}>多拍几次作业，AI 会根据你的错题给出每日复习计划。</div>
+    </div>);
+}
 
-    drawRadar(items);
-    drawHeatmap(items);
+// ═══════════════════════════════════════════════════════════
+// Page 2 — 知识库（物理 · 知识图谱）
+// ═══════════════════════════════════════════════════════════
+function PhysicsGraphPage() {
+  const [sel, setSel] = useState(null);
+  const svgRef = useRef(null);
+  const nodesById = useMemo(() => Object.fromEntries(PHYS_NODES.map(n => [n.id, n])), []);
 
-    // Subject tabs
-    const subjects = [...new Set(items.map(i => i.subject || extractSubject(i.knowledge_point_name||i.name||'')))].filter(s=>s&&s!=='其他');
-    const tabsWrap = document.getElementById('subj-tabs-wrap');
-    tabsWrap.innerHTML = ['全部', ...subjects].map((s,i) =>
-      `<div class="subj-tab${i===0?' active':''}" onclick="filterSubject('${s}',this)">${s}</div>`
-    ).join('');
+  const relatedIds = useMemo(() => {
+    if (!sel) return null;
+    const ids = new Set([sel]);
+    PHYS_EDGES.forEach(([a, b]) => { if (a === sel) ids.add(b); if (b === sel) ids.add(a); });
+    return ids;
+  }, [sel]);
 
-    // Weak list
-    const weakArr = wk ? (wk.weak_points || wk || []) : items.filter(i=>(i.mastery_score||i.score||0)<0.5).slice(0,8);
-    const weakList = Array.isArray(weakArr) ? weakArr : [];
-    document.getElementById('weak-list').innerHTML = weakList.length
-      ? weakList.map((w, i) => {
-          const score = w.mastery_score || w.score || 0;
-          const pct   = Math.round(score * 100);
-          const name  = w.knowledge_point_name || w.name || '—';
-          const rkCls = score < 0.3 ? '' : score < 0.5 ? 'amber' : 'mint';
-          const barCls= score < 0.3 ? 'rose' : score < 0.5 ? 'amber' : 'mint';
-          return `<div class="kp-item anim-in anim-in-${Math.min(i+1,4)}">
-            <div class="kp-rank ${rkCls}">${i+1}</div>
-            <div class="kp-body">
-              <div class="kp-title">${name}</div>
-              <div class="kp-meta">
-                <div class="bar" style="flex:1;max-width:120px">
-                  <div class="bar-fill ${barCls}" style="width:${pct}%"></div>
+  useEffect(() => {
+    let raf;
+    const start = performance.now();
+    function tick(now) {
+      const t = (now - start) / 1000;
+      const svg = svgRef.current;
+      if (!svg) return;
+      const offsets = {};
+      PHYS_NODES.forEach((n, i) => {
+        const dx = Math.sin(t * 0.45 + i * 0.7) * 1.0, dy = Math.cos(t * 0.38 + i * 1.1) * 1.0;
+        offsets[n.id] = [dx, dy];
+        const g = svg.querySelector(`[data-nid="${n.id}"]`);
+        if (g) g.style.transform = `translate(${(n.x + dx).toFixed(2)}px, ${(n.y + dy).toFixed(2)}px)`;
+      });
+      PHYS_EDGES.forEach(([a, b], i) => {
+        const ln = svg.querySelector(`[data-eid="${i}"]`);
+        if (!ln) return;
+        const A = nodesById[a], B = nodesById[b];
+        const [adx, ady] = offsets[a], [bdx, bdy] = offsets[b];
+        ln.setAttribute('x1', A.x + adx); ln.setAttribute('y1', A.y + ady);
+        ln.setAttribute('x2', B.x + bdx); ln.setAttribute('y2', B.y + bdy);
+      });
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [nodesById]);
+
+  const PHYS_COLOR = '#8DCED4';
+  return (
+    <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 8px' }}>
+      <div style={{ padding: '0 22px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '4px 11px', borderRadius: 999, fontSize: 12, fontWeight: 700, background: PHYS_COLOR, color: '#fff' }}>物理</div>
+        <div style={{ fontSize: 12.5, color: '#8A8B93' }}>{PHYS_NODES.length - 1} 个知识点 · {PHYS_EDGES.length} 条关联</div>
+        <div style={{ marginLeft: 'auto', fontSize: 11.5, color: '#9CA0A8' }}>点击节点查看详情</div>
+      </div>
+      <div style={{ position: 'relative', margin: '0 12px', borderRadius: 24, overflow: 'hidden', background: 'radial-gradient(circle at 50% 38%, #F3FAFB 0%, #FBFCFD 65%)', border: '1px solid rgba(141,206,212,0.22)' }}>
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'radial-gradient(rgba(141,206,212,0.22) 1px, transparent 1px)', backgroundSize: '14px 14px', opacity: 0.6 }} />
+        <svg ref={svgRef} viewBox="0 0 360 520" width="100%" style={{ display: 'block', height: 'auto', position: 'relative' }} onClick={() => setSel(null)}>
+          {PHYS_EDGES.map(([a, b, kind], i) => {
+            const A = nodesById[a], B = nodesById[b];
+            const inHL = !relatedIds || (relatedIds.has(a) && relatedIds.has(b));
+            return <line key={i} data-eid={i} x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke={inHL && relatedIds ? '#6B7280' : '#C5CBD3'} strokeWidth={kind === 'primary' ? 1.4 : 1.05} strokeDasharray={kind === 'dashed' ? '3 4' : null} strokeLinecap="round" opacity={relatedIds ? (inHL ? 0.9 : 0.12) : (kind === 'primary' ? 0.6 : kind === 'dashed' ? 0.45 : 0.5)} style={{ transition: 'opacity .3s, stroke .3s' }} />;
+          })}
+          {PHYS_NODES.map(n => {
+            const isSel = sel === n.id, dim = relatedIds && !relatedIds.has(n.id);
+            const lvl = n.isSubject ? null : masteryLevel(n.mastery);
+            const labelLines = n.isSubject ? [n.name] : splitLabel(n.name);
+            return (
+              <g key={n.id} data-nid={n.id} style={{ cursor: 'pointer', opacity: dim ? 0.28 : 1, transition: 'opacity .3s', transform: `translate(${n.x}px, ${n.y}px)`, willChange: 'transform' }} onClick={e => { e.stopPropagation(); setSel(isSel ? null : n.id); }}>
+                {isSel && <circle r={n.r + 10} fill={n.isSubject ? PHYS_COLOR : lvl.color} opacity="0.18" />}
+                {n.isSubject ? <>
+                  <circle r={n.r} fill={PHYS_COLOR} />
+                  <circle r={n.r - 4} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+                  <text textAnchor="middle" dy="6" fontSize="17" fontWeight="500" fill="#fff" style={{ fontFamily: 'inherit', letterSpacing: '.04em' }}>{n.name}</text>
+                </> : <>
+                  <circle r={n.r} fill="#fff" stroke={isSel ? lvl.color : 'rgba(141,206,212,0.6)'} strokeWidth={isSel ? 2.5 : 1.4} />
+                  <MasteryArc r={n.r - 2} pct={n.mastery} color={lvl.color} />
+                  <circle cx={n.r - 5} cy={-n.r + 5} r="4.5" fill={lvl.color} stroke="#fff" strokeWidth="1.5" />
+                  {labelLines.map((line, li) => <text key={li} textAnchor="middle" dy={labelLines.length === 1 ? 4 : (li === 0 ? -2 : 11)} fontSize={labelLines.length === 1 ? 11 : 10} fontWeight="500" fill="#2A2D33" style={{ fontFamily: 'inherit' }}>{line}</text>)}
+                </>}
+              </g>);
+          })}
+        </svg>
+      </div>
+      <div style={{ padding: '12px 18px 0' }}>
+        {sel && sel !== 'p0'
+          ? <NodeDetail node={nodesById[sel]} onClose={() => setSel(null)} />
+          : <div style={{ padding: '11px 14px', borderRadius: 16, background: '#FBFCFD', border: '1px dashed rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: 10, color: '#7A7B83', fontSize: 12.5, lineHeight: 1.5 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 9, background: PHYS_COLOR, color: '#fff', flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{Icon.sparkle(14)}</div>
+              <div>
+                <div style={{ fontWeight: 600, color: '#3A3C45' }}>{sel === 'p0' ? '物理 · 高中知识图谱' : '物理 · 知识图谱'}</div>
+                <div>实线 = 直接依赖 · 虚线 = 跨章联系 · 圆点颜色 = 掌握度</div>
+              </div>
+            </div>}
+      </div>
+    </div>);
+}
+
+function splitLabel(name) {
+  if (name.includes('·')) return name.split('·').map(s => s.trim());
+  if (name.length > 4) { const mid = Math.ceil(name.length / 2); return [name.slice(0, mid), name.slice(mid)]; }
+  return [name];
+}
+
+function MasteryArc({ r, pct, color }) {
+  const c = 2 * Math.PI * r, dash = c * (pct / 100);
+  return <circle r={r} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeDasharray={`${dash} ${c}`} transform="rotate(-90)" opacity="0.55" />;
+}
+
+function NodeDetail({ node, onClose }) {
+  const lvl = masteryLevel(node.mastery);
+  return (
+    <div style={{ background: '#fff', borderRadius: 18, padding: '14px 16px', border: '1px solid rgba(0,0,0,0.05)', animation: 'flashIn .35s cubic-bezier(.2,.7,.2,1)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <MasteryRing pct={node.mastery} color={lvl.color} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15.5, fontWeight: 700, letterSpacing: '-0.005em' }}>{node.name}</div>
+          <div style={{ marginTop: 4, fontSize: 11.5, color: '#8A8B93', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ padding: '1.5px 8px', borderRadius: 999, background: lvl.soft, color: lvl.color, fontWeight: 600 }}>{lvl.label}</span>
+            <span>共 {node.total} 题</span><span style={{ opacity: .4 }}>·</span><span>错 {node.wrong} 题</span>
+          </div>
+        </div>
+        <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', background: '#F2F2F4', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0A0A0A', flex: 'none' }}>{Icon.close(16)}</button>
+      </div>
+      <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: 11.5, color: '#8A8B93', fontWeight: 600, padding: '4px 0 4px' }}>近期相关题目</div>
+        {node.recent.map((t, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: i === 0 ? 'none' : '0.5px solid rgba(0,0,0,0.05)' }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#8DCED4', flex: 'none' }} />
+            <div style={{ flex: 1, fontSize: 13, color: '#3A3C45' }}>{t}</div>
+            <div style={{ color: '#C2C5CC' }}>{Icon.chevron(14)}</div>
+          </div>))}
+      </div>
+    </div>);
+}
+
+function MasteryRing({ pct, color }) {
+  const r = 18, c = 2 * Math.PI * r, dash = c * (pct / 100);
+  return (
+    <div style={{ width: 44, height: 44, position: 'relative', flex: 'none' }}>
+      <svg width="44" height="44" viewBox="0 0 44 44">
+        <circle cx="22" cy="22" r={r} stroke="#F0F1F4" strokeWidth="4" fill="none" />
+        <circle cx="22" cy="22" r={r} stroke={color} strokeWidth="4" fill="none" strokeLinecap="round" strokeDasharray={`${dash} ${c}`} transform="rotate(-90 22 22)" />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#0F0F12' }}>{pct}</div>
+    </div>);
+}
+
+// ═══════════════════════════════════════════════════════════
+// Page 3 — 历史
+// ═══════════════════════════════════════════════════════════
+function HistoryPage({ history, newId, listRef, onOpenResult }) {
+  return (
+    <>
+      <SectionTitle title="学习历史" count={`共 ${history.length} 条`} action="全部 ›" />
+      <div ref={listRef} className="hist-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 12px', display: 'flex', flexDirection: 'column', gap: 10, WebkitMaskImage: 'linear-gradient(180deg, #000 0, #000 calc(100% - 18px), transparent 100%)' }}>
+        {history.map(item => <HistoryCard key={item.id} item={item} isNew={item.id === newId} onClick={onOpenResult} />)}
+      </div>
+      <ReadyPrompt />
+    </>);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 详情页：批改结果 (三层渐进披露)
+// ═══════════════════════════════════════════════════════════
+const VERDICT_MAP = {
+  correct: { label: '全部正确', desc: '完美！继续保持。', color: '#9ED1B0', soft: '#E8F4ED', emoji: '✓' },
+  partial: { label: '部分正确', desc: '掌握得不错，再练几题。', color: '#EFB888', soft: '#FBEFE0', emoji: '◐' },
+  wrong:   { label: '需要订正', desc: 'AI 给你准备好详细讲解。', color: '#E89A98', soft: '#FBEEEC', emoji: '✕' }
+};
+
+function DetailResult({ item, onClose }) {
+  const [showCompare, setShowCompare] = useState(false);
+  const [expandedQ, setExpandedQ] = useState(null);
+  if (!item || !item.result) return null;
+  const s = subjectMap[item.subjectId] || SUBJECTS[1];
+  const r = item.result;
+  const v = VERDICT_MAP[r.verdict] || VERDICT_MAP.partial;
+  return (
+    <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 24px' }}>
+      <div style={{ padding: '0 18px 16px' }}>
+        <div style={{ borderRadius: 26, overflow: 'hidden', background: v.soft, padding: '20px 22px 22px', position: 'relative' }}>
+          <div style={{ position: 'absolute', right: -20, top: -20, width: 130, height: 130, borderRadius: '50%', background: 'rgba(255,255,255,0.55)' }} />
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#5A5C65', fontWeight: 600 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 7, background: s.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{s.short}</div>
+              <span>{s.name}</span><span style={{ opacity: .4 }}>·</span><span>{item.time}</span>
+            </div>
+            <div style={{ marginTop: 14, fontSize: 32, fontWeight: 700, color: v.color, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ width: 44, height: 44, borderRadius: 14, background: v.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 700 }}>{v.emoji}</span>
+              {v.label}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 14, color: '#3A3C45', lineHeight: 1.5 }}>{v.desc}</div>
+            <div style={{ marginTop: 16, display: 'flex', alignItems: 'baseline', gap: 14, color: '#0F0F12' }}>
+              <div>
+                <span style={{ fontSize: 36, fontWeight: 700, color: v.color }}>{r.score}</span>
+                <span style={{ fontSize: 18, color: '#8A8B93' }}> / {r.total}</span>
+                <div style={{ fontSize: 11, color: '#8A8B93', marginTop: -2 }}>正确题数</div>
+              </div>
+              <div style={{ width: 1, height: 36, background: 'rgba(0,0,0,0.08)' }} />
+              <div>
+                <div style={{ fontSize: 11, color: '#8A8B93' }}>薄弱知识点</div>
+                <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {r.weakPoints.map(w => <span key={w} style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 9px', borderRadius: 999, background: '#fff', color: v.color }}>{w}</span>)}
                 </div>
               </div>
             </div>
-            <div class="kp-score">${pct}<span style="font-size:11px;color:var(--ink-3);font-weight:400;margin-left:1px">%</span></div>
-          </div>`;
-        }).join('')
-      : '<div class="empty"><p>暂无薄弱知识点</p></div>';
-  } catch(e){
-    document.getElementById('kp-count').textContent = '暂无数据';
-  }
-}
-
-function filterSubject(sub, el){
-  document.querySelectorAll('.subj-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  // Future: filter heatmap/radar by subject
-}
-
-// ── Radar ──
-function drawRadar(items){
-  const canvas = document.getElementById('radar-canvas');
-  const ctx    = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height, cx = W/2, cy = H/2, R = cx*0.72;
-
-  const subjectMap = {};
-  for(const i of items){
-    const sub = i.subject || extractSubject(i.knowledge_point_name||i.name||'');
-    if(sub && sub !== '其他'){
-      if(!subjectMap[sub]) subjectMap[sub] = {sum:0, count:0};
-      subjectMap[sub].sum   += (i.mastery_score||i.score||0);
-      subjectMap[sub].count ++;
-    }
-  }
-  const DEFAULT = ['数学','语文','英语','物理','化学','生物'];
-  let labels = Object.keys(subjectMap).slice(0,6);
-  if(labels.length < 3) labels = DEFAULT;
-  const N    = labels.length;
-  const vals = labels.map(l => subjectMap[l] ? subjectMap[l].sum/subjectMap[l].count : Math.random()*.3+.4);
-  const avg  = vals.map(v => Math.max(.2, v - Math.random()*.15 - .05));
-
-  ctx.clearRect(0,0,W,H);
-  const angles = labels.map((_,i) => i*(2*Math.PI/N) - Math.PI/2);
-
-  // Grid
-  for(let r=1; r<=5; r++){
-    ctx.beginPath();
-    angles.forEach((a,i)=>{ const x=cx+R*(r/5)*Math.cos(a),y=cy+R*(r/5)*Math.sin(a); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
-    ctx.closePath(); ctx.strokeStyle='rgba(0,0,0,0.06)'; ctx.lineWidth=1; ctx.stroke();
-  }
-  angles.forEach(a=>{
-    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+R*Math.cos(a),cy+R*Math.sin(a));
-    ctx.strokeStyle='rgba(0,0,0,0.08)'; ctx.lineWidth=1; ctx.stroke();
-  });
-
-  // Class avg (violet dashed)
-  ctx.beginPath();
-  angles.forEach((a,i)=>{ const x=cx+R*avg[i]*Math.cos(a),y=cy+R*avg[i]*Math.sin(a); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
-  ctx.closePath(); ctx.strokeStyle='#7A6BFF'; ctx.setLineDash([6,4]); ctx.lineWidth=1.5; ctx.stroke(); ctx.setLineDash([]);
-
-  // My polygon (coral)
-  ctx.beginPath();
-  angles.forEach((a,i)=>{ const x=cx+R*vals[i]*Math.cos(a),y=cy+R*vals[i]*Math.sin(a); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
-  ctx.closePath(); ctx.fillStyle='rgba(255,107,91,0.18)'; ctx.fill();
-  ctx.strokeStyle='#FF6B5B'; ctx.lineWidth=2; ctx.stroke();
-
-  // Labels
-  ctx.fillStyle='#4A4B5C'; ctx.font='bold 12px -apple-system, PingFang SC, sans-serif'; ctx.textAlign='center';
-  angles.forEach((a,i)=>{ ctx.fillText(labels[i], cx+(R+22)*Math.cos(a), cy+(R+22)*Math.sin(a)+4); });
-}
-
-function extractSubject(name){
-  for(const s of ['数学','语文','英语','物理','化学','生物','历史','地理','政治'])
-    if(name.includes(s)) return s;
-  return '其他';
-}
-
-// ── Heatmap ──
-const LEVELS = ['基础','理解','应用','分析','综合'];
-function drawHeatmap(items){
-  const subjects = [...new Set(items.map(i=>i.subject||extractSubject(i.knowledge_point_name||i.name||'')))].filter(s=>s&&s!=='其他').slice(0,8);
-  if(!subjects.length) subjects.push('数学','语文','英语','物理','化学','生物');
-
-  const grid = {};
-  LEVELS.forEach(l => { grid[l] = {}; subjects.forEach(s => { grid[l][s] = 0; }); });
-  items.forEach(i => {
-    const sub = i.subject || extractSubject(i.knowledge_point_name||i.name||'');
-    const score = i.mastery_score || i.score || 0;
-    const cls   = score===0?0 : score<.4?4 : score<.6?1 : score<.8?2 : 3;
-    const lvl   = i.ability_level || i.level || LEVELS[Math.min(4,Math.floor(score*LEVELS.length))];
-    if(grid[lvl] && grid[lvl][sub] !== undefined) grid[lvl][sub] = cls;
-  });
-
-  const tbl = document.getElementById('heatmap-table');
-  tbl.innerHTML =
-    '<thead><tr><td></td>'+subjects.map(s=>`<th class="hm-th">${s}</th>`).join('')+'</tr></thead>'+
-    '<tbody>'+LEVELS.map(l=>'<tr><td class="hm-row-label">'+l+'</td>'+subjects.map(s=>`<td><div class="hm-cell hm-${grid[l][s]||0}" title="${l}·${s}"></div></td>`).join('')+'</tr>').join('')+'</tbody>';
-}
-
-// ── Review ──
-async function loadReview(){
-  document.getElementById('plan-list').innerHTML = '<div class="empty"><div class="spinner spinner-dark" style="display:inline-block"></div></div>';
-  document.getElementById('review-summary').textContent = '加载中…';
-  try {
-    const res  = await api('/api/students/'+SID+'/review-tasks');
-    const d    = await res.json();
-    const items = d.review_items || d.tasks || d || [];
-    const arr  = Array.isArray(items) ? items : [];
-    const mins = arr.reduce((a,i) => a+(i.estimated_minutes||5), 0);
-    document.getElementById('review-summary').textContent =
-      arr.length ? `共 ${arr.length} 个任务，约 ${mins} 分钟` : '今日没有复习任务';
-    document.getElementById('plan-list').innerHTML = arr.length
-      ? arr.map((it, i) => {
-          const name = it.knowledge_point_name || it.name || `任务${i+1}`;
-          const pri  = it.priority || 'medium';
-          const [barCls, chipCls, chipLabel] =
-            pri==='high' ? ['','chip-rose','重点']:
-            pri==='low'  ? ['mint','chip-mint','一般']:
-                           ['amber','chip-amber','中等'];
-          return `<div class="task-card anim-in anim-in-${Math.min(i+1,4)}">
-            <div class="task-bar ${barCls}"></div>
-            <div class="task-body">
-              <div class="task-title">${name}</div>
-              <div class="task-meta">
-                ${it.estimated_minutes?`<span>约 ${it.estimated_minutes} 分钟</span>`:''}
-                <span class="chip ${chipCls}"><span class="dot dot-${pri==='high'?'rose':pri==='low'?'mint':'amber'}"></span>${chipLabel}</span>
-              </div>
-              ${it.description ? `<div class="task-action">📚 开始复习</div>` : ''}
-            </div>
-          </div>`;
-        }).join('')
-      : '<div class="empty"><p>暂无复习任务<br>先上传作业吧 📸</p></div>';
-  } catch(e){
-    document.getElementById('review-summary').textContent = '加载失败';
-    document.getElementById('plan-list').innerHTML = '<div class="empty"><p>加载失败，请重试</p></div>';
-  }
-}
-
-// ── Report ──
-async function loadReport(){
-  document.getElementById('report-card').style.display = 'block';
-  document.getElementById('report-content').innerHTML =
-    '<div class="card"><div class="empty"><div class="spinner spinner-dark" style="display:inline-block"></div></div></div>';
-  try {
-    const res = await api('/api/reports/student/'+SID);
-    const d   = await res.json();
-    const m   = d.overall_mastery != null ? Math.round(d.overall_mastery*100)+'%'
-              : d.average_mastery_score != null ? Math.round(d.average_mastery_score*100)+'%' : '—';
-    const mastered = d.strong_count != null ? d.strong_count : (d.mastered_knowledge_points || 0);
-
-    const subjectsHtml = (d.subjects && d.subjects.length)
-      ? '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">学科分布</div>'+
-        d.subjects.map(s => {
-          const pct = Math.round((s.mastery||0)*100);
-          return `<div style="margin-bottom:10px">
-            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
-              <span>${s.subject_name||s.name||'—'}</span>
-              <span style="color:var(--coral);font-weight:600">${pct}%</span>
-            </div>
-            <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
-          </div>`;
-        }).join('') + '</div>'
-      : '';
-
-    const weakHtml = (d.top_weak_points && d.top_weak_points.length)
-      ? '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">薄弱知识点</div>'+
-        d.top_weak_points.slice(0,3).map((w,i) =>
-          `<div class="kp-item" style="margin:0 0 8px">
-            <div class="kp-rank">${i+1}</div>
-            <div class="kp-body"><div class="kp-title">${w.knowledge_point_name||w.name||'—'}</div></div>
-            <div class="kp-score">${Math.round((w.mastery_score||0)*100)}<span style="font-size:11px;color:var(--ink-3);font-weight:400">%</span></div>
-          </div>`
-        ).join('') + '</div>'
-      : '';
-
-    document.getElementById('report-content').innerHTML = `
-      <div class="report-dark" style="margin:0 16px">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:4px">
-          <div style="text-align:center">
-            <div style="font-size:28px;font-weight:700;font-family:var(--font-num);letter-spacing:-0.02em">${d.total_knowledge_points||0}</div>
-            <div style="font-size:11px;opacity:.6;margin-top:4px">知识点</div>
-          </div>
-          <div style="text-align:center">
-            <div style="font-size:28px;font-weight:700;font-family:var(--font-num);letter-spacing:-0.02em">${mastered}</div>
-            <div style="font-size:11px;opacity:.6;margin-top:4px">已掌握</div>
-          </div>
-          <div style="text-align:center">
-            <div style="font-size:28px;font-weight:700;font-family:var(--font-num);letter-spacing:-0.02em">${m}</div>
-            <div style="font-size:11px;opacity:.6;margin-top:4px">平均掌握</div>
           </div>
         </div>
-        ${d.summary ? `<p style="font-size:13px;line-height:1.7;opacity:.85;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)">${d.summary}</p>` : ''}
       </div>
-      <div style="margin:0 16px">${subjectsHtml}${weakHtml}</div>`;
-  } catch(e){
-    document.getElementById('report-content').innerHTML =
-      '<div class="empty"><p>生成失败，请重试</p></div>';
-    toast('❌ 报告加载失败', 3000);
-  }
+      <div style={{ padding: '0 18px 12px' }}>
+        <DisclosureCard open={showCompare} onToggle={() => setShowCompare(x => !x)} title="答案对比" subtitle={`你的答案 vs 正确答案 · 共 ${r.questions.length} 题`} accent={s.color}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6 }}>
+            {r.questions.map((q, i) => (
+              <div key={i} style={{ background: '#F8FAFC', borderRadius: 14, padding: '12px 14px', border: '1px solid rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ width: 22, height: 22, borderRadius: 7, background: q.correct ? '#9ED1B0' : '#E89A98', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{q.correct ? '✓' : '✕'}</span>
+                  <span style={{ fontSize: 12.5, color: '#8A8B93', fontWeight: 600 }}>第 {i + 1} 题</span>
+                </div>
+                <div style={{ fontSize: 13.5, color: '#0F0F12', lineHeight: 1.5 }}>{q.q}</div>
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <Cell label="你的答案" value={q.yourAnswer} bad={!q.correct} />
+                  <Cell label="正确答案" value={q.correctAnswer} good />
+                </div>
+              </div>))}
+          </div>
+        </DisclosureCard>
+      </div>
+      <div style={{ padding: '0 18px' }}>
+        <DisclosureCard open={expandedQ !== false} onToggle={() => setExpandedQ(expandedQ === false ? null : false)} title="AI 详细解析" subtitle="逐题讲解 · 点击题目展开思路" accent="#0A0A0A" defaultClosed>
+          <div style={{ paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {r.questions.map((q, i) => {
+              const open = expandedQ === i;
+              return (
+                <div key={i} style={{ background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                  <div className="ex-row" onClick={() => setExpandedQ(open ? null : i)} style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: 7, background: q.correct ? '#9ED1B0' : '#E89A98', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flex: 'none' }}>{q.correct ? '✓' : '✕'}</span>
+                    <div style={{ flex: 1, fontSize: 13.5, color: '#0F0F12', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>第 {i + 1} 题：{q.q.slice(0, 18)}…</div>
+                    <div style={{ color: '#9CA0A8', transform: open ? 'rotate(180deg)' : '', transition: 'transform .2s' }}>{Icon.chevDown(16)}</div>
+                  </div>
+                  {open && <div style={{ padding: '4px 14px 14px', borderTop: '1px dashed rgba(0,0,0,0.06)' }}>
+                    <div style={{ fontSize: 11.5, color: '#8A8B93', fontWeight: 600, padding: '8px 0 4px' }}>题目</div>
+                    <div style={{ fontSize: 13, color: '#3A3C45', lineHeight: 1.6 }}>{q.q}</div>
+                    <div style={{ fontSize: 11.5, color: '#8A8B93', fontWeight: 600, padding: '12px 0 4px' }}>解析</div>
+                    <div style={{ fontSize: 13, lineHeight: 1.7, color: '#0F0F12', background: '#FBFCFD', borderRadius: 12, padding: '10px 12px', border: '1px solid rgba(0,0,0,0.04)' }}>{q.explanation}</div>
+                  </div>}
+                </div>);
+            })}
+          </div>
+        </DisclosureCard>
+      </div>
+    </div>);
 }
 
-// ── Export ──
-async function doExport(){
-  try {
-    const res  = await api('/api/export/student/'+SID+'/knowledge-points');
-    const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = SID+'_knowledge.xlsx'; a.click();
-    URL.revokeObjectURL(url);
-    toast('导出成功');
-  } catch(e){ toast('❌ 导出失败', 3000); }
+function Cell({ label, value, good, bad }) {
+  const color = good ? '#1F8A5B' : bad ? '#B85450' : '#0F0F12';
+  const bg = good ? '#EAF6EF' : bad ? '#FBEEEC' : '#fff';
+  return (
+    <div style={{ borderRadius: 11, padding: '8px 10px', background: bg }}>
+      <div style={{ fontSize: 10.5, color: '#8A8B93', fontWeight: 600, letterSpacing: '0.04em' }}>{label}</div>
+      <div style={{ marginTop: 3, fontSize: 13, fontWeight: 600, color, lineHeight: 1.4 }}>{value}</div>
+    </div>);
 }
+
+function DisclosureCard({ open, onToggle, title, subtitle, accent, defaultClosed, children }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 22, border: '1px solid rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+      <div className="ex-row" onClick={onToggle} style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 6, height: 30, borderRadius: 3, background: accent }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#0F0F12' }}>{title}</div>
+          <div style={{ fontSize: 11.5, color: '#8A8B93', marginTop: 2 }}>{subtitle}</div>
+        </div>
+        <div style={{ padding: '6px 10px', borderRadius: 999, background: open ? '#0A0A0A' : '#F2F2F4', color: open ? '#fff' : '#5A5C65', fontSize: 11.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {open ? '收起' : '查看'}
+          <div style={{ transform: open ? 'rotate(180deg)' : '', transition: 'transform .2s' }}>{Icon.chevDown(13)}</div>
+        </div>
+      </div>
+      {open && <div style={{ padding: '0 16px 16px' }}>{children}</div>}
+    </div>);
+}
+
+function DetailScreen({ item, onClose }) {
+  return (
+    <div className={'detail ' + (item ? 'open' : '')}>
+      <div style={{ padding: '56px 14px 12px', display: 'flex', alignItems: 'center', gap: 10, background: '#FBFCFD' }}>
+        <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: '50%', background: '#F2F2F4', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0A0A0A' }}>{Icon.back(20)}</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11.5, color: '#8A8B93', fontWeight: 600 }}>批改结果</div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item?.title || ''}</div>
+        </div>
+      </div>
+      {item && <DetailResult item={item} onClose={onClose} />}
+    </div>);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 弹层 / 上传 / Toast
+// ═══════════════════════════════════════════════════════════
+function SubjectPicker({ open, onClose, onPick }) {
+  return (
+    <>
+      <div className={'sheet-backdrop ' + (open ? 'open' : '')} onClick={onClose} />
+      <div className={'sheet ' + (open ? 'open' : '')}>
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}><div style={{ width: 36, height: 5, borderRadius: 3, background: '#E2E3E8' }} /></div>
+        <div style={{ padding: '14px 22px 4px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>选择科目</div>
+            <div style={{ fontSize: 13, color: '#7A7B83', marginTop: 4 }}>拍照后 AI 将识别题型，给你讲解。</div>
+          </div>
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: '50%', background: '#F2F2F4', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{Icon.close(18)}</button>
+        </div>
+        <div style={{ padding: '14px 18px 28px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {SUBJECTS.map((s, i) => (
+            <button key={s.id} onClick={() => onPick(s)} className="subj-tile" style={{ background: s.color, color: '#fff', border: 'none', cursor: 'pointer', borderRadius: 20, padding: '16px 16px 14px', textAlign: 'left', position: 'relative', overflow: 'hidden', minHeight: 100, boxShadow: `0 10px 20px -10px ${s.color}aa`, animationDelay: i * 40 + 'ms' }}>
+              <div style={{ position: 'absolute', right: -8, bottom: -22, fontWeight: 900, fontSize: 96, color: 'rgba(255,255,255,0.32)', lineHeight: 1, pointerEvents: 'none' }}>{s.short}</div>
+              <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 6 }}>{s.name}</div>
+              <div style={{ marginTop: 6, fontSize: 12, opacity: .9, lineHeight: 1.4 }}>{s.sub}</div>
+            </button>))}
+        </div>
+      </div>
+    </>);
+}
+
+function UploadingOverlay({ subject }) {
+  if (!subject) return null;
+  return (
+    <div className="upload-overlay">
+      <div className="upload-card">
+        <div className="upload-shutter" style={{ background: subject.color }}>
+          <div className="shutter-ring" style={{ borderColor: subject.color }} />
+          <div style={{ fontSize: 30, color: '#fff', fontWeight: 700 }}>{subject.short}</div>
+        </div>
+        <div style={{ marginTop: 18, textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{subject.name} · 拍照识别中</div>
+          <div style={{ fontSize: 12.5, color: '#7A7B83', marginTop: 4 }}>AI 正在分析题目…</div>
+        </div>
+        <div className="upload-bar"><div className="upload-bar-fill" style={{ background: subject.color }} /></div>
+      </div>
+    </div>);
+}
+
+function Toast({ text, subject }) {
+  if (!text) return null;
+  return (
+    <div className="toast">
+      {subject && <div style={{ width: 26, height: 26, borderRadius: 8, background: subject.color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>{subject.short}</div>}
+      <span>{text}</span>
+    </div>);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 主应用
+// ═══════════════════════════════════════════════════════════
+function App() {
+  const [tab,        setTab]        = useState('today');
+  const [history,    setHistory]    = useState([]);      // API 加载
+  const [tasks,      setTasks]      = useState([]);      // API 加载
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [uploading,  setUploading]  = useState(null);
+  const [toast,      setToast]      = useState(null);
+  const [newId,      setNewId]      = useState(null);
+  const [detail,     setDetail]     = useState(null);
+  const listRef      = useRef(null);
+  const fileInputRef = useRef(null);   // 隐藏文件输入
+  const pendingFileRef = useRef(null); // 待上传文件
+
+  // ── 加载今日复习任务 ──────────────────────────────────────
+  useEffect(() => {
+    apiGet('/api/students/' + STUDENT_ID + '/review-tasks')
+      .then(data => {
+        const mapped = (data.tasks || []).map(t => ({
+          id: t.knowledge_point_id,
+          subjectId: SUBJECT_FROM_NAME[t.subject] || 'math',
+          title: t.knowledge_point_name,
+          count: t.recommended_count || 3,
+          done: false,
+          hint: t.reason || ('掌握度 ' + Math.round((t.mastery_score || 0) * 100) + '%'),
+        }));
+        setTasks(mapped.length ? mapped : INITIAL_TASKS);
+      })
+      .catch(() => setTasks(INITIAL_TASKS));
+  }, []);
+
+  // ── 加载历史记录 ──────────────────────────────────────────
+  function refreshHistory() {
+    return apiGet('/api/students/' + STUDENT_ID + '/assignments')
+      .then(data => {
+        const mapped = (data.items || []).map(item => ({
+          id: item.assignment_id,
+          subjectId: item.subject_id || null,
+          title: item.title || '未命名作业',
+          count: item.question_count || 1,
+          time: item.time_display || '刚刚',
+          status: item.status,
+          result: null,
+        }));
+        setHistory(mapped);
+        mapped.filter(it => it.status === 'grading').forEach(it => {
+          startPoll(it.id, subjectMap[it.subjectId] || SUBJECTS[1]);
+        });
+        return mapped;
+      })
+      .catch(() => { setHistory(INITIAL_HISTORY); return []; });
+  }
+  useEffect(() => { refreshHistory(); }, []);
+
+  // ── 轮询批改状态 ──────────────────────────────────────────
+  function startPoll(assignmentId, s) {
+    let tries = 0;
+    async function check() {
+      tries++;
+      if (tries > 36) return;
+      try {
+        const asgn = await apiGet('/api/assignments/' + assignmentId);
+        const st = (asgn.status || '').toLowerCase();
+        if (st === 'ai_done') {
+          try {
+            const gdata = await apiGet('/api/grading/' + assignmentId);
+            const result = mapGradingResult(gdata);
+            const detected = SUBJECT_FROM_NAME[(gdata.grading || {}).subject];
+            setHistory(h => h.map(it =>
+              it.id === assignmentId ? { ...it, status: 'graded', result, subjectId: it.subjectId || detected || 'math' } : it));
+            setToast({ text: (s ? s.name + ' · ' : '') + '已批改完成 · 点击查看', subject: s });
+            setTimeout(() => setToast(null), 2800);
+          } catch (_) {
+            setHistory(h => h.map(it => it.id === assignmentId ? { ...it, status: 'graded' } : it));
+          }
+        } else if (st.includes('fail') || st === 'manual_required') {
+          setHistory(h => h.map(it => it.id === assignmentId ? { ...it, status: 'failed' } : it));
+        } else {
+          setTimeout(check, 5000);
+        }
+      } catch (_) { if (tries < 36) setTimeout(check, 5000); }
+    }
+    setTimeout(check, 5000);
+  }
+
+  // ── 文件选择 → 打开科目选择器 ────────────────────────────
+  function onFileSelected(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    pendingFileRef.current = file;
+    e.target.value = '';
+    setPickerOpen(true);
+  }
+
+  // ── 选好科目 → 上传 + 批改 ───────────────────────────────
+  async function pickSubject(s) {
+    const file = pendingFileRef.current;
+    pendingFileRef.current = null;
+    setPickerOpen(false);
+    if (!file) return;
+    setTimeout(() => setUploading(s), 240);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await apiUpload(fd);
+      const aid = up.assignment_id;
+      try { await apiPost('/api/grading/' + aid + '/start', {}); } catch (_) {}
+      const newItem = {
+        id: aid, subjectId: s.id,
+        title: file.name.replace(/\.[^.]+$/, '') || (s.name + ' 作业'),
+        count: 1, time: '刚刚', status: 'grading', result: null,
+      };
+      setHistory(h => [newItem, ...h]);
+      setNewId(aid);
+      setUploading(null);
+      setTab('history');
+      setToast({ text: s.name + ' · 已上传，AI 正在批改', subject: s });
+      setTimeout(() => setToast(null), 2200);
+      setTimeout(() => setNewId(null), 1400);
+      if (listRef.current) listRef.current.scrollTop = 0;
+      startPoll(aid, s);
+    } catch (_) {
+      setUploading(null);
+      setToast({ text: '上传失败，请重试', subject: null });
+      setTimeout(() => setToast(null), 2200);
+    }
+  }
+
+  function askQuestion(text) {
+    setToast({ text: `已发送：${text.length > 16 ? text.slice(0, 16) + '…' : text}`, subject: null });
+    setTimeout(() => setToast(null), 1800);
+  }
+
+  function toggleTask(id) {
+    setTasks(ts => ts.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  }
+
+  // ── 打开详情（懒加载） ────────────────────────────────────
+  async function openResult(item) {
+    if (item.status === 'grading') return;
+    if (item.result) { setDetail(item); return; }
+    try {
+      const data = await apiGet('/api/grading/' + item.id);
+      const result = mapGradingResult(data);
+      const updated = { ...item, result };
+      setHistory(h => h.map(it => it.id === item.id ? updated : it));
+      setDetail(updated);
+    } catch (_) { setDetail(item); }
+  }
+
+  return (
+    <div style={{ width: '100%', height: '100%', background: 'linear-gradient(180deg,#FBFCFD 0%,#F5F8FB 100%)', display: 'flex', flexDirection: 'column', paddingTop: 56, position: 'relative', overflow: 'hidden' }}>
+      <BrandHeader subtitle={
+        tab === 'today'   ? '错题智能复习 · 每日一练' :
+        tab === 'library' ? '物理 · 知识图谱' :
+        '所有拍照批改记录'} />
+
+      {tab === 'today'   && <TodayPage tasks={tasks} onToggle={toggleTask} />}
+      {tab === 'library' && <PhysicsGraphPage />}
+      {tab === 'history' && <HistoryPage history={history} newId={newId} listRef={listRef} onOpenResult={openResult} />}
+
+      <BottomDock onCamera={() => fileInputRef.current && fileInputRef.current.click()} onAsk={askQuestion} />
+      <TabBar value={tab} onChange={setTab} />
+
+      {/* 隐藏文件输入（拍照/相册） */}
+      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFileSelected} />
+
+      <SubjectPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={pickSubject} />
+      <UploadingOverlay subject={uploading} />
+      <Toast text={toast?.text} subject={toast?.subject} />
+      <DetailScreen item={detail} onClose={() => setDetail(null)} />
+    </div>);
+}
+
+function Mounted() {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: '#EEF2F7' }}>
+      <IOSFrame width={402} height={874}><App /></IOSFrame>
+    </div>);
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Mounted />);
 </script>
 </body>
 </html>

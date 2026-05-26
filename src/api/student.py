@@ -5,7 +5,7 @@
 student_id 通过鉴权依赖注入，不接受调用方直接传入（IDOR 防护）。
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,12 +15,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import Pagination, check_ownership, get_current_student_id
 from src.db.session import get_db
+from src.models.assignment import Assignment, AssignmentStatus
+from src.models.grading import AssignmentAnalysis, GradingResult
 from src.models.knowledge_point import KnowledgePoint
 from src.models.student_profile import StudentKnowledgeProfile
 
 router = APIRouter(prefix="/api/students", tags=["students"])
 
 MASTERY_WEAK_THRESHOLD = 0.6
+
+# 中文科目名 → 前端 subjectId
+SUBJECT_FROM_CHINESE: dict[str, str] = {
+    "物理": "phys", "数学": "math", "语文": "cn",
+    "英语": "en", "化学": "chem", "生物": "bio",
+}
+
+# 这些状态表示批改仍在进行中
+GRADING_IN_PROGRESS: frozenset[str] = frozenset({
+    AssignmentStatus.UPLOADED, AssignmentStatus.OCR_QUEUED,
+    AssignmentStatus.OCR_RUNNING, AssignmentStatus.OCR_DONE,
+    AssignmentStatus.AI_QUEUED, AssignmentStatus.AI_RUNNING,
+})
 
 
 # ─── Response Models ────────────────────────────────────────────────────────
@@ -66,9 +81,65 @@ class ProgressResponse(BaseModel):
     priority_low_count: int
 
 
+class AssignmentSummary(BaseModel):
+    assignment_id: str
+    status: str              # grading | graded | failed
+    created_at: str          # ISO 8601 时间戳
+    time_display: str        # 人性化相对时间，如"刚刚"、"3 分钟前"
+    subject_id: Optional[str]   # 前端科目 ID（phys / math / …）
+    title: str               # 作业标题（原始文件名去扩展名）
+    question_count: int      # 题目数量
+    verdict: Optional[str]   # correct | partial | wrong
+    score: Optional[float]
+    total_score: Optional[float]
+
+
+class AssignmentListResponse(BaseModel):
+    student_id: str
+    total: int
+    items: list[AssignmentSummary]
+
+
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 
+
+
+def _time_display(created_at: datetime) -> str:
+    """将 created_at 转换为中文相对时间字符串。"""
+    now = datetime.now(timezone.utc)
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    delta = now - created_at
+    minutes = int(delta.total_seconds() / 60)
+    if minutes < 1:
+        return "刚刚"
+    if minutes < 60:
+        return f"{minutes} 分钟前"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours} 小时前"
+    days = hours // 24
+    if days == 1:
+        return "昨天"
+    return f"{days} 天前"
+
+
+def _derive_verdict(
+    is_correct: Optional[bool],
+    score: object,
+    max_score: object,
+) -> Optional[str]:
+    """根据批改结果推导 verdict（correct / partial / wrong）。"""
+    if is_correct is None:
+        return None
+    if is_correct:
+        return "correct"
+    try:
+        ratio = float(score) / float(max_score) if max_score else 0.0
+    except (TypeError, ZeroDivisionError):
+        ratio = 0.0
+    return "partial" if ratio > 0 else "wrong"
 
 
 def _to_summary(profile: StudentKnowledgeProfile, kp: KnowledgePoint) -> KnowledgePointSummary:
@@ -219,4 +290,88 @@ async def get_student_progress(
         priority_high_count=priority_high_count,
         priority_medium_count=priority_medium_count,
         priority_low_count=priority_low_count,
+    )
+
+
+@router.get("/{student_id}/assignments", response_model=AssignmentListResponse)
+async def list_student_assignments(
+    student_id: str,
+    limit: int = 50,
+    current_student_id: str = Depends(get_current_student_id),
+    db: AsyncSession = Depends(get_db),
+) -> AssignmentListResponse:
+    """获取学生历史作业列表，含批改状态和摘要。
+
+    LEFT JOIN assignment_analyses 和 grading_results，按上传时间倒序返回。
+    """
+    await check_ownership(student_id, current_student_id)
+
+    stmt = (
+        select(Assignment, AssignmentAnalysis, GradingResult)
+        .outerjoin(AssignmentAnalysis, Assignment.id == AssignmentAnalysis.assignment_id)
+        .outerjoin(GradingResult, Assignment.id == GradingResult.assignment_id)
+        .where(Assignment.student_id == student_id)
+        .order_by(Assignment.created_at.desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+
+    items: list[AssignmentSummary] = []
+    for assignment, analysis, grading in rows:
+        # 映射前端状态
+        asgn_status: str = assignment.status
+        if asgn_status == AssignmentStatus.AI_DONE:
+            fe_status = "graded"
+        elif asgn_status in GRADING_IN_PROGRESS:
+            fe_status = "grading"
+        else:
+            fe_status = "failed"
+
+        # 科目映射
+        subject_id: Optional[str] = None
+        if analysis and analysis.detected_subject:
+            subject_id = SUBJECT_FROM_CHINESE.get(analysis.detected_subject)
+
+        # 标题：去除文件扩展名
+        title: str = assignment.original_filename
+        if "." in title:
+            title = title.rsplit(".", 1)[0]
+
+        # 题目数量：从 question_struct 推断
+        question_count = 1
+        if analysis and analysis.question_struct:
+            qs = analysis.question_struct
+            if isinstance(qs, dict):
+                questions_list = qs.get("questions", [])
+                if isinstance(questions_list, list) and questions_list:
+                    question_count = len(questions_list)
+
+        # 判题结果
+        verdict: Optional[str] = None
+        score: Optional[float] = None
+        total_score: Optional[float] = None
+        if grading:
+            verdict = _derive_verdict(grading.is_correct, grading.score, grading.max_score)
+            score = float(grading.score) if grading.score is not None else None
+            total_score = float(grading.max_score) if grading.max_score is not None else 1.0
+
+        items.append(
+            AssignmentSummary(
+                assignment_id=str(assignment.id),
+                status=fe_status,
+                created_at=assignment.created_at.isoformat(),
+                time_display=_time_display(assignment.created_at),
+                subject_id=subject_id,
+                title=title,
+                question_count=question_count,
+                verdict=verdict,
+                score=score,
+                total_score=total_score,
+            )
+        )
+
+    return AssignmentListResponse(
+        student_id=student_id,
+        total=len(items),
+        items=items,
     )
