@@ -31,7 +31,7 @@ from src.schemas.ai_grading import (
 from src.services.mastery_service import calc_mastery
 
 
-MIN_IMAGE_BYTES = 80 * 1024
+MIN_IMAGE_BYTES = 5 * 1024  # 只拦截空文件/损坏文件，手机截图可能远小于原来的 80KB
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MIN_LONG_EDGE = 200
 CALL1_TIMEOUT_SECONDS = 120

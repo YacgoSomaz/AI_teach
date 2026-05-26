@@ -325,11 +325,11 @@ const HISTORY = [];
 
 // 流式过程文本
 const STREAM_LINES = [
-'看到了一条入射光线 AO 从空气射向水面，标注角度是 30°。',
-'题目说的是"与水面的夹角"，注意：这不是入射角。',
-'入射角是入射光线与法线（垂直水面的虚线）之间的夹角。',
-'所以入射角 = 90° − 30° = 60°。',
-'根据光的反射定律，反射角等于入射角 = 60°。'];
+'正在识别题目类型和考察方向…',
+'分析题目条件和已知量…',
+'对比学生作答与标准解法…',
+'定位错误原因，归纳知识点…',
+'生成解析和复习建议…'];
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -778,7 +778,13 @@ function ReviewPage({ tasks, onToggle }) {
 
       <SectionLabel title="复习任务" action={`${done} / ${total}`} />
       <div style={{ padding: '0 22px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {tasks.map((t) => <TaskRow key={t.id} task={t} onToggle={onToggle} />)}
+        {tasks.length === 0
+          ? <div style={{ textAlign: 'center', padding: '40px 0', color: '#8A8B93', fontSize: 13 }}>
+              暂无复习任务<br />
+              <span style={{ fontSize: 12, opacity: 0.7 }}>拍题批改后自动生成</span>
+            </div>
+          : tasks.map((t) => <TaskRow key={t.id} task={t} onToggle={onToggle} />)
+        }
       </div>
 
       <div style={{
@@ -999,11 +1005,15 @@ function Ring({ pct, color, size = 56, small = false }) {
 function HistoryPage({ items, onOpen }) {
   return (
     <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 14px' }}>
-      <SectionLabel title={`批改记录 · 共 ${items.length} 条`} action="筛选" />
+      <SectionLabel title={`批改记录 · 共 ${items.length} 条`} />
       <div style={{ padding: '0 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {items.map((item) =>
-        <HistoryRow key={item.id} item={item} onClick={onOpen} />
-        )}
+        {items.length === 0
+          ? <div style={{ textAlign: 'center', padding: '40px 0', color: '#8A8B93', fontSize: 13 }}>
+              还没有批改记录<br />
+              <span style={{ fontSize: 12, opacity: 0.7 }}>拍一道题开始吧</span>
+            </div>
+          : items.map((item) => <HistoryRow key={item.id} item={item} onClick={onOpen} />)
+        }
       </div>
     </div>);
 
@@ -1011,12 +1021,17 @@ function HistoryPage({ items, onOpen }) {
 
 function HistoryRow({ item, onClick }) {
   const lv = VERDICT[item.verdict];
+  const initial = (item.chapter || item.title || '题')[0];
   return (
     <div onClick={() => onClick(item)} className="card row-press" style={{
       padding: '12px 14px',
       display: 'grid', gridTemplateColumns: '56px 1fr 18px', alignItems: 'center', gap: 12
     }}>
-      <QuestionThumb size={56} />
+      <div style={{
+        width: 56, height: 56, borderRadius: 14, background: '#F2F4F7',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 20, fontWeight: 700, color: '#15161B', flex: 'none'
+      }}>{initial}</div>
       <div style={{ minWidth: 0 }}>
         <div style={{
           fontSize: 14, fontWeight: 600, color: '#15161B',
@@ -1045,10 +1060,10 @@ function HistoryRow({ item, onClick }) {
 // ═══════════════════════════════════════════════════════════════
 const PIPELINE = [
 { id: 'enhance', title: '图片优化', detail: '压缩 · 增强对比度 · 保留题干细节', dur: 1500 },
-{ id: 'recognize', title: '识别题目', detail: '八年级 · 光现象 · 反射定律 · 作图题', dur: 1900 },
+{ id: 'recognize', title: '识别题目', detail: 'OCR 提取文字 · 解析题型结构', dur: 1900 },
 { id: 'solve', title: 'AI 老师正在分析', streaming: true, dur: 7800 },
-{ id: 'compare', title: '比对学生作答', detail: '识别手写答案 · 判断每一步是否正确', dur: 1900 },
-{ id: 'match', title: '匹配知识点', detail: '光的反射定律 · 入射角的定义', dur: 1500 }];
+{ id: 'compare', title: '比对学生作答', detail: '识别作答内容 · 逐步判断正误', dur: 1900 },
+{ id: 'match', title: '匹配知识点', detail: '关联课标知识点 · 更新掌握度', dur: 1500 }];
 
 
 function GradingScreen({ onDone, onClose, title, previewUrl }) {
@@ -1558,8 +1573,16 @@ function App() {
             setGradingResult(result);
             setGrading('result');
           }
-        } else if (st.includes('fail') || st === 'manual_required') {
-          showToast('批改失败，请重试');
+        } else if (st === 'manual_required') {
+          const reason = asgn.processing_status?.grading?.reason || '';
+          const msg = reason === 'image_too_small' ? '图片太小，请拍清晰一点再试'
+            : reason === 'image_dimension_too_small' ? '图片分辨率太低，请靠近拍摄'
+            : reason === 'unsupported_file_type' ? '不支持该图片格式'
+            : '题目暂不支持 AI 批改';
+          showToast(msg);
+          setGrading(null);
+        } else if (st.includes('fail')) {
+          showToast('批改出错，请重试');
           setGrading(null);
         } else {
           setTimeout(check, 5000);
