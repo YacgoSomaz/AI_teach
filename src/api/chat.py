@@ -1,15 +1,17 @@
 """学生追问聊天接口
 
 POST /api/chat/{assignment_id}
-- 基于已批改作业的上下文，用豆包 AI 回答学生追问
-- 无 assignment_id 时（纯闲聊）也可调用，传 "general"
+- 把题目图片 + OCR 文本 + 批改结果一起传给豆包视觉模型
+- 流式 SSE 输出
 """
 
 from __future__ import annotations
 
-import logging
-
+import base64
 import json
+import logging
+from pathlib import Path
+from uuid import UUID
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -29,16 +31,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-SYSTEM_PROMPT = """你是一位专业的初中物理 AI 家教老师，风格亲切、耐心，善于用生活化的比喻帮学生理解物理概念。
+SYSTEM_PROMPT = """你是一位专业的初中物理 AI 家教老师，风格亲切、耐心。
 
 你的职责：
-1. 根据学生上传的题目和批改结果，解答学生的追问
-2. 引导学生理解错误原因，而不是直接给答案
-3. 适时鼓励学生，帮助建立学习自信
-4. 回复简洁，控制在 150 字以内，必要时可以适当延长
+1. 根据学生上传的题目图片和批改结果，解答学生的追问
+2. 如果看到了题目图片，直接基于图片内容回答，不要说"我没看到题目"
+3. 引导学生理解错误原因，而不是直接给答案
+4. 回复简洁，控制在 200 字以内
 
 注意：
-- 如果学生问与题目无关的事，简短回答后引导回学习
 - 不要透露你是哪家公司的模型，只说"我是你的 AI 物理老师"
 - 使用中文回复"""
 
@@ -47,62 +48,57 @@ class ChatRequest(BaseModel):
     message: str
 
 
-class ChatResponse(BaseModel):
-    reply: str
-
-
-@router.post("/{assignment_id}", response_model=ChatResponse)
+@router.post("/{assignment_id}")
 async def chat_with_ai(
     assignment_id: str,
     body: ChatRequest,
     current_student_id: str = Depends(get_current_student_id),
     db: AsyncSession = Depends(get_db),
-) -> ChatResponse:
-    """基于作业上下文的 AI 追问接口"""
+) -> StreamingResponse:
+    """基于作业上下文 + 题目图片的流式 AI 追问接口"""
 
     if not body.message.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="消息不能为空",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="消息不能为空")
 
-    # 构建上下文（general 时跳过）
+    # ── 构建消息内容 ──────────────────────────────────────────
+    # user_parts: 支持多模态（文字 + 图片）
+    user_parts: list[dict] = []
     context_lines: list[str] = []
+    image_b64: str | None = None
+    image_mime: str = "image/jpeg"
 
     if assignment_id != "general":
         try:
-            from uuid import UUID
             aid_uuid = UUID(assignment_id)
         except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="无效的 assignment_id",
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的 assignment_id")
 
-        asgn_res = await db.execute(
-            select(Assignment).where(Assignment.id == aid_uuid)
-        )
+        asgn_res = await db.execute(select(Assignment).where(Assignment.id == aid_uuid))
         assignment = asgn_res.scalar_one_or_none()
         if not assignment or assignment.student_id != current_student_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="作业不存在",
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="作业不存在")
+
+        # 读取原始图片 → base64
+        storage_url = assignment.storage_url or ""
+        file_path = storage_url.removeprefix("file://")
+        if file_path and Path(file_path).is_file():
+            try:
+                image_bytes = Path(file_path).read_bytes()
+                image_b64 = base64.b64encode(image_bytes).decode()
+                image_mime = assignment.mime_type or "image/jpeg"
+            except Exception as e:
+                logger.warning(f"读取图片失败: {e}")
 
         # OCR 文本
         ocr_res = await db.execute(
-            select(OCRTask)
-            .where(OCRTask.assignment_id == aid_uuid)
-            .order_by(OCRTask.created_at.desc())
+            select(OCRTask).where(OCRTask.assignment_id == aid_uuid).order_by(OCRTask.created_at.desc())
         )
         ocr = ocr_res.scalar_one_or_none()
         if ocr and ocr.raw_text:
-            context_lines.append(f"【题目原文】\n{ocr.raw_text[:800]}")
+            context_lines.append(f"【OCR 识别文字】\n{ocr.raw_text[:600]}")
 
         # 批改结果
-        grading_res = await db.execute(
-            select(GradingResult).where(GradingResult.assignment_id == aid_uuid)
-        )
+        grading_res = await db.execute(select(GradingResult).where(GradingResult.assignment_id == aid_uuid))
         grading = grading_res.scalar_one_or_none()
         if grading:
             parts = []
@@ -117,37 +113,41 @@ async def chat_with_ai(
             if parts:
                 context_lines.append("【批改结果】\n" + "\n".join(parts))
 
-        # AI 分析
+        # AI 分析结果
         analysis_res = await db.execute(
             select(AssignmentAnalysis).where(AssignmentAnalysis.assignment_id == aid_uuid)
         )
         analysis = analysis_res.scalar_one_or_none()
         if analysis and analysis.detected_subject:
-            context_lines.append(f"【学科/题型】{analysis.detected_subject}")
+            context_lines.append(f"【学科】{analysis.detected_subject}")
 
-    context_block = "\n\n".join(context_lines)
-    user_content = (
-        f"{context_block}\n\n学生追问：{body.message.strip()}"
-        if context_block
-        else body.message.strip()
-    )
+    # ── 组装多模态消息 ───────────────────────────────────────
+    text_parts: list[str] = []
+    if context_lines:
+        text_parts.append("\n\n".join(context_lines))
+    text_parts.append(f"学生追问：{body.message.strip()}")
 
-    # 调用豆包 Seed
+    user_parts.append({"type": "text", "text": "\n\n".join(text_parts)})
+
+    if image_b64:
+        user_parts.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{image_mime};base64,{image_b64}"},
+        })
+
+    # ── 调用豆包视觉模型（流式）──────────────────────────────
     try:
         settings.validate_required_for_ai()
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(e),
-        )
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
     payload = {
         "model": settings.doubao_seed_model,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
+            {"role": "user", "content": user_parts},
         ],
-        "max_tokens": 400,
+        "max_tokens": 500,
         "temperature": 0.7,
         "stream": True,
     }

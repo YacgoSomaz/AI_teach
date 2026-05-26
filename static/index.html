@@ -118,6 +118,11 @@
   }
   .fade-up { animation: fadeUp .35s cubic-bezier(.2,.7,.2,1) both; }
 
+  @keyframes flashIn {
+    from { opacity: 0; transform: translateY(6px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
   /* chapter card hover indicator */
   .ch-card { transition: transform .12s; cursor: pointer; }
   .ch-card:active { transform: scale(0.99); }
@@ -318,6 +323,45 @@ const CHAPTERS = [
 
 
 // 复习任务初始为空，由 API 加载
+const PHYS_NODES = [
+  { id: 'p0', name: '物理', x: 180, y: 270, r: 38, isSubject: true },
+  { id: 'c1', name: '机械运动', x: 100, y: 200, r: 25, mastery: 86, total: 12, wrong: 2, recent: ['速度单位换算', '平均速度测量', '路程时间图像'] },
+  { id: 'c2', name: '声现象', x: 70, y: 95, r: 22, mastery: 78, total: 10, wrong: 3, recent: ['音调响度区分', '声音传播介质'] },
+  { id: 'c3', name: '物态变化', x: 55, y: 320, r: 22, mastery: 71, total: 11, wrong: 5, recent: ['熔化凝固图像', '汽化液化判断'] },
+  { id: 'c4', name: '光现象', x: 135, y: 430, r: 24, mastery: 58, total: 14, wrong: 8, recent: ['反射角判断', '平面镜成像作图'] },
+  { id: 'c5', name: '透镜应用', x: 215, y: 130, r: 24, mastery: 64, total: 13, wrong: 6, recent: ['凸透镜成像规律', '照相机投影仪应用'] },
+  { id: 'c6', name: '质量密度', x: 305, y: 65, r: 22, mastery: 81, total: 12, wrong: 3, recent: ['密度公式计算', '量筒读数'] },
+  { id: 'c7', name: '力', x: 320, y: 170, r: 22, mastery: 69, total: 9, wrong: 5, recent: ['力的示意图', '重力方向判断'] },
+  { id: 'c8', name: '运动和力', x: 330, y: 265, r: 22, mastery: 62, total: 12, wrong: 6, recent: ['惯性现象解释', '二力平衡判断'] },
+  { id: 'c9', name: '压强', x: 295, y: 365, r: 22, mastery: 55, total: 13, wrong: 7, recent: ['固体压强计算', '液体压强比较'] },
+  { id: 'c10', name: '浮力', x: 215, y: 445, r: 24, mastery: 48, total: 12, wrong: 9, recent: ['阿基米德原理', '浮沉条件判断'] },
+];
+
+const PHYS_EDGES = [
+  ['p0', 'c1', 'primary'],
+  ['p0', 'c4', 'primary'],
+  ['p0', 'c7', 'primary'],
+  ['p0', 'c9', 'primary'],
+  ['p0', 'c10', 'primary'],
+  ['c1', 'c8', 'solid'],
+  ['c2', 'c4', 'dashed'],
+  ['c3', 'c6', 'solid'],
+  ['c4', 'c5', 'solid'],
+  ['c7', 'c8', 'solid'],
+  ['c7', 'c9', 'dashed'],
+  ['c9', 'c10', 'solid'],
+  ['c10', 'c6', 'dashed'],
+  ['c8', 'c9', 'dashed'],
+  ['c5', 'c4', 'solid'],
+  ['c1', 'c3', 'dashed'],
+];
+
+function masteryLevel(m) {
+  if (m < 60) return { label: '待加强', color: '#E89A98', soft: '#FBEEEC' };
+  if (m < 80) return { label: '掌握中', color: '#EFB888', soft: '#FBEFE0' };
+  return { label: '已掌握', color: '#9ED1B0', soft: '#E8F4ED' };
+}
+
 const TODAY_TASKS = [];
 
 // 历史记录初始为空，由 API 加载
@@ -483,7 +527,7 @@ function QuestionThumb({ size = 64 }) {
 // ═══════════════════════════════════════════════════════════════
 // Page · 首页 (拍题) —— 空白聊天窗 + 底部聊天框
 // ═══════════════════════════════════════════════════════════════
-function HomePage({ onCamera, messages, onSend }) {
+function HomePage({ onCamera, messages, onSend, onViewResult }) {
   const hasMessages = messages && messages.length > 0;
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -515,7 +559,7 @@ function HomePage({ onCamera, messages, onSend }) {
       }}>
         {hasMessages ?
         <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8 }}>
-            {messages.map((m, i) => <ChatMessage key={i} msg={m} />)}
+            {messages.map((m, i) => <ChatMessage key={i} msg={m} onViewResult={onViewResult} />)}
           </div> :
 
         <EmptyTutorial />
@@ -577,7 +621,7 @@ function EmptyTutorial() {
 
 }
 
-function ChatMessage({ msg }) {
+function ChatMessage({ msg, onViewResult }) {
   if (msg.type === 'photo') {
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -594,7 +638,13 @@ function ChatMessage({ msg }) {
           <div style={{ fontSize: 11.5, opacity: 0.7, padding: '0 2px' }}>{msg.caption || '已发送题目'}</div>
         </div>
       </div>);
-
+  }
+  if (msg.type === 'grading') {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+        <InlinePipelineCard msg={msg} onViewResult={onViewResult} />
+      </div>
+    );
   }
   return (
     <div style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -610,7 +660,6 @@ function ChatMessage({ msg }) {
         {msg.text}
       </div>
     </div>);
-
 }
 
 function ChatInputBar({ onCamera, onSend, placeholder = '拍题或追问这道题…' }) {
@@ -804,196 +853,289 @@ function ReviewPage({ tasks, onToggle }) {
 
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Page · 知识库（人教版八年级章节地图）
-// ═══════════════════════════════════════════════════════════════
-function LibraryPage({ onOpenChapter }) {
-  const [tab, setTab] = useState('上');
-  const list = CHAPTERS.filter((c) => c.vol === tab);
+// ═══════════════════════════════════════════════════════════
+// Page 2 — 知识库（物理 · 知识图谱）
+//   静态布局 by us；节点不可拖拽，不互动模拟；只做轻微漂浮动效 + 点击高亮
+// ═══════════════════════════════════════════════════════════
+function PhysicsGraphPage() {
+  const [sel, setSel] = useState(null);
+  const svgRef = useRef(null);
+  const nodesById = useMemo(() => Object.fromEntries(PHYS_NODES.map(n => [n.id, n])), []);
+
+  // 计算高亮的节点集合（选中 + 与之相连）
+  const relatedIds = useMemo(() => {
+    if (!sel) return null;
+    const ids = new Set([sel]);
+    PHYS_EDGES.forEach(([a, b]) => {
+      if (a === sel) ids.add(b);
+      if (b === sel) ids.add(a);
+    });
+    return ids;
+  }, [sel]);
+
+  // rAF 漂浮：直接 DOM 改 transform / line 端点，不触发 React 重渲染
+  useEffect(() => {
+    let raf;
+    const start = performance.now();
+    function tick(now) {
+      const t = (now - start) / 1000;
+      const svg = svgRef.current;
+      if (!svg) return;
+      const offsets = {};
+      PHYS_NODES.forEach((n, i) => {
+        const dx = Math.sin(t * 0.45 + i * 0.7) * 1.0;
+        const dy = Math.cos(t * 0.38 + i * 1.1) * 1.0;
+        offsets[n.id] = [dx, dy];
+        const g = svg.querySelector(`[data-nid="${n.id}"]`);
+        // 用 CSS transform（GPU 合成）代替 SVG transform 属性，不重新光栅化 text
+        if (g) g.style.transform = `translate(${(n.x + dx).toFixed(2)}px, ${(n.y + dy).toFixed(2)}px)`;
+      });
+      PHYS_EDGES.forEach(([a, b], i) => {
+        const ln = svg.querySelector(`[data-eid="${i}"]`);
+        if (!ln) return;
+        const A = nodesById[a], B = nodesById[b];
+        const [adx, ady] = offsets[a];
+        const [bdx, bdy] = offsets[b];
+        ln.setAttribute('x1', A.x + adx);
+        ln.setAttribute('y1', A.y + ady);
+        ln.setAttribute('x2', B.x + bdx);
+        ln.setAttribute('y2', B.y + bdy);
+      });
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [nodesById]);
+
+  const PHYS_COLOR = '#8DCED4';
+  const totalKp = PHYS_NODES.length - 1;
 
   return (
-    <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 14px' }}>
-      {/* 教材分册 tab */}
-      <div style={{ padding: '0 22px 10px', display: 'flex', gap: 8 }}>
-        {['上', '下'].map((v) => {
-          const active = tab === v;
-          return (
-            <button key={v} onClick={() => setTab(v)} style={{
-              padding: '7px 14px', borderRadius: 999,
-              background: active ? '#15161B' : '#fff',
-              color: active ? '#fff' : '#5A5C65',
-              border: '1px solid ' + (active ? '#15161B' : '#ECEFF3'),
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              fontFamily: 'inherit'
-            }}>八年级  物理（{v}册）</button>);
-
-        })}
+    <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 8px' }}>
+      {/* 顶部 chip 行 */}
+      <div style={{ padding: '0 22px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{
+          padding: '4px 11px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+          background: PHYS_COLOR, color: '#fff',
+        }}>物理</div>
+        <div style={{ fontSize: 12.5, color: '#8A8B93' }}>
+          {totalKp} 个知识点 · {PHYS_EDGES.length} 条关联
+        </div>
+        <div style={{ marginLeft: 'auto', fontSize: 11.5, color: '#9CA0A8' }}>
+          点击节点查看详情
+        </div>
       </div>
 
-      <SectionLabel title="章节掌握地图" action="按掌握度排序" />
-      <div style={{ padding: '0 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {[...list].sort((a, b) => a.mastery - b.mastery).map((ch, i) =>
-        <ChapterCard key={ch.id} ch={ch} idx={i + 1} onClick={() => onOpenChapter(ch)} />
+      {/* SVG 图谱画布 */}
+      <div style={{
+        position: 'relative', margin: '0 12px',
+        borderRadius: 24, overflow: 'hidden',
+        background: 'radial-gradient(circle at 50% 38%, #F3FAFB 0%, #FBFCFD 65%)',
+        border: '1px solid rgba(141,206,212,0.22)',
+      }}>
+        {/* 网点背景 */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          backgroundImage: 'radial-gradient(rgba(141,206,212,0.22) 1px, transparent 1px)',
+          backgroundSize: '14px 14px',
+          opacity: 0.6,
+        }} />
+
+        <svg ref={svgRef}
+          viewBox="0 0 360 520"
+          width="100%"
+          style={{ display: 'block', height: 'auto', position: 'relative' }}
+          onClick={() => setSel(null)}>
+
+          {/* Edges */}
+          {PHYS_EDGES.map(([a, b, kind], i) => {
+            const A = nodesById[a], B = nodesById[b];
+            const inHL = !relatedIds || (relatedIds.has(a) && relatedIds.has(b));
+            return (
+              <line key={i} data-eid={i}
+                x1={A.x} y1={A.y} x2={B.x} y2={B.y}
+                stroke={inHL && relatedIds ? '#6B7280' : '#C5CBD3'}
+                strokeWidth={kind === 'primary' ? 1.4 : 1.05}
+                strokeDasharray={kind === 'dashed' ? '3 4' : null}
+                strokeLinecap="round"
+                opacity={relatedIds ? (inHL ? 0.9 : 0.12) : (kind === 'primary' ? 0.6 : kind === 'dashed' ? 0.45 : 0.5)}
+                style={{ transition: 'opacity .3s, stroke .3s' }}
+              />
+            );
+          })}
+
+          {/* Nodes */}
+          {PHYS_NODES.map(n => {
+            const isSel = sel === n.id;
+            const dim = relatedIds && !relatedIds.has(n.id);
+            const lvl = n.isSubject ? null : masteryLevel(n.mastery);
+            const labelLines = n.isSubject ? [n.name] : splitLabel(n.name);
+
+            return (
+              <g key={n.id} data-nid={n.id}
+                style={{
+                  cursor: 'pointer',
+                  opacity: dim ? 0.28 : 1,
+                  transition: 'opacity .3s',
+                  transform: `translate(${n.x}px, ${n.y}px)`,
+                  willChange: 'transform',
+                }}
+                onClick={(e) => { e.stopPropagation(); setSel(isSel ? null : n.id); }}>
+                {/* halo */}
+                {isSel && <circle r={n.r + 10} fill={n.isSubject ? PHYS_COLOR : lvl.color} opacity="0.18" />}
+
+                {n.isSubject ? (
+                  <>
+                    <circle r={n.r} fill={PHYS_COLOR} />
+                    <circle r={n.r - 4} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+                    <text textAnchor="middle" dy="6" fontSize="17" fontWeight="500" fill="#fff"
+                      style={{ fontFamily: 'inherit', letterSpacing: '.04em' }}>{n.name}</text>
+                  </>
+                ) : (
+                  <>
+                    {/* outer ring */}
+                    <circle r={n.r} fill="#fff"
+                      stroke={isSel ? lvl.color : 'rgba(141,206,212,0.6)'}
+                      strokeWidth={isSel ? 2.5 : 1.4} />
+                    {/* mastery arc */}
+                    <MasteryArc r={n.r - 2} pct={n.mastery} color={lvl.color} />
+                    {/* mastery dot top-right */}
+                    <circle cx={n.r - 5} cy={-n.r + 5} r="4.5" fill={lvl.color}
+                      stroke="#fff" strokeWidth="1.5" />
+                    {/* label inside */}
+                    {labelLines.map((line, li) => (
+                      <text key={li} textAnchor="middle"
+                        dy={labelLines.length === 1 ? 4 : (li === 0 ? -2 : 11)}
+                        fontSize={labelLines.length === 1 ? 11 : 10}
+                        fontWeight="500" fill="#2A2D33"
+                        style={{ fontFamily: 'inherit' }}>{line}</text>
+                    ))}
+                  </>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* 底部说明 / 节点详情 */}
+      <div style={{ padding: '12px 18px 0' }}>
+        {sel && sel !== 'p0' ? (
+          <NodeDetail node={nodesById[sel]} onClose={() => setSel(null)} />
+        ) : (
+          <div style={{
+            padding: '11px 14px', borderRadius: 16,
+            background: '#FBFCFD', border: '1px dashed rgba(0,0,0,0.08)',
+            display: 'flex', alignItems: 'center', gap: 10,
+            color: '#7A7B83', fontSize: 12.5, lineHeight: 1.5,
+          }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 9,
+              background: PHYS_COLOR, color: '#fff', flex: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>{Ic.spark(14)}</div>
+            <div>
+              <div style={{ fontWeight: 600, color: '#3A3C45' }}>
+                {sel === 'p0' ? '物理 · 八年级知识图谱' : '物理 · 知识图谱'}
+              </div>
+              <div>实线 = 直接依赖 · 虚线 = 跨章联系 · 圆点颜色 = 掌握度</div>
+            </div>
+          </div>
         )}
       </div>
     </div>);
 
 }
 
-function ChapterCard({ ch, idx, onClick }) {
-  // mastery → color band
-  const band = ch.mastery < 60 ? { c: '#C04A4A', bg: '#FCE9E9', label: '待加强' } :
-  ch.mastery < 80 ? { c: '#B8771F', bg: '#FBF1DD', label: '掌握中' } :
-  { c: '#1F8A5B', bg: '#E6F4ED', label: '已掌握' };
-
-  return (
-    <div onClick={onClick} className="card ch-card" style={{ padding: '14px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: 12,
-          background: band.bg, color: band.c,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 700, fontSize: 15, flex: 'none'
-        }}>{String(idx).padStart(2, '0')}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15.5, fontWeight: 700, letterSpacing: '-0.005em' }}>{ch.name}</div>
-          <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: '#8A8B93' }}>
-            <Pill color={band.c} bg={band.bg}>{band.label} {ch.mastery}%</Pill>
-            <span>{ch.last}</span>
-          </div>
-        </div>
-        <div style={{ color: '#B5B8BF' }}>{Ic.chev(16)}</div>
-      </div>
-      {/* mastery bar */}
-      <div style={{
-        marginTop: 10, height: 4, borderRadius: 2,
-        background: '#F2F3F6', overflow: 'hidden'
-      }}>
-        <div style={{
-          width: ch.mastery + '%', height: '100%', borderRadius: 2,
-          background: band.c, opacity: 0.85,
-          transition: 'width .5s cubic-bezier(.2,.7,.2,1)'
-        }} />
-      </div>
-      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: '#6E727B' }}>
-        <span style={{ color: '#B5B8BF' }}>常见错因:</span>
-        <span style={{ color: '#15161B', fontWeight: 500 }}>{ch.mistake}</span>
-      </div>
-    </div>);
-
+// 把知识点名拆成最多两行（便于塞进小圆里）
+function splitLabel(name) {
+  // 优先按 · 切；否则按字数 4 切
+  if (name.includes('·')) {
+    const parts = name.split('·').map(s => s.trim());
+    return parts;
+  }
+  if (name.length > 4) {
+    const mid = Math.ceil(name.length / 2);
+    return [name.slice(0, mid), name.slice(mid)];
+  }
+  return [name];
 }
 
-// 章节详情（点击章节后弹出）
-function ChapterDetail({ chapter, onClose }) {
-  if (!chapter) return null;
-  const band = chapter.mastery < 60 ? { c: '#C04A4A', bg: '#FCE9E9', label: '待加强' } :
-  chapter.mastery < 80 ? { c: '#B8771F', bg: '#FBF1DD', label: '掌握中' } :
-  { c: '#1F8A5B', bg: '#E6F4ED', label: '已掌握' };
-
-  return (
-    <div className={'overlay ' + (chapter ? 'open' : '')} style={{ background: '#F8FAFC' }}>
-      <div style={{
-        padding: '56px 14px 12px',
-        display: 'flex', alignItems: 'center', gap: 10
-      }}>
-        <button onClick={onClose} style={{
-          width: 40, height: 40, borderRadius: '50%',
-          background: '#fff', border: '1px solid #ECEFF3', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#15161B'
-        }}>{Ic.back(20)}</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11.5, color: '#8A8B93', fontWeight: 600 }}>八年级物理 · 第 {chapter.id.replace('c', '')} 章</div>
-          <div style={{ fontSize: 17, fontWeight: 700, marginTop: 1 }}>{chapter.name}</div>
-        </div>
-      </div>
-
-      <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 0 24px' }}>
-        {/* 概览卡 */}
-        <div style={{ padding: '0 18px 14px' }}>
-          <div className="card" style={{ padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <Ring pct={chapter.mastery} color={band.c} size={72} />
-              <div style={{ flex: 1 }}>
-                <Pill color={band.c} bg={band.bg} size="md">{band.label}</Pill>
-                <div style={{ marginTop: 10, display: 'flex', alignItems: 'baseline', gap: 14 }}>
-                  <div>
-                    <div style={{ fontSize: 19, fontWeight: 700 }}>{chapter.wrong}</div>
-                    <div style={{ fontSize: 10.5, color: '#8A8B93', marginTop: 1 }}>累计错题</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 19, fontWeight: 700 }}>{chapter.last}</div>
-                    <div style={{ fontSize: 10.5, color: '#8A8B93', marginTop: 1 }}>最近一次出错</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div style={{
-              marginTop: 12, paddingTop: 12, borderTop: '1px dashed #ECEFF3',
-              fontSize: 12.5, color: '#5A5C65', lineHeight: 1.5
-            }}>
-              <span style={{ color: '#8A8B93', marginRight: 6 }}>常见错因:</span>
-              <span style={{ color: '#15161B', fontWeight: 600 }}>{chapter.mistake}</span>
-            </div>
-          </div>
-        </div>
-
-        <SectionLabel title={`本章知识点 · ${chapter.points.length} 个`} />
-        <div style={{ padding: '0 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {chapter.points.map((p, i) => {
-            // 给每个知识点一个伪掌握度（mock：和章节相关）
-            const m = Math.max(20, Math.min(99,
-            chapter.mastery + (i * 13 + chapter.name.length * 7) % 22 - 11));
-            const lb = m < 60 ? { c: '#C04A4A', bg: '#FCE9E9', label: '待加强' } :
-            m < 80 ? { c: '#B8771F', bg: '#FBF1DD', label: '掌握中' } :
-            { c: '#1F8A5B', bg: '#E6F4ED', label: '已掌握' };
-            return (
-              <div key={p} className="card row-press" style={{
-                padding: '12px 14px',
-                display: 'grid', gridTemplateColumns: '1fr 36px 18px', alignItems: 'center', gap: 10
-              }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#15161B' }}>{p}</div>
-                  <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#8A8B93' }}>
-                    <Pill color={lb.c} bg={lb.bg}>{lb.label}</Pill>
-                    <span>{m}%</span>
-                  </div>
-                </div>
-                <Ring pct={m} color={lb.c} size={32} small />
-                <div style={{ color: '#B5B8BF' }}>{Ic.chev(14)}</div>
-              </div>);
-
-          })}
-        </div>
-
-        <div style={{
-          margin: '16px 18px 0', padding: '14px 16px',
-          borderRadius: 14, background: '#F2F4F7',
-          fontSize: 12.5, color: '#5A5C65', lineHeight: 1.6
-        }}>
-          <div style={{ fontWeight: 700, color: '#15161B', marginBottom: 4 }}>📖 教材定位</div>
-          人教版八年级物理（{chapter.vol}册）· 第 {chapter.id.replace('c', '')} 章 · 共 {chapter.points.length} 节
-        </div>
-      </div>
-    </div>);
-
-}
-
-// 圆环掌握度
-function Ring({ pct, color, size = 56, small = false }) {
-  const r = (size - 6) / 2;
+// SVG 圆环 mastery 弧（已 transform 到节点中心）
+function MasteryArc({ r, pct, color }) {
   const c = 2 * Math.PI * r;
   const dash = c * (pct / 100);
   return (
-    <div style={{ width: size, height: size, position: 'relative', flex: 'none' }}>
-      <svg width={size} height={size}>
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="#F2F3F6" strokeWidth={small ? 3 : 4} fill="none" />
-        <circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={small ? 3 : 4} fill="none"
+    <circle r={r} fill="none" stroke={color} strokeWidth="2"
+      strokeLinecap="round"
+      strokeDasharray={`${dash} ${c}`}
+      transform="rotate(-90)"
+      opacity="0.55" />
+  );
+}
+
+// 节点点击后的详情卡
+function NodeDetail({ node, onClose }) {
+  const lvl = masteryLevel(node.mastery);
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 18, padding: '14px 16px',
+      border: '1px solid rgba(0,0,0,0.05)',
+      animation: 'flashIn .35s cubic-bezier(.2,.7,.2,1)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <MasteryRing pct={node.mastery} color={lvl.color} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15.5, fontWeight: 700, letterSpacing: '-0.005em' }}>{node.name}</div>
+          <div style={{ marginTop: 4, fontSize: 11.5, color: '#8A8B93', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ padding: '1.5px 8px', borderRadius: 999, background: lvl.soft, color: lvl.color, fontWeight: 600 }}>{lvl.label}</span>
+            <span>共 {node.total} 题</span>
+            <span style={{ opacity: .4 }}>·</span>
+            <span>错 {node.wrong} 题</span>
+          </div>
+        </div>
+        <button onClick={onClose} style={{
+          width: 30, height: 30, borderRadius: '50%',
+          background: '#F2F2F4', border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0A0A0A',
+          flex: 'none',
+        }}>{Ic.close(16)}</button>
+      </div>
+      <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: 11.5, color: '#8A8B93', fontWeight: 600, padding: '4px 0 4px' }}>
+          近期相关题目
+        </div>
+        {node.recent.map((t, i) => (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '7px 0',
+            borderTop: i === 0 ? 'none' : '0.5px solid rgba(0,0,0,0.05)',
+          }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#8DCED4', flex: 'none' }} />
+            <div style={{ flex: 1, fontSize: 13, color: '#3A3C45' }}>{t}</div>
+            <div style={{ color: '#C2C5CC' }}>{Ic.chev(14)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MasteryRing({ pct, color }) {
+  const r = 18,c = 2 * Math.PI * r;
+  const dash = c * (pct / 100);
+  return (
+    <div style={{ width: 44, height: 44, position: 'relative', flex: 'none' }}>
+      <svg width="44" height="44" viewBox="0 0 44 44">
+        <circle cx="22" cy="22" r={r} stroke="#F0F1F4" strokeWidth="4" fill="none" />
+        <circle cx="22" cy="22" r={r} stroke={color} strokeWidth="4" fill="none"
         strokeLinecap="round" strokeDasharray={`${dash} ${c}`}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+        transform="rotate(-90 22 22)" />
       </svg>
       <div style={{
-        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: small ? 10 : 14, fontWeight: 700, color: '#15161B'
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 12, fontWeight: 700, color: '#0F0F12'
       }}>{pct}</div>
     </div>);
 
@@ -1056,7 +1198,7 @@ function HistoryRow({ item, onClick }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// AI 流式批改页面（核心）
+// 批改流程步骤定义（内联卡片和旧全屏页共用）
 // ═══════════════════════════════════════════════════════════════
 const PIPELINE = [
 { id: 'enhance', title: '图片优化', detail: '压缩 · 增强对比度 · 保留题干细节', dur: 1500 },
@@ -1066,148 +1208,6 @@ const PIPELINE = [
 { id: 'match', title: '匹配知识点', detail: '关联课标知识点 · 更新掌握度', dur: 1500 }];
 
 
-function GradingScreen({ onDone, onClose, title, previewUrl }) {
-  const [step, setStep] = useState(0); // 0..PIPELINE.length-1
-  const [streamCount, setStreamCount] = useState(0);
-  const [finished, setFinished] = useState(false);
-
-  useEffect(() => {
-    const timers = [];
-    let acc = 0;
-    PIPELINE.forEach((s, i) => {
-      acc += s.dur;
-      timers.push(setTimeout(() => setStep(i + 1), acc));
-    });
-    // After last step → finished state with auto-advance button visible
-    timers.push(setTimeout(() => setFinished(true), acc));
-    // Auto-advance to result after a brief pause
-    timers.push(setTimeout(() => onDone(), acc + 1100));
-
-    // streaming for solve step
-    const solveStart = PIPELINE.slice(0, 2).reduce((a, s) => a + s.dur, 0);
-    const solveLen = PIPELINE[2].dur;
-    const perLine = solveLen / (STREAM_LINES.length + 1);
-    STREAM_LINES.forEach((_, idx) => {
-      timers.push(setTimeout(() => setStreamCount((c) => c + 1), solveStart + perLine * (idx + 0.5)));
-    });
-
-    return () => timers.forEach(clearTimeout);
-  }, []);
-
-  return (
-    <div className="overlay open" style={{ background: '#FAFBFD' }}>
-      {/* header */}
-      <div style={{
-        padding: '56px 14px 8px',
-        display: 'flex', alignItems: 'center', gap: 10
-      }}>
-        <button onClick={onClose} style={{
-          width: 40, height: 40, borderRadius: '50%',
-          background: '#fff', border: '1px solid #ECEFF3', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#15161B'
-        }}>{Ic.close(18)}</button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11.5, color: '#8A8B93', fontWeight: 600 }}>正在批改</div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 1 }}>AI 老师 · 一题一答</div>
-        </div>
-        <div style={{ color: '#B5B8BF' }}>{Ic.more(18)}</div>
-      </div>
-
-      {/* 题目卡 */}
-      <div style={{ padding: '6px 16px 6px' }}>
-        <div className="card" style={{
-          padding: '12px 14px',
-          display: 'grid', gridTemplateColumns: '64px 1fr', gap: 12, alignItems: 'center'
-        }}>
-          {previewUrl
-            ? <img src={previewUrl} alt="题目" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', flex: 'none' }} />
-            : <QuestionThumb size={64} />
-          }
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-              <Pill bg="#F2F3F6" color="#15161B">AI 批改中</Pill>
-            </div>
-            <div style={{ fontSize: 13, color: '#15161B', lineHeight: 1.45,
-              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-              overflow: 'hidden'
-            }}>{title || '正在识别题目内容…'}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* timeline */}
-      <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '6px 18px 18px' }}>
-        {PIPELINE.map((s, i) => {
-          const state = i < step ? 'done' : i === step ? 'current' : 'pending';
-          const isLast = i === PIPELINE.length - 1;
-          return (
-            <div key={s.id} style={{ display: 'flex', gap: 14 }}>
-              {/* left: dot + line */}
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                paddingTop: 4, flex: 'none'
-              }}>
-                <div className={'step-dot ' + state}>
-                  {state === 'done' ? <span className="check-pop">{Ic.check(14)}</span> :
-                  state === 'current' ? <span>{i + 1}</span> :
-                  <span style={{ opacity: 0.6 }}>{i + 1}</span>}
-                </div>
-                {!isLast && <div className={'step-line ' + state} />}
-              </div>
-
-              {/* right: content */}
-              <div style={{ flex: 1, paddingTop: 5, paddingBottom: isLast ? 0 : 14 }}>
-                <div style={{
-                  fontSize: 14.5,
-                  fontWeight: state === 'pending' ? 500 : 700,
-                  color: state === 'pending' ? '#B5B8BF' : '#15161B',
-                  letterSpacing: '-0.005em'
-                }}>{s.title}</div>
-
-                {state !== 'pending' &&
-                <>
-                    {s.detail &&
-                  <div style={{ marginTop: 4, fontSize: 12.5, color: '#6E727B', lineHeight: 1.5 }}>
-                        {s.detail}
-                      </div>
-                  }
-                    {s.streaming &&
-                  <StreamingContent
-                    lines={STREAM_LINES.slice(0, streamCount)}
-                    showing={state === 'current'} />
-
-                  }
-                  </>
-                }
-              </div>
-            </div>);
-
-        })}
-
-        {/* finish state */}
-        {finished &&
-        <div className="fade-up" style={{ padding: '10px 4px 0' }}>
-            <div style={{
-            padding: '12px 14px', borderRadius: 14,
-            background: '#E6F4ED', color: '#1F4A33',
-            display: 'flex', alignItems: 'center', gap: 10
-          }}>
-              <div style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: '#1F8A5B', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>{Ic.check(16)}</div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 700 }}>批改完成</div>
-                <div style={{ fontSize: 11.5, opacity: 0.8 }}>正在为你整理结果…</div>
-              </div>
-            </div>
-          </div>
-        }
-      </div>
-    </div>);
-
-}
 
 function StreamingContent({ lines, showing }) {
   return (
@@ -1233,6 +1233,94 @@ function StreamingContent({ lines, showing }) {
       }
     </div>);
 
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 内联批改进度卡（嵌入聊天流里）
+// ═══════════════════════════════════════════════════════════════
+function InlinePipelineCard({ msg, onViewResult }) {
+  const [step, setStep] = useState(0);
+  const [streamCount, setStreamCount] = useState(0);
+  const [animDone, setAnimDone] = useState(false);
+
+  useEffect(() => {
+    const timers = [];
+    let acc = 0;
+    PIPELINE.forEach((s, i) => {
+      acc += s.dur;
+      timers.push(setTimeout(() => setStep(i + 1), acc));
+    });
+    timers.push(setTimeout(() => setAnimDone(true), acc));
+
+    const solveStart = PIPELINE.slice(0, 2).reduce((a, s) => a + s.dur, 0);
+    const solveLen = PIPELINE[2].dur;
+    const perLine = solveLen / (STREAM_LINES.length + 1);
+    STREAM_LINES.forEach((_, idx) => {
+      timers.push(setTimeout(() => setStreamCount(c => c + 1), solveStart + perLine * (idx + 0.5)));
+    });
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  const canView = animDone && msg.resultReady;
+
+  return (
+    <div style={{ maxWidth: '88%' }}>
+      <div className="card" style={{ padding: '12px 14px' }}>
+        {/* pipeline steps */}
+        {PIPELINE.map((s, i) => {
+          const state = i < step ? 'done' : i === step ? 'current' : 'pending';
+          const isLast = i === PIPELINE.length - 1;
+          return (
+            <div key={s.id} style={{ display: 'flex', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3, flex: 'none' }}>
+                <div className={'step-dot ' + state} style={{ width: 22, height: 22, fontSize: 10.5 }}>
+                  {state === 'done'
+                    ? <span className="check-pop">{Ic.check(11)}</span>
+                    : <span style={{ opacity: state === 'pending' ? 0.6 : 1 }}>{i + 1}</span>}
+                </div>
+                {!isLast && <div className={'step-line ' + state} style={{ minHeight: 10 }} />}
+              </div>
+              <div style={{ flex: 1, paddingTop: 3, paddingBottom: isLast ? 0 : 10 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: state === 'pending' ? 500 : 700,
+                  color: state === 'pending' ? '#B5B8BF' : '#15161B'
+                }}>{s.title}</div>
+                {state !== 'pending' && s.streaming && (
+                  <StreamingContent lines={STREAM_LINES.slice(0, streamCount)} showing={state === 'current'} />
+                )}
+                {state !== 'pending' && s.detail && (
+                  <div style={{ marginTop: 3, fontSize: 12, color: '#6E727B', lineHeight: 1.5 }}>{s.detail}</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* failed state */}
+        {msg.failed && (
+          <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: '#FCE9E9', color: '#C04A4A', fontSize: 12.5 }}>
+            {msg.failMsg || '批改未通过，请重试'}
+          </div>
+        )}
+
+        {/* waiting for result after animation */}
+        {animDone && !msg.resultReady && !msg.failed && (
+          <div style={{ marginTop: 10, fontSize: 12, color: '#8A8B93', textAlign: 'center', padding: '4px 0' }}>
+            AI 老师还在思考，稍候…
+          </div>
+        )}
+
+        {/* CTA when both animation done and result ready */}
+        {canView && (
+          <button onClick={() => onViewResult && onViewResult(msg.resultData)} style={{
+            marginTop: 10, width: '100%', padding: '10px 0', borderRadius: 12,
+            background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer',
+            fontSize: 14, fontWeight: 600
+          }}>查看批改结果 →</button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1512,12 +1600,8 @@ function App() {
   const [chapter,       setChapter]       = useState(null);
   const [toast,         setToast]         = useState(null);
   const [chatMessages,  setChatMessages]  = useState([]);
-  const [pendingTitle,  setPendingTitle]  = useState('');            // 上传中的题目名
-  const [pendingPreview,setPendingPreview]= useState(null);          // 上传中的图片预览
   const [currentAid,   setCurrentAid]    = useState(null);          // 当前 assignment_id（聊天用）
   const fileInputRef   = useRef(null);
-  const gradingDataRef = useRef(null);   // 轮询完成后暂存，等动画结束再展示
-  const animDoneRef    = useRef(false);  // GradingScreen 动画是否已结束
 
   // ── 加载复习任务 ──────────────────────────────────────────
   useEffect(() => {
@@ -1555,35 +1639,35 @@ function App() {
   useEffect(() => { refreshHistory(); }, []);
 
   // ── 轮询批改状态 ──────────────────────────────────────────
-  function startPoll(aid, title) {
+  function startPoll(aid, title, progressId) {
     let tries = 0;
     async function check() {
       tries++;
-      if (tries > 36) return;
+      if (tries > 36) {
+        setChatMessages(m => m.map(msg => msg._id === progressId
+          ? { ...msg, failed: true, failMsg: '批改超时，请重试' } : msg));
+        return;
+      }
       try {
         const asgn = await apiGet('/api/assignments/' + aid);
         const st = (asgn.status || '').toLowerCase();
         if (st === 'ai_done') {
           const gdata = await apiGet('/api/grading/' + aid);
           const result = mapGradingToResult(gdata, title);
-          gradingDataRef.current = result;
+          setChatMessages(m => m.map(msg => msg._id === progressId
+            ? { ...msg, resultReady: true, resultData: result } : msg));
           refreshHistory();
-          // 若动画已结束则立即跳到结果页，否则等 gradingDone() 触发
-          if (animDoneRef.current) {
-            setGradingResult(result);
-            setGrading('result');
-          }
         } else if (st === 'manual_required') {
           const reason = asgn.processing_status?.grading?.reason || '';
-          const msg = reason === 'image_too_small' ? '图片太小，请拍清晰一点再试'
+          const failMsg = reason === 'image_too_small' ? '图片太小，请拍清晰一点再试'
             : reason === 'image_dimension_too_small' ? '图片分辨率太低，请靠近拍摄'
             : reason === 'unsupported_file_type' ? '不支持该图片格式'
             : '题目暂不支持 AI 批改';
-          showToast(msg);
-          setGrading(null);
+          setChatMessages(m => m.map(msg => msg._id === progressId
+            ? { ...msg, failed: true, failMsg } : msg));
         } else if (st.includes('fail')) {
-          showToast('批改出错，请重试');
-          setGrading(null);
+          setChatMessages(m => m.map(msg => msg._id === progressId
+            ? { ...msg, failed: true, failMsg: '批改出错，请重试' } : msg));
         } else {
           setTimeout(check, 5000);
         }
@@ -1602,15 +1686,10 @@ function App() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     e.target.value = '';
-    gradingDataRef.current = null;
-    animDoneRef.current = false;
     setGradingResult(null);
-    setGrading('streaming');
     const title = file.name.replace(/\.[^.]+$/, '') || '作业';
-    // 生成本地预览 URL，立即在聊天里显示真实图片
     const previewUrl = URL.createObjectURL(file);
-    setPendingTitle(title);
-    setPendingPreview(previewUrl);
+    const progressId = Date.now();
     const fd = new FormData();
     fd.append('file', file);
     apiUpload(fd)
@@ -1621,46 +1700,29 @@ function App() {
       )
       .then(aid => {
         setCurrentAid(aid);
-        startPoll(aid, title);
-        setChatMessages(m => [...m, { type: 'photo', caption: title, previewUrl }]);
+        // 同时插入：题目图片消息 + 内联批改进度卡
+        setChatMessages(m => [...m,
+          { type: 'photo', caption: title, previewUrl },
+          { type: 'grading', _id: progressId, title }
+        ]);
+        startPoll(aid, title, progressId);
       })
       .catch(() => {
         URL.revokeObjectURL(previewUrl);
-        setPendingPreview(null);
-        setGrading(null);
         showToast('上传失败，请重试');
       });
   }
 
-  // ── GradingScreen 动画结束回调 ────────────────────────────
-  // 若结果已就绪 → 立即展示；若未就绪 → 保持 GradingScreen finished 态等轮询
-  function gradingDone() {
-    animDoneRef.current = true;
-    if (gradingDataRef.current) {
-      setGradingResult(gradingDataRef.current);
-      setGrading('result');
-    }
-  }
-
-  // ── 关闭批改结果 ──────────────────────────────────────────
+  // ── 关闭批改结果详情 ──────────────────────────────────────────
   function closeResult() {
-    const r = gradingResult;
     setGrading(null);
     setGradingResult(null);
-    gradingDataRef.current = null;
-    animDoneRef.current = false;
-    if (r) {
-      setChatMessages(m => [...m,
-        { role: 'ai', text: r.oneLine + '\n\n已加入复习计划、错题库与历史。' }
-      ]);
-      showToast('批改完成，已更新知识库掌握度');
-    }
   }
 
-  function abortGrading() {
-    setGrading(null);
-    gradingDataRef.current = null;
-    animDoneRef.current = false;
+  // ── 从内联卡片打开批改结果页 ──────────────────────────────────
+  function onViewResult(resultData) {
+    setGradingResult(resultData);
+    setGrading('result');
   }
 
   // ── 历史记录点击 → 懒加载真实结果 ───────────────────────
@@ -1747,9 +1809,10 @@ function App() {
       {tab === 'home' && <HomePage
         onCamera={onCameraClick}
         messages={chatMessages}
-        onSend={sendChatMessage} />}
+        onSend={sendChatMessage}
+        onViewResult={onViewResult} />}
       {tab === 'review'  && <ReviewPage tasks={tasks} onToggle={toggleTask} />}
-      {tab === 'library' && <LibraryPage onOpenChapter={setChapter} />}
+      {tab === 'library' && <PhysicsGraphPage />}
       {tab === 'history' && <HistoryPage items={history} onOpen={openHistoryItem} />}
 
       <TabBar value={tab} onChange={setTab} />
@@ -1759,9 +1822,7 @@ function App() {
         style={{ display: 'none' }} onChange={onFileSelected} />
 
       {/* overlays */}
-      {grading === 'streaming' && <GradingScreen onDone={gradingDone} onClose={abortGrading} title={pendingTitle} previewUrl={pendingPreview} />}
-      {grading === 'result'    && <ResultScreen data={resultData} onClose={closeResult} onWrong={reportWrong} />}
-      {chapter && <ChapterDetail chapter={chapter} onClose={() => setChapter(null)} />}
+      {grading === 'result' && <ResultScreen data={resultData} onClose={closeResult} onWrong={reportWrong} />}
 
       <Toast text={toast?.text} />
     </div>);
