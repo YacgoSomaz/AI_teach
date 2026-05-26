@@ -218,31 +218,61 @@ function mapGradingToResult(data, title) {
   const g = data.grading || {};
   const analysis = data.analysis || {};
   const kps = Array.isArray(data.knowledge_points) ? data.knowledge_points : [];
+
+  // is_correct===null means "no student answer detected" (not wrong)
+  const hasAnswer = g.is_correct !== null && g.is_correct !== undefined;
   const isOk = g.is_correct === true;
   const ratio = parseFloat(g.score || 0) / Math.max(parseFloat(g.max_score || 1), 0.001);
-  const verdict = isOk ? 'correct' : ratio > 0 ? 'partial' : 'wrong';
+  const verdict = !hasAnswer ? 'empty' : isOk ? 'correct' : ratio > 0 ? 'partial' : 'wrong';
+
+  // correct_answer: DB field first, then raw AI response fallback from call1_raw
+  const correctAnswer = g.correct_answer || analysis.raw_correct_answer || analysis.solution_answer || '—';
+
+  // feedback / mistake_reason: same fallback chain
+  const feedbackText = g.feedback || analysis.raw_feedback || g.mistake_reason || analysis.raw_mistake_reason || '';
+
+  // steps: GradingResult.steps (Kiro field), else map solution_steps from call1_raw
+  let steps = [];
+  if (Array.isArray(g.steps) && g.steps.length > 0) {
+    steps = g.steps;
+  } else if (Array.isArray(analysis.solution_steps) && analysis.solution_steps.length > 0) {
+    steps = analysis.solution_steps.map(s => ({ title: s.title || '步骤', detail: s.content || '' }));
+  } else if (feedbackText) {
+    steps = [{ title: 'AI 分析', detail: feedbackText }];
+  }
+
+  // review suggestions
   const kpNames = kps.map(k => k.name || k.knowledge_point_name || '').filter(Boolean);
+  let reviewSuggestions = [];
+  if (Array.isArray(g.review_suggestions) && g.review_suggestions.length > 0) {
+    reviewSuggestions = g.review_suggestions;
+  } else {
+    reviewSuggestions = kpNames.slice(0, 3).map(k => '复习知识点：' + k);
+    if (reviewSuggestions.length === 0) reviewSuggestions = ['建议多做相关练习题。'];
+  }
+
+  // summary line shown in result card header
+  const oneLine = feedbackText
+    || (isOk ? '回答正确！' : hasAnswer ? '请参考 AI 解析。' : '题目已解析，请查看正确答案和解题过程。');
+
+  // question struct (from analysis.question_struct which comes from call1_raw)
   const qs = analysis.question_struct || {};
-  const firstQ = Array.isArray(qs.questions) && qs.questions[0];
+
   return {
     title: title || '批改结果',
     chapter: analysis.detected_subject || '物理',
-    grade: g.grade || '八年级',                          // TODO: Kiro 补字段
-    type: (firstQ && firstQ.type) || '作业批改',
-    prompt: (firstQ && firstQ.content) || '（题目内容）',
-    studentAnswer: g.student_answer || '（未识别）',
-    correctAnswer: g.correct_answer || '—',
+    grade: analysis.detected_grade || g.grade || '八年级',
+    type: qs.question_type || '作业批改',
+    prompt: qs.stem || '（题目内容）',
+    studentAnswer: g.student_answer || (hasAnswer ? '（未识别）' : '（未作答）'),
+    correctAnswer,
     verdict,
-    oneLine: g.feedback || g.mistake_reason || (isOk ? '回答正确！' : '请参考详细解析。'),
-    steps: Array.isArray(g.steps) ? g.steps              // TODO: Kiro 补字段
-      : (g.feedback ? [{ title: 'AI 分析', detail: g.feedback }] : []),
+    oneLine,
+    steps,
     knowledgePoints: kpNames.length ? kpNames : ['待分析'],
     weakPoint: kpNames[0] || '—',
-    errorType: g.error_type || '—',                      // TODO: Kiro 补字段
-    reviewSuggestions: Array.isArray(g.review_suggestions) ? g.review_suggestions  // TODO: Kiro 补字段
-      : kpNames.slice(0, 3).map(k => '复习知识点：' + k).concat(
-          kpNames.length === 0 ? ['建议多做相关练习题。'] : []
-        ),
+    errorType: g.error_type || '—',
+    reviewSuggestions,
   };
 }
 // ─── API 层结束 ───────────────────────────────────────────────

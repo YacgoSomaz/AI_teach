@@ -191,12 +191,25 @@ async def get_owned_assignment(
 
 
 def serialize_analysis(analysis: AssignmentAnalysis) -> dict:
+    # Pull richer data from the raw AI response stored at grading time
+    raw: dict = analysis.call1_raw or {}
+    solution_raw: dict = raw.get("solution", {})
+    grading_raw: dict = raw.get("grading", {})
     return {
         "detected_subject": analysis.detected_subject,
         "detected_grade": analysis.grade,
         "support_status": analysis.support_status,
         "review_required": analysis.review_required,
         "review_reasons": analysis.review_reasons or [],
+        # Solution data (full steps, answer, summary) — used as fallback on frontend
+        "solution_steps": solution_raw.get("solution_steps") or [],
+        "solution_answer": solution_raw.get("answer"),
+        "reasoning_summary": solution_raw.get("reasoning_summary"),
+        "question_struct": raw.get("question_struct") or {},
+        # Raw grading fields — fallback when GradingResult DB columns are empty
+        "raw_correct_answer": grading_raw.get("correct_answer"),
+        "raw_feedback": grading_raw.get("feedback"),
+        "raw_mistake_reason": grading_raw.get("mistake_reason"),
     }
 
 
