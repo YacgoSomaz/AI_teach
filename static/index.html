@@ -534,8 +534,9 @@ function PhysicsGraphPage() {
       PHYS_NODES.forEach((n, i) => {
         const dx = Math.sin(t * 0.45 + i * 0.7) * 1.0, dy = Math.cos(t * 0.38 + i * 1.1) * 1.0;
         offsets[n.id] = [dx, dy];
-        const g = svg.querySelector(`[data-nid="${n.id}"]`);
-        if (g) g.style.transform = `translate(${(n.x + dx).toFixed(2)}px, ${(n.y + dy).toFixed(2)}px)`;
+        // 只移动内层圆形 g；外层 g（含 text）保持像素对齐，文字不抖动
+        const cg = svg.querySelector(`[data-circle-nid="${n.id}"]`);
+        if (cg) cg.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
       });
       PHYS_EDGES.forEach(([a, b], i) => {
         const ln = svg.querySelector(`[data-eid="${i}"]`);
@@ -572,18 +573,23 @@ function PhysicsGraphPage() {
             const lvl = n.isSubject ? null : masteryLevel(n.mastery);
             const labelLines = n.isSubject ? [n.name] : splitLabel(n.name);
             return (
-              <g key={n.id} data-nid={n.id} style={{ cursor: 'pointer', opacity: dim ? 0.28 : 1, transition: 'opacity .3s', transform: `translate(${n.x}px, ${n.y}px)`, willChange: 'transform' }} onClick={e => { e.stopPropagation(); setSel(isSel ? null : n.id); }}>
-                {isSel && <circle r={n.r + 10} fill={n.isSubject ? PHYS_COLOR : lvl.color} opacity="0.18" />}
-                {n.isSubject ? <>
-                  <circle r={n.r} fill={PHYS_COLOR} />
-                  <circle r={n.r - 4} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
-                  <text textAnchor="middle" dy="6" fontSize="17" fontWeight="500" fill="#fff" style={{ fontFamily: 'inherit', letterSpacing: '.04em' }}>{n.name}</text>
-                </> : <>
-                  <circle r={n.r} fill="#fff" stroke={isSel ? lvl.color : 'rgba(141,206,212,0.6)'} strokeWidth={isSel ? 2.5 : 1.4} />
-                  <MasteryArc r={n.r - 2} pct={n.mastery} color={lvl.color} />
-                  <circle cx={n.r - 5} cy={-n.r + 5} r="4.5" fill={lvl.color} stroke="#fff" strokeWidth="1.5" />
-                  {labelLines.map((line, li) => <text key={li} textAnchor="middle" dy={labelLines.length === 1 ? 4 : (li === 0 ? -2 : 11)} fontSize={labelLines.length === 1 ? 11 : 10} fontWeight="500" fill="#2A2D33" style={{ fontFamily: 'inherit' }}>{line}</text>)}
-                </>}
+              <g key={n.id} data-nid={n.id} style={{ cursor: 'pointer', opacity: dim ? 0.28 : 1, transition: 'opacity .3s', transform: `translate(${n.x}px, ${n.y}px)` }} onClick={e => { e.stopPropagation(); setSel(isSel ? null : n.id); }}>
+                {/* 内层 g 只包含圆形，由 rAF 动画驱动浮动；text 留在外层，始终像素对齐，彻底消除抖动 */}
+                <g data-circle-nid={n.id} style={{ willChange: 'transform' }}>
+                  {isSel && <circle r={n.r + 10} fill={n.isSubject ? PHYS_COLOR : lvl.color} opacity="0.18" />}
+                  {n.isSubject ? <>
+                    <circle r={n.r} fill={PHYS_COLOR} />
+                    <circle r={n.r - 4} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
+                  </> : <>
+                    <circle r={n.r} fill="#fff" stroke={isSel ? lvl.color : 'rgba(141,206,212,0.6)'} strokeWidth={isSel ? 2.5 : 1.4} />
+                    <MasteryArc r={n.r - 2} pct={n.mastery} color={lvl.color} />
+                    <circle cx={n.r - 5} cy={-n.r + 5} r="4.5" fill={lvl.color} stroke="#fff" strokeWidth="1.5" />
+                  </>}
+                </g>
+                {n.isSubject
+                  ? <text textAnchor="middle" dy="6" fontSize="17" fontWeight="500" fill="#fff" style={{ fontFamily: 'inherit', letterSpacing: '.04em' }}>{n.name}</text>
+                  : labelLines.map((line, li) => <text key={li} textAnchor="middle" dy={labelLines.length === 1 ? 4 : (li === 0 ? -2 : 11)} fontSize={labelLines.length === 1 ? 11 : 10} fontWeight="500" fill="#2A2D33" style={{ fontFamily: 'inherit' }}>{line}</text>)
+                }
               </g>);
           })}
         </svg>
