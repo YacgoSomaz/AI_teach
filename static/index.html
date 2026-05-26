@@ -625,7 +625,11 @@ function ChatMessage({ msg }) {
           padding: 8, borderRadius: 18, borderBottomRightRadius: 4,
           maxWidth: '75%', display: 'flex', flexDirection: 'column', gap: 6
         }}>
-          <QuestionThumb size={140} />
+          {msg.previewUrl
+            ? <img src={msg.previewUrl} alt="题目图片"
+                style={{ width: 200, borderRadius: 10, display: 'block', objectFit: 'contain', maxHeight: 260 }} />
+            : <QuestionThumb size={140} />
+          }
           <div style={{ fontSize: 11.5, opacity: 0.7, padding: '0 2px' }}>{msg.caption || '已发送题目'}</div>
         </div>
       </div>);
@@ -1614,6 +1618,8 @@ function App() {
     setGradingResult(null);
     setGrading('streaming');
     const title = file.name.replace(/\.[^.]+$/, '') || '作业';
+    // 生成本地预览 URL，立即在聊天里显示真实图片
+    const previewUrl = URL.createObjectURL(file);
     const fd = new FormData();
     fd.append('file', file);
     apiUpload(fd)
@@ -1624,9 +1630,10 @@ function App() {
       )
       .then(aid => {
         startPoll(aid, title);
-        setChatMessages(m => [...m, { type: 'photo', caption: title }]);
+        setChatMessages(m => [...m, { type: 'photo', caption: title, previewUrl }]);
       })
       .catch(() => {
+        URL.revokeObjectURL(previewUrl);
         setGrading(null);
         showToast('上传失败，请重试');
       });
