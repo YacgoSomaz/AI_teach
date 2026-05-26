@@ -38,6 +38,7 @@ class GradingStatusResponse(BaseModel):
     support_status: str | None = None
     review_required: bool | None = None
     review_reasons: list[str] = []
+    analysis: dict | None = None
     grading: dict | None = None
     knowledge_points: list[dict] = []
 
@@ -101,6 +102,7 @@ async def get_ai_grading_result(
         support_status=analysis.support_status if analysis else None,
         review_required=analysis.review_required if analysis else None,
         review_reasons=analysis.review_reasons if analysis else [],
+        analysis=serialize_analysis(analysis) if analysis else None,
         grading=serialize_grading_result(grading) if grading else None,
         knowledge_points=[
             {
@@ -188,6 +190,16 @@ async def get_owned_assignment(
     return assignment
 
 
+def serialize_analysis(analysis: AssignmentAnalysis) -> dict:
+    return {
+        "detected_subject": analysis.detected_subject,
+        "detected_grade": analysis.grade,
+        "support_status": analysis.support_status,
+        "review_required": analysis.review_required,
+        "review_reasons": analysis.review_reasons or [],
+    }
+
+
 def serialize_grading_result(grading: GradingResult) -> dict:
     return {
         "student_answer": grading.student_answer,
@@ -199,4 +211,8 @@ def serialize_grading_result(grading: GradingResult) -> dict:
         "mistake_reason": grading.mistake_reason,
         "feedback": grading.feedback,
         "status": grading.status,
+        "steps": grading.steps or [],
+        "review_suggestions": grading.review_suggestions or [],
+        "error_type": grading.error_type,
+        "grade": grading.grade,
     }
