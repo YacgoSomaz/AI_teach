@@ -62,6 +62,7 @@ Thumbs.db
 output/
 temp/
 tmp/
+results/
 
 # Jupyter Notebook
 .ipynb_checkpoints
