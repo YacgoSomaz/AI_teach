@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from src.api.chat import router as chat_router
 from src.api.export import router as export_router
 from src.api.grading import router as grading_router
 from src.api.health import router as health_router
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health_router)
+    app.include_router(chat_router)
     app.include_router(upload_router)
     app.include_router(grading_router)
     app.include_router(student_router)

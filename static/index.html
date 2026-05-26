@@ -317,50 +317,11 @@ const CHAPTERS = [
 { id: 'c12', vol: '下', name: '简单机械', mastery: 0, lit: false, wrong: 0, last: '未学', mistake: '—', points: ['杠杆', '滑轮', '机械效率'] }];
 
 
-const TODAY_TASKS = [
-{ id: 't1', chapter: '光现象', point: '入射角与法线的判断', count: 3, done: false, hint: '今天错的题目' },
-{ id: 't2', chapter: '浮力', point: '阿基米德原理 排开体积', count: 4, done: false, hint: '近期错题集中' },
-{ id: 't3', chapter: '压强', point: '固体压强  受力面积', count: 2, done: true, hint: '巩固复习' },
-{ id: 't4', chapter: '透镜', point: '凸透镜成像规律口诀', count: 3, done: false, hint: '高频考点' },
-{ id: 't5', chapter: '运动和力', point: '惯性   与质量的关系', count: 2, done: true, hint: '巩固复习' }];
+// 复习任务初始为空，由 API 加载
+const TODAY_TASKS = [];
 
-
-const HISTORY = [
-{ id: 'h1', chapter: '光现象', title: '光的反射作图   入射角 30°', verdict: 'partial', time: '刚才' },
-{ id: 'h2', chapter: '透镜及其应用', title: '凸透镜成像规律 · 物距 1.5f', verdict: 'correct', time: '今天 14:20' },
-{ id: 'h3', chapter: '运动和力', title: '摩擦力方向判断 · 传送带模型', verdict: 'wrong', time: '昨天' },
-{ id: 'h4', chapter: '质量与密度', title: '密度计算 · 量筒读数题', verdict: 'correct', time: '2天前' },
-{ id: 'h5', chapter: '压强', title: '液体压强 · 不同深度比较', verdict: 'partial', time: '3天前' }];
-
-
-// 演示用题目 + 批改结果（拍题后总是返回这一份）
-const DEMO_QUESTION = {
-  chapter: '光现象',
-  chapterId: 'c4',
-  type: '作图题 · 反射定律',
-  grade: '八年级 上',
-  title: '光的反射作图   入射角 30°',
-  prompt: '如图所示，一束入射光线 AO 从空气射向水面，与水面成 30° 角。请画出反射光线 OB，并标出反射角的度数。',
-  studentAnswer: '反射角 = 30°',
-  correctAnswer: '反射角 = 60°，反射光线 OB 在法线另一侧',
-  verdict: 'partial',
-  oneLine: '把"与水面的夹角"当成了入射角。入射角是入射光线与法线的夹角，应为 60°。',
-  steps: [
-  { title: '读题', detail: '题目给的是入射光线与水面的夹角 30°，不是入射角本身。' },
-  { title: '作出法线', detail: '法线是过入射点 O、垂直于水面的虚线，是判断角度的基准。' },
-  { title: '求入射角', detail: '入射角 = 90° − 30° = 60°（入射光线与法线的夹角）。' },
-  { title: '反射定律', detail: '反射角等于入射角，所以反射角 = 60°。' },
-  { title: '作反射光线', detail: '反射光线 OB 在法线另一侧，与法线成 60° 夹角。' }],
-
-  knowledgePoints: ['光的反射定律', '法线的概念', '入射角与反射角'],
-  weakPoint: '入射角的定义',
-  errorType: '概念混淆',
-  reviewSuggestions: [
-  '重读教材 P78：入射光线、反射光线、法线三线共面。',
-  '区分"与镜面的夹角"和"与法线的夹角"——做题前先画法线。',
-  '配套 3 道反射作图题（系统已加入今日复习）。']
-
-};
+// 历史记录初始为空，由 API 加载
+const HISTORY = [];
 
 // 流式过程文本
 const STREAM_LINES = [
@@ -1090,7 +1051,7 @@ const PIPELINE = [
 { id: 'match', title: '匹配知识点', detail: '光的反射定律 · 入射角的定义', dur: 1500 }];
 
 
-function GradingScreen({ onDone, onClose }) {
+function GradingScreen({ onDone, onClose, title, previewUrl }) {
   const [step, setStep] = useState(0); // 0..PIPELINE.length-1
   const [streamCount, setStreamCount] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -1143,16 +1104,18 @@ function GradingScreen({ onDone, onClose }) {
           padding: '12px 14px',
           display: 'grid', gridTemplateColumns: '64px 1fr', gap: 12, alignItems: 'center'
         }}>
-          <QuestionThumb size={64} />
+          {previewUrl
+            ? <img src={previewUrl} alt="题目" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', flex: 'none' }} />
+            : <QuestionThumb size={64} />
+          }
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-              <Pill bg="#F2F3F6" color="#15161B">{DEMO_QUESTION.grade}</Pill>
-              <Pill bg="#F2F3F6" color="#15161B">{DEMO_QUESTION.chapter}</Pill>
+              <Pill bg="#F2F3F6" color="#15161B">AI 批改中</Pill>
             </div>
             <div style={{ fontSize: 13, color: '#15161B', lineHeight: 1.45,
               display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
               overflow: 'hidden'
-            }}>{DEMO_QUESTION.prompt}</div>
+            }}>{title || '正在识别题目内容…'}</div>
           </div>
         </div>
       </div>
@@ -1527,13 +1490,16 @@ function Toast({ text }) {
 // ═══════════════════════════════════════════════════════════════
 function App() {
   const [tab,           setTab]           = useState('home');
-  const [tasks,         setTasks]         = useState(TODAY_TASKS);   // API 覆盖，兜底用静态
-  const [history,       setHistory]       = useState(HISTORY);       // API 覆盖，兜底用静态
+  const [tasks,         setTasks]         = useState([]);
+  const [history,       setHistory]       = useState([]);
   const [grading,       setGrading]       = useState(null);          // null | 'streaming' | 'result'
   const [gradingResult, setGradingResult] = useState(null);          // 真实批改结果
   const [chapter,       setChapter]       = useState(null);
   const [toast,         setToast]         = useState(null);
   const [chatMessages,  setChatMessages]  = useState([]);
+  const [pendingTitle,  setPendingTitle]  = useState('');            // 上传中的题目名
+  const [pendingPreview,setPendingPreview]= useState(null);          // 上传中的图片预览
+  const [currentAid,   setCurrentAid]    = useState(null);          // 当前 assignment_id（聊天用）
   const fileInputRef   = useRef(null);
   const gradingDataRef = useRef(null);   // 轮询完成后暂存，等动画结束再展示
   const animDoneRef    = useRef(false);  // GradingScreen 动画是否已结束
@@ -1620,6 +1586,8 @@ function App() {
     const title = file.name.replace(/\.[^.]+$/, '') || '作业';
     // 生成本地预览 URL，立即在聊天里显示真实图片
     const previewUrl = URL.createObjectURL(file);
+    setPendingTitle(title);
+    setPendingPreview(previewUrl);
     const fd = new FormData();
     fd.append('file', file);
     apiUpload(fd)
@@ -1629,11 +1597,13 @@ function App() {
           .catch(() => up.assignment_id)
       )
       .then(aid => {
+        setCurrentAid(aid);
         startPoll(aid, title);
         setChatMessages(m => [...m, { type: 'photo', caption: title, previewUrl }]);
       })
       .catch(() => {
         URL.revokeObjectURL(previewUrl);
+        setPendingPreview(null);
         setGrading(null);
         showToast('上传失败，请重试');
       });
@@ -1675,12 +1645,13 @@ function App() {
     if (item.status === 'grading') return;
     try {
       const data = await apiGet('/api/grading/' + item.id);
-      setGradingResult(mapGradingToResult(data, item.title));
+      const result = mapGradingToResult(data, item.title);
+      setCurrentAid(item.id);
+      setGradingResult(result);
+      setGrading('result');
     } catch (_) {
-      // 加载失败时用 DEMO 兜底，保证页面可以打开
-      setGradingResult({ ...DEMO_QUESTION, title: item.title, chapter: item.chapter, verdict: item.verdict || 'empty' });
+      showToast('加载失败，请重试');
     }
-    setGrading('result');
   }
 
   function toggleTask(id) {
@@ -1688,17 +1659,19 @@ function App() {
   }
 
   function reportWrong() {
-    showToast('已记录反馈 · 老师将在 1 小时内复核');
+    showToast('反馈已收到');
   }
 
   function sendChatMessage(text) {
     setChatMessages(m => [...m, { role: 'user', text }]);
-    setTimeout(() => {
-      setChatMessages(m => [...m, {
-        role: 'ai',
-        text: '这个问题需要结合题目图才能判断，点左下角相机拍一张题目试试～'
-      }]);
-    }, 700);
+    const aid = currentAid || 'general';
+    apiPost('/api/chat/' + aid, { message: text })
+      .then(r => {
+        setChatMessages(m => [...m, { role: 'ai', text: r.reply }]);
+      })
+      .catch(() => {
+        setChatMessages(m => [...m, { role: 'ai', text: 'AI 老师暂时不可用，请稍后再试～' }]);
+      });
   }
 
   function showToast(text) {
@@ -1706,8 +1679,7 @@ function App() {
     setTimeout(() => setToast(null), 2400);
   }
 
-  // ResultScreen 展示真实结果；未拍题时以 DEMO_QUESTION 兜底（历史点击兜底）
-  const resultData = gradingResult || DEMO_QUESTION;
+  const resultData = gradingResult;
 
   return (
     <div style={{
@@ -1734,7 +1706,7 @@ function App() {
         style={{ display: 'none' }} onChange={onFileSelected} />
 
       {/* overlays */}
-      {grading === 'streaming' && <GradingScreen onDone={gradingDone} onClose={abortGrading} />}
+      {grading === 'streaming' && <GradingScreen onDone={gradingDone} onClose={abortGrading} title={pendingTitle} previewUrl={pendingPreview} />}
       {grading === 'result'    && <ResultScreen data={resultData} onClose={closeResult} onWrong={reportWrong} />}
       {chapter && <ChapterDetail chapter={chapter} onClose={() => setChapter(null)} />}
 
