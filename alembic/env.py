@@ -4,11 +4,14 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from dotenv import load_dotenv
 
 from alembic import context
 
 # 添加项目根目录到 Python 路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+project_root = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, project_root)
+load_dotenv(os.path.join(project_root, ".env"))
 
 # 导入所有模型（必须在 Base 之后导入，触发 mapper 注册）
 from src.models.base import Base
@@ -17,6 +20,14 @@ from src.models.ocr_task import OCRTask
 from src.models.question import Question
 from src.models.knowledge_point import KnowledgePoint
 from src.models.student_profile import StudentKnowledgeProfile
+from src.models.grading import (
+    AssignmentAnalysis,
+    GradingResult,
+    GradingTaxonomy,
+    QuestionKnowledgePoint,
+    StudentKnowledgeEvent,
+    StudentKnowledgePoint,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
