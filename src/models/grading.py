@@ -71,6 +71,7 @@ class AssignmentAnalysis(Base):
     review_reasons: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     quality_flags: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     call1_raw: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    grade: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class GradingResult(Base):
@@ -93,6 +94,10 @@ class GradingResult(Base):
     mistake_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ai_final")
+    steps: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    review_suggestions: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    error_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    grade: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("assignment_id", name="uq_grading_results_assignment"),

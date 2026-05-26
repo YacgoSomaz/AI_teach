@@ -71,6 +71,9 @@ class QuestionAnalysis:
     review_priority: str  # 复习优先级
     need_review: bool  # 是否需要复习
     confidence: float  # 置信度
+    steps: List[Dict[str, str]] = None  # 解题步骤数组 [{title: str, detail: str}, ...]
+    review_suggestions: List[str] = None  # 复习建议列表
+    error_type: str = None  # 错因类型（如"概念混淆"）
     raw_response: Optional[str] = None  # 原始 AI 响应
 
 
@@ -125,6 +128,9 @@ class OpenAIProvider(AIProvider):
 - review_priority: 复习优先级（high/medium/low）
 - need_review: 是否需要复习（true/false）
 - confidence: 分析置信度（0-1）
+- steps: 解题步骤数组（[{title: "步骤1", detail: "详细说明"}, ...]）
+- review_suggestions: 复习建议列表（数组，如["复习欧姆定律公式", "练习串并联电路"]）
+- error_type: 错因类型（如"概念混淆"、"计算错误"、"公式记忆错误"等）
 
 只输出 JSON，不要其他内容。"""
         
@@ -212,6 +218,9 @@ class DoubaoProvider(AIProvider):
 - review_priority: 复习优先级（high/medium/low）
 - need_review: 是否需要复习（true/false）
 - confidence: 分析置信度（0-1）
+- steps: 解题步骤数组（[{title: "步骤1", detail: "详细说明"}, ...]）
+- review_suggestions: 复习建议列表（数组，如["复习欧姆定律公式", "练习串并联电路"]）
+- error_type: 错因类型（如"概念混淆"、"计算错误"、"公式记忆错误"等）
 
 只输出 JSON，不要其他内容。"""
         
@@ -335,6 +344,9 @@ class DoubaoSeedProvider(AIProvider):
 - review_priority: 复习优先级（high/medium/low）
 - need_review: 是否需要复习（true/false）
 - confidence: 分析置信度（0-1）
+- steps: 解题步骤数组（[{title: "步骤1", detail: "详细说明"}, ...]）
+- review_suggestions: 复习建议列表（数组，如["复习欧姆定律公式", "练习串并联电路"]）
+- error_type: 错因类型（如"概念混淆"、"计算错误"、"公式记忆错误"等）
 
 重要：只输出 JSON，不要输出思考过程，不要输出解释，不要输出 markdown 代码块包裹，直接输出纯 JSON。"""
 
@@ -471,6 +483,9 @@ class MinimaxProvider(AIProvider):
 - review_priority: 复习优先级（high/medium/low）
 - need_review: 是否需要复习（true/false）
 - confidence: 分析置信度（0-1）
+- steps: 解题步骤数组（[{title: "步骤1", detail: "详细说明"}, ...]）
+- review_suggestions: 复习建议列表（数组，如["复习欧姆定律公式", "练习串并联电路"]）
+- error_type: 错因类型（如"概念混淆"、"计算错误"、"公式记忆错误"等）
 
 只输出 JSON，不要其他内容。"""
         
@@ -712,6 +727,9 @@ class AIAnalysisService:
             review_priority=data.get("review_priority", "medium"),
             need_review=data.get("need_review", True),
             confidence=data.get("confidence", 0.8),
+            steps=data.get("steps", []),
+            review_suggestions=data.get("review_suggestions", []),
+            error_type=data.get("error_type"),
             raw_response=data.get("raw_response"),
         )
     
@@ -737,6 +755,9 @@ class AIAnalysisService:
                 review_priority=raw_result.get("review_priority", "medium"),
                 need_review=raw_result.get("need_review", True),
                 confidence=float(raw_result.get("confidence", 0.8)),
+                steps=raw_result.get("steps", []),
+                review_suggestions=raw_result.get("review_suggestions", []),
+                error_type=raw_result.get("error_type"),
                 raw_response=json.dumps(raw_result, ensure_ascii=False),
             )
         except (KeyError, ValueError, TypeError) as e:
