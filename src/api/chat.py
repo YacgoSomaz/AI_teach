@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import logging
 
+import json
+
 import requests
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -146,27 +149,42 @@ async def chat_with_ai(
         ],
         "max_tokens": 400,
         "temperature": 0.7,
+        "stream": True,
     }
     headers = {
         "Authorization": f"Bearer {settings.doubao_seed_api_key}",
         "Content-Type": "application/json",
     }
 
-    try:
-        resp = requests.post(
-            f"{settings.doubao_seed_base_url}/chat/completions",
-            json=payload,
-            headers=headers,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        reply = data["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        logger.error(f"聊天 AI 调用失败: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI 服务暂时不可用，请稍后重试",
-        )
+    def generate():
+        try:
+            with requests.post(
+                f"{settings.doubao_seed_base_url}/chat/completions",
+                json=payload,
+                headers=headers,
+                stream=True,
+                timeout=60,
+            ) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    text = line.decode("utf-8") if isinstance(line, bytes) else line
+                    if text.startswith("data:"):
+                        text = text[5:].strip()
+                    if text == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(text)
+                        delta = chunk["choices"][0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield f"data:{json.dumps({'t': content}, ensure_ascii=False)}\n\n"
+                    except Exception:
+                        continue
+        except Exception as e:
+            logger.error(f"聊天流式失败: {e}")
+            yield f"data:{json.dumps({'err': 'AI 服务暂时不可用'}, ensure_ascii=False)}\n\n"
+        yield "data:[DONE]\n\n"
 
-    return ChatResponse(reply=reply)
+    return StreamingResponse(generate(), media_type="text/event-stream")

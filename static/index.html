@@ -1688,13 +1688,43 @@ function App() {
   function sendChatMessage(text) {
     setChatMessages(m => [...m, { role: 'user', text }]);
     const aid = currentAid || 'general';
-    apiPost('/api/chat/' + aid, { message: text })
-      .then(r => {
-        setChatMessages(m => [...m, { role: 'ai', text: r.reply }]);
-      })
-      .catch(() => {
-        setChatMessages(m => [...m, { role: 'ai', text: 'AI 老师暂时不可用，请稍后再试～' }]);
-      });
+    // 先插一条空的 AI 消息，后续流式追加
+    const aiIdx = Date.now();
+    setChatMessages(m => [...m, { role: 'ai', text: '', _id: aiIdx }]);
+    fetch('/api/chat/' + aid, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Student-Id': STUDENT_ID },
+      body: JSON.stringify({ message: text }),
+    }).then(resp => {
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      function read() {
+        reader.read().then(({ done, value }) => {
+          if (done) return;
+          const chunk = decoder.decode(value, { stream: true });
+          chunk.split('\n').forEach(line => {
+            if (!line.startsWith('data:')) return;
+            const raw = line.slice(5).trim();
+            if (raw === '[DONE]') return;
+            try {
+              const obj = JSON.parse(raw);
+              if (obj.err) {
+                setChatMessages(m => m.map(msg =>
+                  msg._id === aiIdx ? { ...msg, text: obj.err } : msg));
+              } else if (obj.t) {
+                setChatMessages(m => m.map(msg =>
+                  msg._id === aiIdx ? { ...msg, text: msg.text + obj.t } : msg));
+              }
+            } catch (_) {}
+          });
+          read();
+        });
+      }
+      read();
+    }).catch(() => {
+      setChatMessages(m => m.map(msg =>
+        msg._id === aiIdx ? { ...msg, text: 'AI 老师暂时不可用，请稍后再试～' } : msg));
+    });
   }
 
   function showToast(text) {
