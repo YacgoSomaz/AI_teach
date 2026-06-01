@@ -1304,12 +1304,60 @@ function StreamingContent({ lines, showing, activeText = '' }) {
 
 }
 
+function makePreviewText(text, maxLen = 118) {
+  const clean = String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*[，,、；;。.\s]+/, '')
+    .trim();
+  if (clean.length <= maxLen) return clean;
+  const slice = clean.slice(0, maxLen);
+  const boundary = Math.max(
+    slice.lastIndexOf('。'),
+    slice.lastIndexOf('；'),
+    slice.lastIndexOf('，'),
+    slice.lastIndexOf('、')
+  );
+  if (boundary >= 36) return slice.slice(0, boundary + 1);
+  return slice.replace(/[，,、；;。.\s]+$/, '') + '…';
+}
+
+function MiniRichText({ text }) {
+  const blocks = splitRichText(text || '');
+  if (blocks.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {blocks.map((block, i) => block.type === 'formula' ? (
+        <div key={i} style={{
+          padding: '7px 9px',
+          borderRadius: 9,
+          background: '#fff',
+          border: '1px solid #ECEFF3',
+          color: '#15161B',
+          fontSize: 12.2,
+          lineHeight: 1.55,
+          overflowX: 'auto',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+        }}><FormulaText text={block.text} /></div>
+      ) : (
+        <p key={i} style={{
+          margin: 0,
+          color: '#15161B',
+          fontSize: 12.5,
+          lineHeight: 1.8,
+          textIndent: i === 0 ? 0 : '2em',
+          textAlign: 'justify'
+        }}>{block.text}</p>
+      ))}
+    </div>
+  );
+}
+
 function ResultMiniCard({ data, onViewResult }) {
   const [typedCount, setTypedCount] = useState(0);
   const verdict = VERDICT[data.verdict] || VERDICT.analysis_only;
   const firstStep = data.steps && data.steps[0];
   const detail = firstStep?.detail || data.oneLine || '完整解析已生成。';
-  const shortDetail = detail.length > 86 ? detail.slice(0, 86) + '…' : detail;
+  const shortDetail = makePreviewText(detail, 118);
   const typedDetail = shortDetail.slice(0, typedCount);
   const kps = (data.knowledgePoints || []).filter(Boolean).slice(0, 3);
   useEffect(() => {
@@ -1347,8 +1395,9 @@ function ResultMiniCard({ data, onViewResult }) {
       <div style={{ marginTop: 10, fontSize: 12.5, color: '#6E727B', lineHeight: 1.65 }}>
         正确答案：<b style={{ color: '#15161B' }}>{data.correctAnswer || '—'}</b>
       </div>
-      <div style={{ marginTop: 6, fontSize: 12.5, color: '#15161B', lineHeight: 1.65 }}>
-        {typedDetail}{typedCount < shortDetail.length && <span className="caret" />}
+      <div style={{ marginTop: 6 }}>
+        <MiniRichText text={typedDetail} />
+        {typedCount < shortDetail.length && <span className="caret" />}
       </div>
       {kps.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
