@@ -767,7 +767,8 @@ function ChatRichText({ text, streaming }) {
 function normalizeChatText(text) {
   return String(text || '')
     .replace(/\s+/g, ' ')
-    .replace(/(第一步|第二步|第三步|第四步|先看|再看|所以|答案[:：]|竖直方向|水平方向|对应选项|根据牛顿第三定律)/g, '\n$1')
+    .replace(/(再看)(竖直方向|水平方向)/g, '\n$1$2')
+    .replace(/(第一步|第二步|第三步|第四步|先看|再看|所以|答案[:：]|对应选项|根据牛顿第三定律)/g, '\n$1')
     .replace(/([。；])\s*/g, '$1\n')
     .replace(/，\s*(?=(先|再|所以|因此|对应|答案|根据|竖直|水平))/g, '，\n')
     .replace(/\n{2,}/g, '\n')
@@ -1858,26 +1859,26 @@ function splitRichText(text) {
     const parts = line.split(/(\$[^$]+\$|\\frac\{[^}]+\}\{[^}]+\}|[A-Za-z][A-Za-z0-9_]*\s*=\s*[^，。；]+)/g)
       .map(s => s.trim())
       .filter(Boolean);
-    parts.forEach((part) => {
+    parts.forEach((part, partIndex) => {
       const looksFormula = isStandaloneFormula(part);
       if (looksFormula) {
         blocks.push({ type: 'formula', text: part });
       } else {
-        pushTextBlock(blocks, part);
+        pushTextBlock(blocks, part, partIndex > 0);
       }
     });
   });
   return blocks;
 }
 
-function pushTextBlock(blocks, text) {
+function pushTextBlock(blocks, text, mergeWithPrevious = true) {
   const previous = blocks[blocks.length - 1];
   let clean = normalizeInlineMath(text).trim();
   if (previous && previous.type === 'formula') {
     clean = clean.replace(/^[，,、；;。.\s]+/, '').trim();
   }
   if (!clean) return;
-  if (previous && previous.type === 'text') {
+  if (mergeWithPrevious && previous && previous.type === 'text') {
     const needsSpace = /[A-Za-z0-9]$/.test(previous.text) && /^[A-Za-z0-9]/.test(clean);
     previous.text += `${needsSpace ? ' ' : ''}${clean}`;
   } else {
