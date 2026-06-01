@@ -228,7 +228,6 @@ function mapGradingToResult(data, title) {
   const hasAnswer = g.is_correct !== null && g.is_correct !== undefined;
   const isOk = g.is_correct === true;
   const ratio = parseFloat(g.score || 0) / Math.max(parseFloat(g.max_score || 1), 0.001);
-  const verdict = !hasAnswer ? 'empty' : isOk ? 'correct' : ratio > 0 ? 'partial' : 'wrong';
 
   // correct_answer: DB field first, then raw AI response fallback from call1_raw
   const correctAnswer = g.correct_answer || analysis.raw_correct_answer || analysis.solution_answer || '—';
@@ -246,6 +245,13 @@ function mapGradingToResult(data, title) {
     steps = [{ title: 'AI 分析', detail: feedbackText }];
   }
 
+  // verdict: compute AFTER we know whether AI produced analysis content
+  // is_correct===null only means no student answer, NOT that AI failed to solve the problem
+  const hasAnalysis = correctAnswer !== '—' || steps.length > 0;
+  const verdict = hasAnswer
+    ? (isOk ? 'correct' : ratio > 0 ? 'partial' : 'wrong')
+    : (hasAnalysis ? 'analysis_only' : 'empty');
+
   // review suggestions
   const kpNames = kps.map(k => k.name || k.knowledge_point_name || '').filter(Boolean);
   let reviewSuggestions = [];
@@ -258,7 +264,8 @@ function mapGradingToResult(data, title) {
 
   // summary line shown in result card header
   const oneLine = feedbackText
-    || (isOk ? '回答正确！' : hasAnswer ? '请参考 AI 解析。' : '题目已解析，请查看正确答案和解题过程。');
+    || (verdict === 'analysis_only' ? '未检测到作答，以下是 AI 解析。'
+      : isOk ? '回答正确！' : '请参考 AI 解析。');
 
   // question struct (from analysis.question_struct which comes from call1_raw)
   const qs = analysis.question_struct || {};
@@ -269,7 +276,7 @@ function mapGradingToResult(data, title) {
     grade: analysis.detected_grade || g.grade || '八年级',
     type: qs.question_type || '作业批改',
     prompt: qs.stem || '（题目内容）',
-    studentAnswer: g.student_answer || (hasAnswer ? '（未识别）' : '（未作答）'),
+    studentAnswer: g.student_answer || (verdict === 'analysis_only' ? '（未检测到作答）' : hasAnswer ? '（未识别）' : '（未作答）'),
     correctAnswer,
     verdict,
     oneLine,
@@ -418,10 +425,12 @@ const STREAM_LINES = [
 // Verdict styling
 // ═══════════════════════════════════════════════════════════════
 const VERDICT = {
-  correct: { label: '正确', short: '✓', color: '#1F8A5B', soft: '#E6F4ED', dot: '#1F8A5B' },
-  partial: { label: '部分正确', short: '◐', color: '#B8771F', soft: '#FBF1DD', dot: '#D4A14C' },
-  wrong: { label: '错误', short: '✕', color: '#C04A4A', soft: '#FCE9E9', dot: '#C04A4A' },
-  empty: { label: '未作答', short: '○', color: '#6E727B', soft: '#F2F3F6', dot: '#6E727B' }
+  correct:       { label: '正确',       short: '✓', color: '#1F8A5B', soft: '#E6F4ED', dot: '#1F8A5B' },
+  partial:       { label: '部分正确',   short: '◐', color: '#B8771F', soft: '#FBF1DD', dot: '#D4A14C' },
+  wrong:         { label: '错误',       short: '✕', color: '#C04A4A', soft: '#FCE9E9', dot: '#C04A4A' },
+  empty:         { label: '未作答',     short: '○', color: '#6E727B', soft: '#F2F3F6', dot: '#6E727B' },
+  // AI 已解题但未检测到学生作答（is_correct===null，correct_answer 存在）
+  analysis_only: { label: '已解析',     short: '◎', color: '#5B6CF0', soft: '#EEEFFE', dot: '#5B6CF0' },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1200,7 +1209,7 @@ function HistoryPage({ items, onOpen }) {
 }
 
 function HistoryRow({ item, onClick }) {
-  const lv = VERDICT[item.verdict];
+  const lv = VERDICT[item.verdict] || VERDICT['analysis_only'];
   const initial = (item.chapter || item.title || '题')[0];
   return (
     <div onClick={() => onClick(item)} className="card row-press" style={{
@@ -1394,7 +1403,7 @@ function InlinePipelineCard({ msg, onViewResult }) {
 // 批改结果页（三层渐进披露）
 // ═══════════════════════════════════════════════════════════════
 function ResultScreen({ data, onClose, onWrong }) {
-  const [openSteps, setOpenSteps] = useState(false);
+  const [openSteps, setOpenSteps] = useState(!!(data.steps && data.steps.length > 0));
   const [openKnow, setOpenKnow] = useState(false);
   const v = VERDICT[data.verdict];
 
@@ -1486,7 +1495,7 @@ function ResultScreen({ data, onClose, onWrong }) {
             open={openSteps}
             onToggle={() => setOpenSteps((x) => !x)}
             title="AI解题过程"
-            subtitle=""
+            subtitle={data.steps && data.steps.length > 0 ? `共 ${data.steps.length} 步解析` : ''}
             iconBg="#15161B"
             icon={Ic.pen(14)}>
             
@@ -1695,7 +1704,7 @@ function App() {
           id:      item.assignment_id,
           chapter: SUBJECT_NAMES[item.subject_id] || '物理',
           title:   item.title || '未命名作业',
-          verdict: item.verdict || 'empty',
+          verdict: item.verdict || (item.status === 'ai_done' || item.status === 'graded' ? 'analysis_only' : 'empty'),
           time:    item.time_display || '刚刚',
           status:  item.status,
         }));
