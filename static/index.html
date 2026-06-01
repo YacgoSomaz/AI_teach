@@ -1272,16 +1272,20 @@ function StreamingContent({ lines, showing }) {
 // 内联批改进度卡（嵌入聊天流里）
 // ═══════════════════════════════════════════════════════════════
 function InlinePipelineCard({ msg, onViewResult }) {
-  const [step, setStep] = useState(0);
+  const [timerStep, setTimerStep] = useState(0);
   const [streamCount, setStreamCount] = useState(0);
   const [animDone, setAnimDone] = useState(false);
+
+  // 取后端实时进度（msg.currentStep）与计时器动画的最大值，
+  // 确保 UI 不落后于真实进度。
+  const step = Math.max(timerStep, msg.currentStep || 0);
 
   useEffect(() => {
     const timers = [];
     let acc = 0;
     PIPELINE.forEach((s, i) => {
       acc += s.dur;
-      timers.push(setTimeout(() => setStep(i + 1), acc));
+      timers.push(setTimeout(() => setTimerStep(i + 1), acc));
     });
     timers.push(setTimeout(() => setAnimDone(true), acc));
 
@@ -1294,7 +1298,8 @@ function InlinePipelineCard({ msg, onViewResult }) {
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  const canView = animDone && msg.resultReady;
+  // 后端完成时立即显示按钮，不等待计时器动画结束
+  const canView = msg.resultReady;
 
   return (
     <div style={{ maxWidth: '88%' }}>
@@ -1672,41 +1677,54 @@ function App() {
   useEffect(() => { refreshHistory(); }, []);
 
   // ── 轮询批改状态 ──────────────────────────────────────────
+  // 注：使用 /api/grading/{id}，该接口同时返回 status + 批改数据，
+  // 避免调用不存在的 /api/assignments/{id}。
   function startPoll(aid, title, progressId) {
+    // 后端 status → 流程步骤序号（共 5 步，0-based）
+    const STATUS_STEP = {
+      uploaded: 0, ocr_queued: 0,
+      ocr_running: 1,
+      ocr_done: 2,
+      ai_running: 3,
+    };
     let tries = 0;
     async function check() {
       tries++;
-      if (tries > 36) {
+      if (tries > 60) {                               // 最多 3 分钟
         setChatMessages(m => m.map(msg => msg._id === progressId
           ? { ...msg, failed: true, failMsg: '批改超时，请重试' } : msg));
         return;
       }
       try {
-        const asgn = await apiGet('/api/assignments/' + aid);
-        const st = (asgn.status || '').toLowerCase();
+        const data = await apiGet('/api/grading/' + aid);
+        const st = (data.status || '').toLowerCase();
+
+        // 推进流程步骤（实时映射真实后端进度）
+        const currentStep = STATUS_STEP[st] ?? 0;
+        setChatMessages(m => m.map(msg => msg._id === progressId
+          ? { ...msg, currentStep } : msg));
+
         if (st === 'ai_done') {
-          const gdata = await apiGet('/api/grading/' + aid);
-          const result = mapGradingToResult(gdata, title);
+          const result = mapGradingToResult(data, title);
           setChatMessages(m => m.map(msg => msg._id === progressId
-            ? { ...msg, resultReady: true, resultData: result } : msg));
+            ? { ...msg, currentStep: 5, resultReady: true, resultData: result } : msg));
           refreshHistory();
         } else if (st === 'manual_required') {
-          const reason = asgn.processing_status?.grading?.reason || '';
-          const failMsg = reason === 'image_too_small' ? '图片太小，请拍清晰一点再试'
-            : reason === 'image_dimension_too_small' ? '图片分辨率太低，请靠近拍摄'
-            : reason === 'unsupported_file_type' ? '不支持该图片格式'
+          const reason = data.analysis?.support_status || '';
+          const failMsg = reason === 'unsupported_subject' ? '题目学科暂不支持 AI 批改'
+            : reason === 'unsupported_grade' ? '年级暂不支持 AI 批改'
             : '题目暂不支持 AI 批改';
           setChatMessages(m => m.map(msg => msg._id === progressId
             ? { ...msg, failed: true, failMsg } : msg));
-        } else if (st.includes('fail')) {
+        } else if (st === 'ai_failed' || st === 'failed') {
           setChatMessages(m => m.map(msg => msg._id === progressId
             ? { ...msg, failed: true, failMsg: '批改出错，请重试' } : msg));
         } else {
-          setTimeout(check, 5000);
+          setTimeout(check, 3000);                    // 每 3 秒轮询一次
         }
-      } catch (_) { if (tries < 36) setTimeout(check, 5000); }
+      } catch (_) { if (tries < 60) setTimeout(check, 3000); }
     }
-    setTimeout(check, 3000);
+    setTimeout(check, 2000);                          // 上传后 2 秒开始轮询
   }
 
   // ── 拍照按钮 → 触发隐藏文件输入 ──────────────────────────
