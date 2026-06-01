@@ -1485,53 +1485,62 @@ function ResultMiniCard({ data, onViewResult }) {
   );
 }
 
+function getScriptedStreamState(elapsedMs) {
+  if (elapsedMs < 0) return { streamCount: 0, activeText: '' };
+  const charMs = 58;
+  const pauseMs = 520;
+  let cursor = 0;
+  for (let idx = 0; idx < STREAM_LINES.length; idx += 1) {
+    const chars = Array.from(STREAM_LINES[idx]);
+    const typingMs = chars.length * charMs;
+    if (elapsedMs < cursor + typingMs) {
+      const count = Math.max(1, Math.floor((elapsedMs - cursor) / charMs) + 1);
+      return {
+        streamCount: idx,
+        activeText: chars.slice(0, count).join(''),
+      };
+    }
+    cursor += typingMs;
+    if (elapsedMs < cursor + pauseMs) {
+      return { streamCount: idx + 1, activeText: '' };
+    }
+    cursor += pauseMs;
+  }
+  return { streamCount: STREAM_LINES.length, activeText: '' };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 内联批改进度卡（嵌入聊天流里）
 // ═══════════════════════════════════════════════════════════════
 function InlinePipelineCard({ msg, onViewResult }) {
-  const [timerStep, setTimerStep] = useState(0);
-  const [streamCount, setStreamCount] = useState(0);
-  const [activeText, setActiveText] = useState('');
-  const [animDone, setAnimDone] = useState(false);
-  const [elapsedSec, setElapsedSec] = useState(0);
+  const [nowMs, setNowMs] = useState(Date.now());
+  const startedAt = msg.startedAt || nowMs;
+  const elapsedMs = Math.max(0, nowMs - startedAt);
+  const elapsedSec = Math.min(Math.floor(elapsedMs / 1000), 180);
+  const totalAnimMs = PIPELINE.reduce((sum, s) => sum + s.dur, 0);
+  const animDone = elapsedMs >= totalAnimMs;
   // 3 分钟后切换后台模式：显示轻量提示，让用户可以离开页面
-  const [bgMode, setBgMode] = useState(false);
+  const bgMode = elapsedMs >= 3 * 60 * 1000;
+
+  let timerStep = 0;
+  let accMs = 0;
+  PIPELINE.forEach((s, i) => {
+    accMs += s.dur;
+    if (elapsedMs >= accMs) timerStep = i + 1;
+  });
+
+  const solveStart = PIPELINE.slice(0, 2).reduce((a, s) => a + s.dur, 0);
+  const { streamCount, activeText } = getScriptedStreamState(elapsedMs - solveStart);
 
   // 取后端实时进度（msg.currentStep）与计时器动画的最大值，
   // 确保 UI 不落后于真实进度。
   const step = Math.max(timerStep, msg.currentStep || 0);
 
   useEffect(() => {
-    const timers = [];
-    timers.push(setInterval(() => setElapsedSec(s => Math.min(s + 1, 180)), 1000));
-    let acc = 0;
-    PIPELINE.forEach((s, i) => {
-      acc += s.dur;
-      timers.push(setTimeout(() => setTimerStep(i + 1), acc));
-    });
-    timers.push(setTimeout(() => setAnimDone(true), acc));
-
-    const solveStart = PIPELINE.slice(0, 2).reduce((a, s) => a + s.dur, 0);
-    const charMs = 58;
-    let cursor = solveStart;
-    STREAM_LINES.forEach((line, idx) => {
-      const chars = Array.from(line);
-      chars.forEach((_, charIdx) => {
-        timers.push(setTimeout(() => {
-          setStreamCount(idx);
-          setActiveText(chars.slice(0, charIdx + 1).join(''));
-        }, cursor + charIdx * charMs));
-      });
-      cursor += chars.length * charMs + 520;
-      timers.push(setTimeout(() => {
-        setStreamCount(idx + 1);
-        setActiveText('');
-      }, cursor));
-    });
-    // 3 分钟后进入后台模式
-    timers.push(setTimeout(() => setBgMode(true), 3 * 60 * 1000));
-    return () => timers.forEach(clearTimeout);
-  }, []);
+    if (msg.resultReady || msg.failed) return undefined;
+    const timer = setInterval(() => setNowMs(Date.now()), 250);
+    return () => clearInterval(timer);
+  }, [msg.resultReady, msg.failed]);
 
   // 后端完成时立即显示按钮，不等待计时器动画结束
   const canView = msg.resultReady;
@@ -2154,6 +2163,7 @@ function App() {
     const title = file.name.replace(/\.[^.]+$/, '') || '作业';
     const previewUrl = URL.createObjectURL(file);
     const progressId = Date.now();
+    const startedAt = Date.now();
     const fd = new FormData();
     fd.append('file', file);
     apiUpload(fd)
@@ -2170,7 +2180,7 @@ function App() {
         setChatMessages(m => [...m,
           { type: 'photo', caption: title, previewUrl },
           { role: 'ai', text: '', _id: explainId, streaming: true },
-          { type: 'grading', _id: progressId, title }
+          { type: 'grading', _id: progressId, title, startedAt }
         ]);
         streamAiMessage(aid, explainPrompt, explainId);
         startPoll(aid, title, progressId);
