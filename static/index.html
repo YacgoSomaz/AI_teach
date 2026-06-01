@@ -280,10 +280,13 @@ function mapGradingToResult(data, title) {
 // ═══════════════════════════════════════════════════════════════
 // iOS frame (simplified)
 // ═══════════════════════════════════════════════════════════════
-function IOSFrame({ children, width = 402, height = 874 }) {
+function IOSFrame({ children }) {
   return (
     <div style={{
-      width, height, borderRadius: 48, overflow: 'hidden',
+      width: 'min(100vw, 430px, calc(100svh * 9 / 16))',
+      aspectRatio: '9 / 16',
+      maxHeight: '100svh',
+      borderRadius: 'min(42px, 8vw)', overflow: 'hidden',
       position: 'relative', background: '#F2F2F7',
       boxShadow: '0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)'
     }}>
@@ -1861,10 +1864,11 @@ function App() {
 function Mounted() {
   return (
     <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 24, background: '#EEF2F7'
+      minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 'clamp(0px, 2.5vw, 24px)', background: '#EEF2F7',
+      overflow: 'hidden'
     }}>
-      <IOSFrame width={402} height={874}><App /></IOSFrame>
+      <IOSFrame><App /></IOSFrame>
     </div>);
 
 }
