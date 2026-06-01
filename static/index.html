@@ -1644,12 +1644,15 @@ function splitRichText(text) {
 }
 
 function pushTextBlock(blocks, text) {
-  const clean = normalizeInlineMath(text).trim();
+  const previous = blocks[blocks.length - 1];
+  let clean = normalizeInlineMath(text).trim();
+  if (previous && previous.type === 'formula') {
+    clean = clean.replace(/^[，,、；;。.\s]+/, '').trim();
+  }
   if (!clean) return;
-  const last = blocks[blocks.length - 1];
-  if (last && last.type === 'text') {
-    const needsSpace = /[A-Za-z0-9]$/.test(last.text) && /^[A-Za-z0-9]/.test(clean);
-    last.text += `${needsSpace ? ' ' : ''}${clean}`;
+  if (previous && previous.type === 'text') {
+    const needsSpace = /[A-Za-z0-9]$/.test(previous.text) && /^[A-Za-z0-9]/.test(clean);
+    previous.text += `${needsSpace ? ' ' : ''}${clean}`;
   } else {
     blocks.push({ type: 'text', text: clean });
   }
