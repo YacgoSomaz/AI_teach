@@ -716,11 +716,62 @@ function ChatMessage({ msg, onViewResult }) {
         padding: '10px 14px', borderRadius: 18,
         borderBottomRightRadius: msg.role === 'user' ? 4 : 18,
         borderBottomLeftRadius: msg.role === 'user' ? 18 : 4,
-        fontSize: 14, lineHeight: 1.5, maxWidth: '80%'
+        fontSize: 14, lineHeight: 1.65, maxWidth: '80%'
       }}>
-        {msg.text}
+        {msg.role === 'ai'
+          ? <ChatRichText text={msg.text} streaming={msg.streaming} />
+          : msg.text}
       </div>
     </div>);
+}
+
+function ChatRichText({ text, streaming }) {
+  const content = stripAiIntro(text || '');
+  if (!content && streaming) {
+    return (
+      <span style={{ color: '#8A8B93' }}>
+        正在生成<span className="caret" />
+      </span>
+    );
+  }
+  const blocks = splitRichText(content);
+  if (blocks.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {blocks.map((block, i) => block.type === 'formula' ? (
+        <div key={i} style={{
+          padding: '7px 9px',
+          borderRadius: 9,
+          background: '#F7F8FA',
+          border: '1px solid #ECEFF3',
+          color: '#15161B',
+          fontSize: 12.5,
+          lineHeight: 1.55,
+          overflowX: 'auto',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+        }}><FormulaText text={block.text} /></div>
+      ) : (
+        <p key={i} style={{
+          margin: 0,
+          color: '#15161B',
+          fontSize: 13.2,
+          lineHeight: 1.8,
+          textAlign: 'justify'
+        }}>{block.text}{streaming && i === blocks.length - 1 && <span className="caret" />}</p>
+      ))}
+    </div>
+  );
+}
+
+function stripAiIntro(text) {
+  return String(text || '')
+    .replace(/^我是你的AI物理老师[，,。！!\s]*/g, '')
+    .replace(/^我是你的 AI 物理老师[，,。！!\s]*/g, '')
+    .replace(/^我是你的AI物理学习助手[，,。！!\s]*/g, '')
+    .replace(/^我是你的 AI 物理学习助手[，,。！!\s]*/g, '')
+    .replace(/^咱们用整体法分析哦[，,。！!\s]*/g, '')
+    .replace(/^咱们回到这道题[，,。！!\s]*/g, '')
+    .trim();
 }
 
 function ChatInputBar({ onCamera, onSend, placeholder = '拍题或追问这道题…' }) {
@@ -2105,7 +2156,7 @@ function App() {
         // 同时插入：题目图片消息 + 内联批改进度卡
         setChatMessages(m => [...m,
           { type: 'photo', caption: title, previewUrl },
-          { role: 'ai', text: '', _id: explainId },
+          { role: 'ai', text: '', _id: explainId, streaming: true },
           { type: 'grading', _id: progressId, title }
         ]);
         streamAiMessage(aid, explainPrompt, explainId);
@@ -2171,12 +2222,16 @@ function App() {
           chunk.split('\n').forEach(line => {
             if (!line.startsWith('data:')) return;
             const raw = line.slice(5).trim();
-            if (raw === '[DONE]') return;
+            if (raw === '[DONE]') {
+              setChatMessages(m => m.map(msg =>
+                msg._id === aiIdx ? { ...msg, streaming: false } : msg));
+              return;
+            }
             try {
               const obj = JSON.parse(raw);
               if (obj.err) {
                 setChatMessages(m => m.map(msg =>
-                  msg._id === aiIdx ? { ...msg, text: obj.err } : msg));
+                  msg._id === aiIdx ? { ...msg, text: obj.err, streaming: false } : msg));
               } else if (obj.t) {
                 setChatMessages(m => m.map(msg =>
                   msg._id === aiIdx ? { ...msg, text: msg.text + obj.t } : msg));
@@ -2198,7 +2253,7 @@ function App() {
     const aid = currentAid || 'general';
     // 先插一条空的 AI 消息，后续流式追加
     const aiIdx = Date.now();
-    setChatMessages(m => [...m, { role: 'ai', text: '', _id: aiIdx }]);
+    setChatMessages(m => [...m, { role: 'ai', text: '', _id: aiIdx, streaming: true }]);
     streamAiMessage(aid, text, aiIdx);
   }
 
