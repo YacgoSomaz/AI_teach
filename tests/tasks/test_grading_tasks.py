@@ -190,6 +190,46 @@ async def test_process_ai_grading_retries_generic_failure(mocker, tmp_path):
             "94ee850e-6562-4c9b-ac7c-15cdd1383c4e",
         )
 
-    assert assignment.status == AssignmentStatus.AI_FAILED
+    assert assignment.status == AssignmentStatus.AI_RUNNING
+    assert assignment.processing_status == {
+        "grading": {
+            "status": "retrying",
+            "error": "boom",
+            "retry_count": 0,
+        },
+    }
     assert assignment.retry_count == 1
     task.retry.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_process_ai_grading_marks_failed_after_final_retry(mocker, tmp_path):
+    assignment = make_assignment(tmp_path)
+    session = FakeSession(assignment)
+    task = FakeTask(retries=3)
+    mocker.patch("src.tasks.grading_tasks.get_celery_session", return_value=session)
+    mocker.patch(
+        "src.tasks.grading_tasks.read_assignment_image_from_values",
+        return_value=(b"image", "image/jpeg"),
+    )
+    service = mocker.MagicMock()
+    service.analyze_and_persist = AsyncMock(side_effect=RuntimeError("boom"))
+    mocker.patch("src.tasks.grading_tasks.AIGradingService", return_value=service)
+    mocker.patch("src.tasks.grading_tasks.create_default_grading_ai_client")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await _process_ai_grading_async(
+            task,
+            "94ee850e-6562-4c9b-ac7c-15cdd1383c4e",
+        )
+
+    assert assignment.status == AssignmentStatus.AI_FAILED
+    assert assignment.processing_status == {
+        "grading": {
+            "status": "failed",
+            "error": "boom",
+            "retry_count": 3,
+        },
+    }
+    assert assignment.retry_count == 1
+    task.retry.assert_not_called()

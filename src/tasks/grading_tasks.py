@@ -109,10 +109,13 @@ async def _process_ai_grading_async(task, assignment_id: str):
 
         except Exception as exc:
             if assignment is not None:
-                assignment.status = AssignmentStatus.AI_FAILED
+                will_retry = task.request.retries < task.max_retries
+                assignment.status = (
+                    AssignmentStatus.AI_RUNNING if will_retry else AssignmentStatus.AI_FAILED
+                )
                 assignment.processing_status = {
                     "grading": {
-                        "status": "failed",
+                        "status": "retrying" if will_retry else "failed",
                         "error": str(exc),
                         "retry_count": task.request.retries,
                     },
