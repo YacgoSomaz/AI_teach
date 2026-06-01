@@ -287,6 +287,19 @@ function mapGradingToResult(data, title) {
     reviewSuggestions,
   };
 }
+
+function hasRenderableGrading(data) {
+  const g = data?.grading || {};
+  const analysis = data?.analysis || {};
+  const hasCorrectAnswer = Boolean(
+    (g.correct_answer && g.correct_answer !== '—') ||
+    analysis.raw_correct_answer ||
+    analysis.solution_answer
+  );
+  const hasSteps = (Array.isArray(g.steps) && g.steps.length > 0) ||
+    (Array.isArray(analysis.solution_steps) && analysis.solution_steps.length > 0);
+  return hasCorrectAnswer || hasSteps;
+}
 // ─── API 层结束 ───────────────────────────────────────────────
 
 // ═══════════════════════════════════════════════════════════════
@@ -1884,11 +1897,15 @@ function App() {
         setChatMessages(m => m.map(msg => msg._id === progressId
           ? { ...msg, currentStep } : msg));
 
-        if (st === 'ai_done') {
+        if (st === 'ai_done' && hasRenderableGrading(data)) {
           const result = mapGradingToResult(data, title);
           setChatMessages(m => m.map(msg => msg._id === progressId
             ? { ...msg, currentStep: 5, resultReady: true, resultData: result } : msg));
           refreshHistory();
+        } else if (st === 'ai_done') {
+          setChatMessages(m => m.map(msg => msg._id === progressId
+            ? { ...msg, currentStep: 4 } : msg));
+          setTimeout(check, interval);
         } else if (st === 'manual_required') {
           const reason = data.analysis?.support_status || '';
           const failMsg = reason === 'unsupported_subject' ? '题目学科暂不支持 AI 批改'
@@ -1961,6 +1978,10 @@ function App() {
     if (item.status === 'grading') return;
     try {
       const data = await apiGet('/api/grading/' + item.id);
+      if (!hasRenderableGrading(data)) {
+        showToast('AI 还在整理结果，稍后再看');
+        return;
+      }
       const result = mapGradingToResult(data, item.title);
       setCurrentAid(item.id);
       setGradingResult(result);
