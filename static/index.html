@@ -1503,7 +1503,7 @@ function InlinePipelineCard({ msg, onViewResult }) {
 
   useEffect(() => {
     const timers = [];
-    timers.push(setInterval(() => setElapsedSec(s => s + 1), 1000));
+    timers.push(setInterval(() => setElapsedSec(s => Math.min(s + 1, 180)), 1000));
     let acc = 0;
     PIPELINE.forEach((s, i) => {
       acc += s.dur;
@@ -1550,7 +1550,7 @@ function InlinePipelineCard({ msg, onViewResult }) {
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>AI 还在解题中</div>
             <div style={{ fontSize: 11.5, color: '#8A8B93', marginTop: 1 }}>
-              已分析 {elapsedSec} 秒，完成后会在历史记录里出现
+              题目较复杂，完成后会在历史记录里出现
             </div>
           </div>
         </div>
@@ -1614,7 +1614,7 @@ function InlinePipelineCard({ msg, onViewResult }) {
             color: '#6E727B',
             lineHeight: 1.5
           }}>
-            AI 老师还在生成完整解析，已等待 {elapsedSec} 秒。这里会继续更新，不会让你空等。
+            AI 老师还在生成完整解析，已等待 {Math.min(elapsedSec, 180)} 秒。这里会继续更新，不会让你空等。
           </div>
         )}
 
