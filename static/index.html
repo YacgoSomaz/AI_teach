@@ -1690,7 +1690,7 @@ function App() {
     let tries = 0;
     async function check() {
       tries++;
-      if (tries > 60) {                               // 最多 3 分钟
+      if (tries > 200) {                              // 最多约 17 分钟（豆包重试最坏情况）
         setChatMessages(m => m.map(msg => msg._id === progressId
           ? { ...msg, failed: true, failMsg: '批改超时，请重试' } : msg));
         return;
@@ -1720,9 +1720,9 @@ function App() {
           setChatMessages(m => m.map(msg => msg._id === progressId
             ? { ...msg, failed: true, failMsg: '批改出错，请重试' } : msg));
         } else {
-          setTimeout(check, 3000);                    // 每 3 秒轮询一次
+          setTimeout(check, 5000);                    // 每 5 秒轮询一次
         }
-      } catch (_) { if (tries < 60) setTimeout(check, 3000); }
+      } catch (_) { if (tries < 200) setTimeout(check, 5000); }
     }
     setTimeout(check, 2000);                          // 上传后 2 秒开始轮询
   }

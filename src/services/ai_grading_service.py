@@ -34,8 +34,8 @@ from src.services.mastery_service import calc_mastery
 MIN_IMAGE_BYTES = 5 * 1024  # 只拦截空文件/损坏文件，手机截图可能远小于原来的 80KB
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MIN_LONG_EDGE = 200
-CALL1_TIMEOUT_SECONDS = 120
-CALL2_TIMEOUT_SECONDS = 60
+CALL1_TIMEOUT_SECONDS = 300   # 豆包 Vision API 偶发慢响应，给足 5 分钟
+CALL2_TIMEOUT_SECONDS = 120   # 知识点映射也适当放宽
 
 
 class GradingAIClient(Protocol):
