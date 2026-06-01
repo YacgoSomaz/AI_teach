@@ -1604,7 +1604,7 @@ function RichStepText({ text }) {
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
-        }}>{normalizeFormula(block.text)}</div>
+        }}><FormulaText text={block.text} /></div>
       ) : (
         <p key={i} style={{
           margin: 0,
@@ -1632,25 +1632,90 @@ function splitRichText(text) {
       .map(s => s.trim())
       .filter(Boolean);
     parts.forEach((part) => {
-      const looksFormula = /\$[^$]+\$|\\frac|[A-Za-z][A-Za-z0-9_]*\s*=|\\cdot|\\frac/.test(part);
+      const looksFormula = isStandaloneFormula(part);
       if (looksFormula) {
         blocks.push({ type: 'formula', text: part });
       } else {
-        blocks.push({ type: 'text', text: part });
+        pushTextBlock(blocks, part);
       }
     });
   });
   return blocks;
 }
 
+function pushTextBlock(blocks, text) {
+  const clean = normalizeInlineMath(text).trim();
+  if (!clean) return;
+  const last = blocks[blocks.length - 1];
+  if (last && last.type === 'text') {
+    const needsSpace = /[A-Za-z0-9]$/.test(last.text) && /^[A-Za-z0-9]/.test(clean);
+    last.text += `${needsSpace ? ' ' : ''}${clean}`;
+  } else {
+    blocks.push({ type: 'text', text: clean });
+  }
+}
+
+function isStandaloneFormula(part) {
+  const clean = String(part).trim().replace(/^\$|\$$/g, '');
+  if (/^\\?[A-Za-z]$/.test(clean)) return false;
+  if (/^[A-Za-z]$/.test(clean)) return false;
+  return /\\frac|[A-Za-z][A-Za-z0-9_]*\s*=|[=<>]|\\cdot|\\times/.test(clean);
+}
+
+function FormulaText({ text }) {
+  const tokens = parseFormulaTokens(normalizeFormula(text));
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+      {tokens.map((token, i) => token.type === 'frac' ? (
+        <span key={i} style={{
+          display: 'inline-flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          verticalAlign: 'middle',
+          margin: '0 2px',
+          lineHeight: 1.05,
+          fontSize: 12.5
+        }}>
+          <span style={{ padding: '0 4px 2px' }}>{token.num}</span>
+          <span style={{ width: '100%', minWidth: 18, borderTop: '1.5px solid currentColor' }} />
+          <span style={{ padding: '2px 4px 0' }}>{token.den}</span>
+        </span>
+      ) : (
+        <span key={i}>{token.text}</span>
+      ))}
+    </span>
+  );
+}
+
+function parseFormulaTokens(text) {
+  const tokens = [];
+  const re = /\\frac\{([^}]+)\}\{([^}]+)\}/g;
+  let last = 0;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) tokens.push({ type: 'text', text: text.slice(last, match.index) });
+    tokens.push({ type: 'frac', num: normalizeInlineMath(match[1]), den: normalizeInlineMath(match[2]) });
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) tokens.push({ type: 'text', text: text.slice(last) });
+  return tokens;
+}
+
 function normalizeFormula(text) {
   return String(text)
     .replace(/^\$|\$$/g, '')
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1) / ($2)')
     .replace(/\\cdot/g, '·')
     .replace(/\\times/g, '×')
     .replace(/\\\(/g, '')
     .replace(/\\\)/g, '');
+}
+
+function normalizeInlineMath(text) {
+  return String(text)
+    .replace(/\\cdot/g, '·')
+    .replace(/\\times/g, '×')
+    .replace(/^\$|\$$/g, '');
 }
 
 function AnswerCell({ label, value, good, bad }) {
