@@ -88,6 +88,11 @@
     animation: streamIn .35s cubic-bezier(.2,.7,.2,1) backwards;
   }
 
+  /* 后台任务旋转圈 */
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   /* caret blink */
   @keyframes caretBlink {
     0%, 49% { opacity: 1; }
@@ -1275,6 +1280,8 @@ function InlinePipelineCard({ msg, onViewResult }) {
   const [timerStep, setTimerStep] = useState(0);
   const [streamCount, setStreamCount] = useState(0);
   const [animDone, setAnimDone] = useState(false);
+  // 3 分钟后切换后台模式：显示轻量提示，让用户可以离开页面
+  const [bgMode, setBgMode] = useState(false);
 
   // 取后端实时进度（msg.currentStep）与计时器动画的最大值，
   // 确保 UI 不落后于真实进度。
@@ -1295,11 +1302,33 @@ function InlinePipelineCard({ msg, onViewResult }) {
     STREAM_LINES.forEach((_, idx) => {
       timers.push(setTimeout(() => setStreamCount(c => c + 1), solveStart + perLine * (idx + 0.5)));
     });
+    // 3 分钟后进入后台模式
+    timers.push(setTimeout(() => setBgMode(true), 3 * 60 * 1000));
     return () => timers.forEach(clearTimeout);
   }, []);
 
   // 后端完成时立即显示按钮，不等待计时器动画结束
   const canView = msg.resultReady;
+
+  // ── 后台模式：轻量卡片，用户可离开 ──────────────────────────
+  if (bgMode && !canView && !msg.failed) {
+    return (
+      <div style={{ maxWidth: '88%' }}>
+        <div className="card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* 旋转圈 */}
+          <div style={{
+            width: 20, height: 20, borderRadius: '50%', flex: 'none',
+            border: '2.5px solid #E2E4E9', borderTopColor: '#15161B',
+            animation: 'spin 1s linear infinite'
+          }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>AI 还在解题中</div>
+            <div style={{ fontSize: 11.5, color: '#8A8B93', marginTop: 1 }}>完成后会在历史记录里出现，你可以先去做其他题</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: '88%' }}>
@@ -1688,11 +1717,16 @@ function App() {
       ai_running: 3,
     };
     let tries = 0;
+    const startMs = Date.now();
     async function check() {
       tries++;
-      if (tries > 200) {                              // 最多约 17 分钟（豆包重试最坏情况）
+      // 前 3 分钟：5 秒/次；3 分钟后降为 15 秒/次（用户已收到"可离开"提示）
+      const elapsed = Date.now() - startMs;
+      const interval = elapsed < 3 * 60 * 1000 ? 5000 : 15000;
+      // 超过 20 分钟才真正超时（豆包最坏情况：3 次重试 × ~5 分钟 = 15 分钟）
+      if (elapsed > 20 * 60 * 1000) {
         setChatMessages(m => m.map(msg => msg._id === progressId
-          ? { ...msg, failed: true, failMsg: '批改超时，请重试' } : msg));
+          ? { ...msg, failed: true, failMsg: '批改超时，请在历史记录重新上传' } : msg));
         return;
       }
       try {
@@ -1720,9 +1754,9 @@ function App() {
           setChatMessages(m => m.map(msg => msg._id === progressId
             ? { ...msg, failed: true, failMsg: '批改出错，请重试' } : msg));
         } else {
-          setTimeout(check, 5000);                    // 每 5 秒轮询一次
+          setTimeout(check, interval);
         }
-      } catch (_) { if (tries < 200) setTimeout(check, 5000); }
+      } catch (_) { if (elapsed < 20 * 60 * 1000) setTimeout(check, interval); }
     }
     setTimeout(check, 2000);                          // 上传后 2 秒开始轮询
   }

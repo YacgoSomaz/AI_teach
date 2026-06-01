@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
+import logging
 import struct
+import time
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Protocol
 
 import httpx
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -65,6 +69,30 @@ class OpenAICompatibleGradingClient:
         model: str,
         timeout: int,
     ) -> dict[str, Any]:
+        # ── 诊断埋点：拆解耗时瓶颈 ───────────────────────────────
+        t0 = time.monotonic()
+        prompt_chars = sum(
+            len(str(p.get("text", "") or p.get("image_url", {}).get("url", "")))
+            if isinstance(p, dict) else len(str(p))
+            for m in messages
+            for p in (m["content"] if isinstance(m.get("content"), list) else [m.get("content", "")])
+        )
+        # 估算图片字节数（base64 → 原始大小 ≈ len*3/4）
+        image_b64_len = 0
+        for m in messages:
+            for p in (m["content"] if isinstance(m.get("content"), list) else []):
+                if isinstance(p, dict) and p.get("type") == "image_url":
+                    url = p["image_url"].get("url", "")
+                    if "," in url:
+                        image_b64_len = len(url.split(",", 1)[1])
+        image_bytes_est = image_b64_len * 3 // 4
+        logger.info(
+            "AI_GRADING call_start model=%s timeout=%ds "
+            "prompt_chars=%d image_bytes_est=%d",
+            model, timeout, prompt_chars, image_bytes_est,
+        )
+        # ─────────────────────────────────────────────────────────
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -76,16 +104,34 @@ class OpenAICompatibleGradingClient:
             "max_tokens": 4096,
             "response_format": {"type": "json_object"},
         }
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=payload,
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+            response.raise_for_status()
+            data = response.json()
+            elapsed = time.monotonic() - t0
+            usage = data.get("usage", {})
+            logger.info(
+                "AI_GRADING call_done model=%s elapsed=%.1fs "
+                "tokens_in=%s tokens_out=%s",
+                model, elapsed,
+                usage.get("prompt_tokens", "?"),
+                usage.get("completion_tokens", "?"),
             )
-        response.raise_for_status()
-        data = response.json()
-        content = data["choices"][0]["message"]["content"] or "{}"
-        return parse_json_response(content)
+            content = data["choices"][0]["message"]["content"] or "{}"
+            return parse_json_response(content)
+        except httpx.ReadTimeout:
+            elapsed = time.monotonic() - t0
+            logger.warning(
+                "AI_GRADING ReadTimeout model=%s elapsed=%.1fs "
+                "image_bytes_est=%d prompt_chars=%d",
+                model, elapsed, image_bytes_est, prompt_chars,
+            )
+            raise
 
 
 def create_default_grading_ai_client() -> GradingAIClient:
