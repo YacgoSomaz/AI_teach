@@ -427,11 +427,12 @@ const HISTORY = [];
 
 // 流式过程文本
 const STREAM_LINES = [
-'正在识别题目类型和考察方向…',
-'分析题目条件和已知量…',
-'对比学生作答与标准解法…',
-'定位错误原因，归纳知识点…',
-'生成解析和复习建议…'];
+'我先读图，判断这是哪一类物理题…',
+'提取题干条件、图像信息和已知量…',
+'建立解题路径，选择对应公式或实验原理…',
+'对照学生作答，判断是否有漏选或误读…',
+'整理知识点、错因和复习建议…',
+'正在等待完整解析返回，稍候我会把答案收进历史…'];
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -1261,11 +1262,11 @@ function HistoryRow({ item, onClick }) {
 // 批改流程步骤定义（内联卡片和旧全屏页共用）
 // ═══════════════════════════════════════════════════════════════
 const PIPELINE = [
-{ id: 'enhance', title: '图片优化', detail: '压缩 · 增强对比度 · 保留题干细节', dur: 1500 },
-{ id: 'recognize', title: '识别题目', detail: 'OCR 提取文字 · 解析题型结构', dur: 1900 },
-{ id: 'solve', title: 'AI 老师正在分析', streaming: true, dur: 7800 },
-{ id: 'compare', title: '比对学生作答', detail: '识别作答内容 · 逐步判断正误', dur: 1900 },
-{ id: 'match', title: '匹配知识点', detail: '关联课标知识点 · 更新掌握度', dur: 1500 }];
+{ id: 'enhance', title: '图片优化', detail: '压缩 · 增强对比度 · 保留题干细节', dur: 2600 },
+{ id: 'recognize', title: '识别题目', detail: 'OCR 提取文字 · 解析题型结构', dur: 3600 },
+{ id: 'solve', title: 'AI 老师正在分析', streaming: true, dur: 26000 },
+{ id: 'compare', title: '比对学生作答', detail: '识别作答内容 · 逐步判断正误', dur: 4200 },
+{ id: 'match', title: '匹配知识点', detail: '关联课标知识点 · 更新掌握度', dur: 3600 }];
 
 
 
@@ -1295,6 +1296,60 @@ function StreamingContent({ lines, showing }) {
 
 }
 
+function ResultMiniCard({ data, onViewResult }) {
+  const verdict = VERDICT[data.verdict] || VERDICT.analysis_only;
+  const firstStep = data.steps && data.steps[0];
+  const detail = firstStep?.detail || data.oneLine || '完整解析已生成。';
+  const shortDetail = detail.length > 86 ? detail.slice(0, 86) + '…' : detail;
+  const kps = (data.knowledgePoints || []).filter(Boolean).slice(0, 3);
+  return (
+    <div style={{
+      marginTop: 12,
+      padding: '12px 12px 11px',
+      borderRadius: 14,
+      background: '#F8FAFC',
+      border: '1px solid #E7EAEE'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{
+          width: 24, height: 24, borderRadius: '50%',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          background: verdict.soft, color: verdict.color, fontSize: 13, fontWeight: 800
+        }}>{verdict.short}</span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: '#15161B' }}>AI 已完成解析</div>
+          <div style={{ fontSize: 11.5, color: '#8A8B93', marginTop: 1 }}>已同步到历史记录，可随时回看</div>
+        </div>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 12.5, color: '#6E727B', lineHeight: 1.65 }}>
+        正确答案：<b style={{ color: '#15161B' }}>{data.correctAnswer || '—'}</b>
+      </div>
+      <div style={{ marginTop: 6, fontSize: 12.5, color: '#15161B', lineHeight: 1.65 }}>
+        {shortDetail}
+      </div>
+      {kps.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
+          {kps.map((kp, i) => (
+            <span key={i} style={{
+              padding: '3px 8px',
+              borderRadius: 999,
+              background: '#EAF7F5',
+              color: '#0F8B82',
+              fontSize: 11.5,
+              fontWeight: 700
+            }}>#{kp}</span>
+          ))}
+        </div>
+      )}
+      <button onClick={() => onViewResult && onViewResult(data)} style={{
+        marginTop: 11, width: '100%', padding: '9px 0', borderRadius: 11,
+        background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer',
+        fontSize: 13.5, fontWeight: 700
+      }}>查看完整解析 →</button>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 内联批改进度卡（嵌入聊天流里）
 // ═══════════════════════════════════════════════════════════════
@@ -1302,6 +1357,7 @@ function InlinePipelineCard({ msg, onViewResult }) {
   const [timerStep, setTimerStep] = useState(0);
   const [streamCount, setStreamCount] = useState(0);
   const [animDone, setAnimDone] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
   // 3 分钟后切换后台模式：显示轻量提示，让用户可以离开页面
   const [bgMode, setBgMode] = useState(false);
 
@@ -1311,6 +1367,7 @@ function InlinePipelineCard({ msg, onViewResult }) {
 
   useEffect(() => {
     const timers = [];
+    timers.push(setInterval(() => setElapsedSec(s => s + 1), 1000));
     let acc = 0;
     PIPELINE.forEach((s, i) => {
       acc += s.dur;
@@ -1345,7 +1402,9 @@ function InlinePipelineCard({ msg, onViewResult }) {
           }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>AI 还在解题中</div>
-            <div style={{ fontSize: 11.5, color: '#8A8B93', marginTop: 1 }}>完成后会在历史记录里出现，你可以先去做其他题</div>
+            <div style={{ fontSize: 11.5, color: '#8A8B93', marginTop: 1 }}>
+              已分析 {elapsedSec} 秒，完成后会在历史记录里出现
+            </div>
           </div>
         </div>
       </div>
@@ -1392,20 +1451,25 @@ function InlinePipelineCard({ msg, onViewResult }) {
           </div>
         )}
 
-        {/* waiting for result after animation */}
+        {/* waiting for real model payload after scripted animation */}
         {animDone && !msg.resultReady && !msg.failed && (
-          <div style={{ marginTop: 10, fontSize: 12, color: '#8A8B93', textAlign: 'center', padding: '4px 0' }}>
-            AI 老师还在思考，稍候…
+          <div style={{
+            marginTop: 10,
+            padding: '9px 10px',
+            borderRadius: 12,
+            background: '#F8FAFC',
+            border: '1px solid #ECEFF3',
+            fontSize: 12,
+            color: '#6E727B',
+            lineHeight: 1.5
+          }}>
+            AI 老师还在生成完整解析，已等待 {elapsedSec} 秒。这里会继续更新，不会让你空等。
           </div>
         )}
 
-        {/* CTA when both animation done and result ready */}
+        {/* summary when real result is ready */}
         {canView && (
-          <button onClick={() => onViewResult && onViewResult(msg.resultData)} style={{
-            marginTop: 10, width: '100%', padding: '10px 0', borderRadius: 12,
-            background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer',
-            fontSize: 14, fontWeight: 600
-          }}>查看批改结果 →</button>
+          <ResultMiniCard data={msg.resultData} onViewResult={onViewResult} />
         )}
       </div>
     </div>
