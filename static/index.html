@@ -1510,7 +1510,7 @@ function ResultScreen({ data, onClose, onWrong }) {
                 }}>{i + 1}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#15161B' }}>{s.title}</div>
-                    <div style={{ marginTop: 3, fontSize: 12.5, color: '#5A5C65', lineHeight: 1.6 }}>{s.detail}</div>
+                    <RichStepText text={s.detail} />
                   </div>
                 </li>
               )}
@@ -1582,6 +1582,75 @@ function ResultScreen({ data, onClose, onWrong }) {
       </div>
     </div>);
 
+}
+
+function RichStepText({ text }) {
+  const blocks = splitRichText(text || '');
+  if (blocks.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 9 }}>
+      {blocks.map((block, i) => block.type === 'formula' ? (
+        <div key={i} style={{
+          margin: '3px 0 5px',
+          padding: '9px 11px',
+          borderRadius: 10,
+          background: '#F7F8FA',
+          border: '1px solid #ECEFF3',
+          color: '#15161B',
+          fontSize: 13,
+          lineHeight: 1.65,
+          overflowX: 'auto',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+        }}>{normalizeFormula(block.text)}</div>
+      ) : (
+        <p key={i} style={{
+          margin: 0,
+          color: '#5A5C65',
+          fontSize: 12.8,
+          lineHeight: 1.9,
+          textIndent: '2em',
+          textAlign: 'justify'
+        }}>{block.text}</p>
+      ))}
+    </div>
+  );
+}
+
+function splitRichText(text) {
+  const normalized = String(text)
+    .replace(/\r\n/g, '\n')
+    .replace(/；\s*/g, '；\n')
+    .replace(/。\s*/g, '。\n')
+    .replace(/([，、])\s*(?=代入|变形|根据|即可|可行|不可行)/g, '$1\n');
+  const lines = normalized.split(/\n+/).map(s => s.trim()).filter(Boolean);
+  const blocks = [];
+  lines.forEach((line) => {
+    const parts = line.split(/(\$[^$]+\$|\\frac\{[^}]+\}\{[^}]+\}|[A-Za-z][A-Za-z0-9_]*\s*=\s*[^，。；]+)/g)
+      .map(s => s.trim())
+      .filter(Boolean);
+    parts.forEach((part) => {
+      const looksFormula = /\$[^$]+\$|\\frac|[A-Za-z][A-Za-z0-9_]*\s*=|\\cdot|\\frac/.test(part);
+      if (looksFormula) {
+        blocks.push({ type: 'formula', text: part });
+      } else {
+        blocks.push({ type: 'text', text: part });
+      }
+    });
+  });
+  return blocks;
+}
+
+function normalizeFormula(text) {
+  return String(text)
+    .replace(/^\$|\$$/g, '')
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1) / ($2)')
+    .replace(/\\cdot/g, '·')
+    .replace(/\\times/g, '×')
+    .replace(/\\\(/g, '')
+    .replace(/\\\)/g, '');
 }
 
 function AnswerCell({ label, value, good, bad }) {
