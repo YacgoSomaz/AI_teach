@@ -2100,11 +2100,15 @@ function App() {
       )
       .then(aid => {
         setCurrentAid(aid);
+        const explainId = progressId + 1;
+        const explainPrompt = '请直接看图讲解这道题，边分析边输出：先说题型和条件，再一步步推导，最后给答案。不要等完整结论再开始。';
         // 同时插入：题目图片消息 + 内联批改进度卡
         setChatMessages(m => [...m,
           { type: 'photo', caption: title, previewUrl },
+          { role: 'ai', text: '', _id: explainId },
           { type: 'grading', _id: progressId, title }
         ]);
+        streamAiMessage(aid, explainPrompt, explainId);
         startPoll(aid, title, progressId);
       })
       .catch(() => {
@@ -2151,17 +2155,13 @@ function App() {
     showToast('反馈已收到');
   }
 
-  function sendChatMessage(text) {
-    setChatMessages(m => [...m, { role: 'user', text }]);
-    const aid = currentAid || 'general';
-    // 先插一条空的 AI 消息，后续流式追加
-    const aiIdx = Date.now();
-    setChatMessages(m => [...m, { role: 'ai', text: '', _id: aiIdx }]);
+  function streamAiMessage(aid, text, aiIdx) {
     fetch('/api/chat/' + aid, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Student-Id': STUDENT_ID },
       body: JSON.stringify({ message: text }),
     }).then(resp => {
+      if (!resp.ok || !resp.body) throw new Error('chat stream failed');
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       function read() {
@@ -2191,6 +2191,15 @@ function App() {
       setChatMessages(m => m.map(msg =>
         msg._id === aiIdx ? { ...msg, text: 'AI 老师暂时不可用，请稍后再试～' } : msg));
     });
+  }
+
+  function sendChatMessage(text) {
+    setChatMessages(m => [...m, { role: 'user', text }]);
+    const aid = currentAid || 'general';
+    // 先插一条空的 AI 消息，后续流式追加
+    const aiIdx = Date.now();
+    setChatMessages(m => [...m, { role: 'ai', text: '', _id: aiIdx }]);
+    streamAiMessage(aid, text, aiIdx);
   }
 
   function showToast(text) {
