@@ -774,10 +774,10 @@ function ChatRichText({ text, streaming }) {
 function normalizeChatText(text) {
   return String(text || '')
     .replace(/\s+/g, ' ')
-    .replace(/(再看)(竖直方向|水平方向)/g, '\n$1$2')
-    .replace(/(第一步|第二步|第三步|第四步|先看|再看|所以|答案[:：]|对应选项|根据牛顿第三定律)/g, '\n$1')
+    .replace(/(^|\s)最终\s*(?=答案[:：])/g, '$1')
+    .replace(/([。；])\s*(?=(第一步|第二步|第三步|第四步|先看|再看|答案[:：]|对应选项|根据牛顿第三定律))/g, '$1\n')
+    .replace(/\s*(答案[:：])/g, '\n$1')
     .replace(/([。；])\s*/g, '$1\n')
-    .replace(/，\s*(?=(先|再|所以|因此|对应|答案|根据|竖直|水平))/g, '，\n')
     .replace(/\n{2,}/g, '\n')
     .trim();
 }
@@ -1948,8 +1948,7 @@ function splitRichText(text) {
   const normalized = String(text)
     .replace(/\r\n/g, '\n')
     .replace(/；\s*/g, '；\n')
-    .replace(/。\s*/g, '。\n')
-    .replace(/([，、])\s*(?=代入|变形|根据|即可|可行|不可行)/g, '$1\n');
+    .replace(/。\s*/g, '。\n');
   const lines = normalized.split(/\n+/).map(s => s.trim()).filter(Boolean);
   const blocks = [];
   lines.forEach((line) => {
