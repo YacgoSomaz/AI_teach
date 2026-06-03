@@ -5,10 +5,16 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
 
-from src.api.grading import dispute_ai_grading, start_ai_grading
+from src.api.grading import build_knowledge_review, dispute_ai_grading, start_ai_grading
 from src.main import create_app
 from src.models.assignment import Assignment, AssignmentStatus
-from src.models.grading import AssignmentAnalysis, GradingResult
+from src.models.grading import (
+    AssignmentAnalysis,
+    GradingResult,
+    GradingTaxonomy,
+    QuestionKnowledgePoint,
+    StudentKnowledgePoint,
+)
 
 
 def test_grading_routes_are_registered():
@@ -150,3 +156,57 @@ async def test_dispute_rejects_non_ai_final_status(mocker):
 
     assert exc.value.status_code == 409
     rebuild.assert_not_called()
+
+
+def test_build_knowledge_review_uses_taxonomy_mastery_and_mistake_reason():
+    qkp = QuestionKnowledgePoint(
+        assignment_id="94ee850e-6562-4c9b-ac7c-15cdd1383c4e",
+        knowledge_point_id="physics_g8_force_balance",
+        role="primary",
+        confidence=Decimal("0.92"),
+        match_method="ai_mapped",
+    )
+    taxonomy = GradingTaxonomy(
+        id="physics_g8_force_balance",
+        name="二力平衡",
+        subject="physics",
+        grade="八年级",
+        chapter="力学",
+        level=3,
+        aliases=["平衡力"],
+        description="判断物体受力平衡关系。",
+        is_active=True,
+    )
+    mastery = StudentKnowledgePoint(
+        student_id="student_001",
+        knowledge_point_id="physics_g8_force_balance",
+        mastery=Decimal("0.6200"),
+        attempts=4,
+        correct_count=2,
+    )
+    grading = GradingResult(
+        assignment_id="94ee850e-6562-4c9b-ac7c-15cdd1383c4e",
+        student_id="student_001",
+        correct_answer="AC",
+        is_correct=False,
+        score=Decimal("0.5"),
+        max_score=Decimal("1"),
+        mistake_type="concept_error",
+        mistake_reason="把整体受力和单个物体受力混在一起判断。",
+    )
+
+    review = build_knowledge_review(
+        qkps=[qkp],
+        taxonomy_by_id={taxonomy.id: taxonomy},
+        mastery_by_id={mastery.knowledge_point_id: mastery},
+        grading=grading,
+    )
+
+    assert review["knowledge_points"] == ["二力平衡"]
+    assert review["weak_points"] == ["二力平衡"]
+    assert review["mistake_type_label"] == "概念理解偏差"
+    assert review["mistake_reason"] == "把整体受力和单个物体受力混在一起判断。"
+    assert review["recommended_actions"][:2] == [
+        "先回看「二力平衡」的基本概念，再重新解释本题关键一步。",
+        "先圈出研究对象，区分题目问的是整体还是局部。",
+    ]
