@@ -277,8 +277,14 @@ function mapGradingToResult(data, title) {
   const krPoints = Array.isArray(kr.knowledge_points) ? kr.knowledge_points.filter(Boolean) : [];
   const krWeak = Array.isArray(kr.weak_points) ? kr.weak_points.filter(Boolean) : [];
   const krActions = Array.isArray(kr.recommended_actions) ? kr.recommended_actions.filter(Boolean) : [];
+  // knowledge_point_details: 带 source 的兜底来源（taxonomy 正式匹配 / knowledge_candidate / solution_step）
+  // 规整成 {name, source}，缺 source 一律按正式匹配处理。
+  const krDetails = (Array.isArray(kr.knowledge_point_details) ? kr.knowledge_point_details : [])
+    .map(d => ({ name: ((d && d.name) || '').trim(), source: (d && d.source) || 'taxonomy' }))
+    .filter(d => d.name);
   const knowledgeReview = {
     knowledge_points: krPoints.length ? krPoints : kpNames, // 后端未就绪时回退到 API 真实知识点
+    knowledge_point_details: krDetails,
     weak_points: krWeak,
     mistake_type_label: (kr.mistake_type_label || '').trim(),
     mistake_reason: (kr.mistake_reason || '').trim(),
@@ -1649,12 +1655,22 @@ function ResultScreen({ data, onClose, onWrong }) {
   // 真实字段优先，缺失时不渲染对应区块；全空时显示「暂无复习建议」。
   const kr = data.knowledgeReview || {};
   const krPoints = Array.isArray(kr.knowledge_points) ? kr.knowledge_points.filter(Boolean) : [];
+  // 按 source 分组（taxonomy 正式 / knowledge_candidate AI 初判 / solution_step 步骤提取）
+  const krDetails = Array.isArray(kr.knowledge_point_details) ? kr.knowledge_point_details.filter(d => d && d.name) : [];
+  const KP_SOURCE_GROUPS = [
+    { key: 'taxonomy',            label: '本题涉及知识点',     tentative: false },
+    { key: 'knowledge_candidate', label: 'AI 初步识别知识点', tentative: true },
+    { key: 'solution_step',       label: '从解题步骤提取',     tentative: true },
+  ];
+  const krGroups = KP_SOURCE_GROUPS
+    .map(g => ({ ...g, items: krDetails.filter(d => (d.source || 'taxonomy') === g.key) }))
+    .filter(g => g.items.length > 0);
   const krWeak = Array.isArray(kr.weak_points) ? kr.weak_points.filter(Boolean) : [];
   const krActions = Array.isArray(kr.recommended_actions) ? kr.recommended_actions.filter(Boolean).slice(0, 3) : [];
   const krMistakeLabel = (kr.mistake_type_label || '').trim();
   const krMistakeReason = (kr.mistake_reason || '').trim();
   const hasKrMistake = Boolean(krMistakeLabel || krMistakeReason);
-  const hasReview = krPoints.length > 0 || krWeak.length > 0 || hasKrMistake || krActions.length > 0;
+  const hasReview = krPoints.length > 0 || krGroups.length > 0 || krWeak.length > 0 || hasKrMistake || krActions.length > 0;
 
   return (
     <div className="overlay open" style={{ background: '#F8FAFC' }}>
@@ -1785,16 +1801,34 @@ function ResultScreen({ data, onClose, onWrong }) {
               }}>本题暂无复习建议</div>
             ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* 知识点 tags */}
-              {krPoints.length > 0 &&
-              <div>
-                <SubLabel>本题涉及知识点</SubLabel>
-                <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {krPoints.map((k, i) =>
-                  <Pill key={k + i} bg="#F2F3F6" color="#15161B" size="md">#{k}</Pill>
-                  )}
-                </div>
-              </div>
+              {/* 知识点 tags：有 source 明细则按来源分组，否则扁平展示 */}
+              {krGroups.length > 0
+                ? krGroups.map((g) =>
+                  <div key={g.key}>
+                    <SubLabel>{g.label}</SubLabel>
+                    <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {g.items.map((d, i) =>
+                      g.tentative
+                        ? <span key={d.name + i} style={{
+                            display: 'inline-flex', alignItems: 'center',
+                            padding: '4px 10px', borderRadius: 999, fontSize: 12.5,
+                            color: '#6E727B', background: '#fff',
+                            border: '1px dashed #C9CCD3'
+                          }}>{d.name}</span>
+                        : <Pill key={d.name + i} bg="#F2F3F6" color="#15161B" size="md">#{d.name}</Pill>
+                      )}
+                    </div>
+                  </div>
+                )
+                : krPoints.length > 0 &&
+                  <div>
+                    <SubLabel>本题涉及知识点</SubLabel>
+                    <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {krPoints.map((k, i) =>
+                      <Pill key={k + i} bg="#F2F3F6" color="#15161B" size="md">#{k}</Pill>
+                      )}
+                    </div>
+                  </div>
               }
 
               {/* 薄弱知识点 */}
