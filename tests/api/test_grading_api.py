@@ -210,3 +210,87 @@ def test_build_knowledge_review_uses_taxonomy_mastery_and_mistake_reason():
         "先回看「二力平衡」的基本概念，再重新解释本题关键一步。",
         "先圈出研究对象，区分题目问的是整体还是局部。",
     ]
+
+
+def test_build_knowledge_review_falls_back_to_call1_candidates():
+    analysis = AssignmentAnalysis(
+        assignment_id="94ee850e-6562-4c9b-ac7c-15cdd1383c4e",
+        student_id="student_001",
+        detected_subject="physics",
+        detected_grade="八年级",
+        support_status="supported",
+        call1_raw={
+            "knowledge_candidates": [
+                {"raw_name": "整体法", "confidence": 0.91},
+                {"raw_name": "二力平衡", "confidence": 0.88},
+            ]
+        },
+    )
+    grading = GradingResult(
+        assignment_id="94ee850e-6562-4c9b-ac7c-15cdd1383c4e",
+        student_id="student_001",
+        correct_answer="AC",
+        student_answer=None,
+        is_correct=None,
+        score=None,
+        max_score=Decimal("1"),
+        mistake_type="no_answer",
+    )
+
+    review = build_knowledge_review(
+        qkps=[],
+        taxonomy_by_id={},
+        mastery_by_id={},
+        grading=grading,
+        analysis=analysis,
+    )
+
+    assert review["knowledge_points"] == ["整体法", "二力平衡"]
+    assert review["knowledge_point_details"][0]["source"] == "knowledge_candidate"
+    assert review["weak_points"] == ["整体法"]
+    assert review["recommended_actions"][0] == (
+        "先回看「整体法」的基本概念，再重新解释本题关键一步。"
+    )
+
+
+def test_build_knowledge_review_falls_back_to_solution_used_knowledge():
+    analysis = AssignmentAnalysis(
+        assignment_id="94ee850e-6562-4c9b-ac7c-15cdd1383c4e",
+        student_id="student_001",
+        detected_subject="physics",
+        detected_grade="八年级",
+        support_status="supported",
+        call1_raw={
+            "solution": {
+                "solution_steps": [
+                    {
+                        "step": 1,
+                        "title": "受力分析",
+                        "content": "把 M 和 m 看成整体。",
+                        "used_knowledge": ["整体法", "平衡力"],
+                    },
+                    {
+                        "step": 2,
+                        "title": "判断摩擦力",
+                        "content": "单独分析 M。",
+                        "used_knowledge": ["摩擦力", "整体法"],
+                    },
+                ]
+            }
+        },
+    )
+
+    review = build_knowledge_review(
+        qkps=[],
+        taxonomy_by_id={},
+        mastery_by_id={},
+        grading=None,
+        analysis=analysis,
+    )
+
+    assert review["knowledge_points"] == ["整体法", "平衡力", "摩擦力"]
+    assert review["knowledge_point_details"][0]["source"] == "solution_step"
+    assert review["recommended_actions"][:2] == [
+        "把「整体法」的解题条件和适用场景复述一遍。",
+        "再做 1-2 道「整体法」同类题，确认不是偶然做对。",
+    ]

@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 # ─── Version ─────────────────────────────────────────────────────────────────
 
-PROMPT_VERSION = "1.0.0"
+PROMPT_VERSION = "1.0.1"
 
 # ─── Call 1 — multimodal: understand + solve + grade ─────────────────────────
 
@@ -46,7 +46,9 @@ JSON 结构见用户消息末尾的 OUTPUT_SCHEMA。
 grading.is_correct 必须是 null
 - grading.correct_answer 必须来自你的解题结果（solution.answer），两者必须完全一致
 - score 仅在计算题、实验题、开放题中使用（0.0 到 1.0），选择题和填空题 score 为 null
-- knowledge_candidates 最多 5 个，按相关性降序排列，用中文自然语言描述
+- knowledge_candidates 必须尽量给出 2 到 5 个本题知识点；只有图片无法识别题目时才允许为空
+- knowledge_candidates 按相关性降序排列，用中文自然语言描述；即使学生没有作答，也必须提取本题知识点
+- 每个 solution_steps[].used_knowledge 必须填写本步骤用到的 1 到 3 个知识点；只有无法识别题目时才允许为空
 - 不要捏造题目内容，如果题干文字在图片中确实无法辨认，\
 在 stem 中填写"[无法识别]"并在 review_reasons 中追加 "stem_unreadable"
 - solution_steps 至少包含 1 步；无法识别题目时也要给出一步说明原因的步骤\

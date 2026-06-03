@@ -1,6 +1,6 @@
 # AI 批改 · Prompt 设计文档
 
-**版本：v1.0 · 状态：Phase A 基线**  
+**版本：v1.0.1 · 状态：Phase A 基线**  
 **最后更新：2026-05-25**  
 **用途：供 Claude / Codex 实现 prompt 时共同参考，与 AI_GRADING_MVP.md 配套**
 
@@ -821,7 +821,13 @@ def parse_call2_response(raw_text: str) -> Call2Output:
 
 ## 八、版本迭代说明
 
-### v1.0（当前版本）
+### v1.0.1（当前版本）
+
+- 强化 Call 1 知识点产出约束：即使学生未作答，也必须尽量输出 `knowledge_candidates`
+- 强化 `solution_steps[].used_knowledge`：每个可识别步骤必须填写本步骤用到的知识点
+- 不改 output schema，不改 AI 调用次数
+
+### v1.0
 
 - 支持学科：初二物理（`physics` + `八年级`）
 - 支持题型：全部 5 类（multiple_choice / fill_blank / calculation / experiment / open_ended）

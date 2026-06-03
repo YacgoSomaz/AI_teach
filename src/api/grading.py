@@ -175,6 +175,7 @@ async def get_ai_grading_result(
             taxonomy_by_id=taxonomy_by_id,
             mastery_by_id=mastery_by_id,
             grading=grading,
+            analysis=analysis,
         ),
     )
 
@@ -300,6 +301,7 @@ def build_knowledge_review(
     taxonomy_by_id: dict[str, GradingTaxonomy],
     mastery_by_id: dict[str, StudentKnowledgePoint],
     grading: GradingResult | None,
+    analysis: AssignmentAnalysis | None = None,
 ) -> dict:
     """Build a small, frontend-friendly study review block from persisted data."""
     knowledge_points = []
@@ -313,12 +315,15 @@ def build_knowledge_review(
                 "chapter": taxonomy.chapter if taxonomy else None,
                 "role": qkp.role,
                 "confidence": float(qkp.confidence),
+                "source": "taxonomy",
                 "mastery": float(mastery.mastery)
                 if mastery and mastery.mastery is not None
                 else None,
                 "attempts": mastery.attempts if mastery else 0,
             }
         )
+    if not knowledge_points:
+        knowledge_points = fallback_knowledge_points_from_analysis(analysis)
 
     weak_points = choose_weak_points(knowledge_points, grading)
     mistake_type = grading.mistake_type if grading else None
@@ -338,6 +343,79 @@ def build_knowledge_review(
         "mistake_reason": grading.mistake_reason if grading else None,
         "recommended_actions": recommended_actions,
     }
+
+
+def fallback_knowledge_points_from_analysis(
+    analysis: AssignmentAnalysis | None,
+) -> list[dict]:
+    if analysis is None:
+        return []
+
+    raw: dict = analysis.call1_raw or {}
+    candidates = [
+        {
+            "id": None,
+            "name": name,
+            "chapter": None,
+            "role": "candidate",
+            "confidence": confidence,
+            "source": "knowledge_candidate",
+            "mastery": None,
+            "attempts": 0,
+        }
+        for name, confidence in extract_knowledge_candidates(raw)
+    ]
+    if candidates:
+        return candidates[:5]
+
+    return [
+        {
+            "id": None,
+            "name": name,
+            "chapter": None,
+            "role": "candidate",
+            "confidence": None,
+            "source": "solution_step",
+            "mastery": None,
+            "attempts": 0,
+        }
+        for name in extract_used_knowledge(raw)
+    ][:5]
+
+
+def extract_knowledge_candidates(raw: dict) -> list[tuple[str, float | None]]:
+    seen: set[str] = set()
+    extracted: list[tuple[str, float | None]] = []
+    for item in raw.get("knowledge_candidates") or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("raw_name") or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        confidence = item.get("confidence")
+        try:
+            confidence_value = float(confidence) if confidence is not None else None
+        except (TypeError, ValueError):
+            confidence_value = None
+        extracted.append((name, confidence_value))
+    return extracted
+
+
+def extract_used_knowledge(raw: dict) -> list[str]:
+    seen: set[str] = set()
+    extracted: list[str] = []
+    solution = raw.get("solution") or {}
+    for step in solution.get("solution_steps") or []:
+        if not isinstance(step, dict):
+            continue
+        for name in step.get("used_knowledge") or []:
+            name = str(name).strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            extracted.append(name)
+    return extracted
 
 
 def choose_weak_points(
@@ -366,6 +444,7 @@ def choose_weak_points(
             "graph_reading_error",
             "experiment_design_error",
             "formula_error",
+            "no_answer",
             "partial",
         }
     )
