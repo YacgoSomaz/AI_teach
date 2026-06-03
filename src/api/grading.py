@@ -56,7 +56,18 @@ async def start_ai_grading(
     db: AsyncSession = Depends(get_db),
 ) -> StartGradingResponse:
     assignment = await get_owned_assignment(db, assignment_id, current_student_id)
-    if assignment.status in (AssignmentStatus.AI_RUNNING, AssignmentStatus.AI_DONE):
+    analysis_result = await db.execute(
+        select(AssignmentAnalysis).where(AssignmentAnalysis.assignment_id == assignment.id)
+    )
+    analysis = analysis_result.scalar_one_or_none()
+    grading_result = await db.execute(
+        select(GradingResult).where(GradingResult.assignment_id == assignment.id)
+    )
+    grading = grading_result.scalar_one_or_none()
+
+    grading_status = ((assignment.processing_status or {}).get("grading") or {}).get("status")
+    has_complete_grading = analysis is not None and grading is not None
+    if grading_status in ("running", "retrying") or has_complete_grading:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="批改任务已存在，请勿重复提交",
