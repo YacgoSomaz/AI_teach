@@ -270,6 +270,21 @@ function mapGradingToResult(data, title) {
   // question struct (from analysis.question_struct which comes from call1_raw)
   const qs = analysis.question_struct || {};
 
+  // knowledge_review: AI 学习建议字段（后端 Codex 补，前端先接 UI）
+  // 结构: { knowledge_points[], weak_points[], mistake_type_label, mistake_reason, recommended_actions[] }
+  // 字段缺失时降级到已有真实数据（kpNames），不使用占位文案。
+  const kr = data.knowledge_review || {};
+  const krPoints = Array.isArray(kr.knowledge_points) ? kr.knowledge_points.filter(Boolean) : [];
+  const krWeak = Array.isArray(kr.weak_points) ? kr.weak_points.filter(Boolean) : [];
+  const krActions = Array.isArray(kr.recommended_actions) ? kr.recommended_actions.filter(Boolean) : [];
+  const knowledgeReview = {
+    knowledge_points: krPoints.length ? krPoints : kpNames, // 后端未就绪时回退到 API 真实知识点
+    weak_points: krWeak,
+    mistake_type_label: (kr.mistake_type_label || '').trim(),
+    mistake_reason: (kr.mistake_reason || '').trim(),
+    recommended_actions: krActions.slice(0, 3), // 最多 3 条建议
+  };
+
   return {
     title: title || '批改结果',
     chapter: analysis.detected_subject || '物理',
@@ -281,6 +296,7 @@ function mapGradingToResult(data, title) {
     verdict,
     oneLine,
     steps,
+    knowledgeReview,
     knowledgePoints: kpNames.length ? kpNames : ['待分析'],
     weakPoint: kpNames[0] || '—',
     errorType: g.error_type || '—',
@@ -1629,6 +1645,17 @@ function ResultScreen({ data, onClose, onWrong }) {
   const [openKnow, setOpenKnow] = useState(false);
   const v = VERDICT[data.verdict];
 
+  // ── AI 学习建议（knowledge_review）──────────────────────────
+  // 真实字段优先，缺失时不渲染对应区块；全空时显示「暂无复习建议」。
+  const kr = data.knowledgeReview || {};
+  const krPoints = Array.isArray(kr.knowledge_points) ? kr.knowledge_points.filter(Boolean) : [];
+  const krWeak = Array.isArray(kr.weak_points) ? kr.weak_points.filter(Boolean) : [];
+  const krActions = Array.isArray(kr.recommended_actions) ? kr.recommended_actions.filter(Boolean).slice(0, 3) : [];
+  const krMistakeLabel = (kr.mistake_type_label || '').trim();
+  const krMistakeReason = (kr.mistake_reason || '').trim();
+  const hasKrMistake = Boolean(krMistakeLabel || krMistakeReason);
+  const hasReview = krPoints.length > 0 || krWeak.length > 0 || hasKrMistake || krActions.length > 0;
+
   return (
     <div className="overlay open" style={{ background: '#F8FAFC' }}>
       {/* header */}
@@ -1750,32 +1777,72 @@ function ResultScreen({ data, onClose, onWrong }) {
             iconBg="#1F8A5B"
             icon={Ic.brain(14)}>
             
+            {!hasReview ? (
+              <div style={{
+                padding: '14px 14px', borderRadius: 12,
+                background: '#F8FAFC', border: '1px solid #ECEFF3',
+                fontSize: 13, color: '#8A8B93', textAlign: 'center', lineHeight: 1.6
+              }}>本题暂无复习建议</div>
+            ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* 知识点 tags */}
+              {krPoints.length > 0 &&
               <div>
                 <SubLabel>本题涉及知识点</SubLabel>
                 <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {data.knowledgePoints.map((k) =>
-                  <Pill key={k} bg="#F2F3F6" color="#15161B" size="md">#{k}</Pill>
+                  {krPoints.map((k, i) =>
+                  <Pill key={k + i} bg="#F2F3F6" color="#15161B" size="md">#{k}</Pill>
                   )}
                 </div>
               </div>
+              }
 
-              {/* 薄弱 + 错因类型 */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Mini label="薄弱知识点" value={data.weakPoint} accent="#C04A4A" />
-                <Mini label="错因类型" value={data.errorType} accent="#B8771F" />
-              </div>
-
-              {/* 复习建议列表 */}
+              {/* 薄弱知识点 */}
+              {krWeak.length > 0 &&
               <div>
-                <SubLabel>推荐复习动作</SubLabel>
+                <SubLabel>需要重点巩固</SubLabel>
+                <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {krWeak.map((k, i) =>
+                  <Pill key={k + i} bg="#FCE9E9" color="#C04A4A" size="md">{k}</Pill>
+                  )}
+                </div>
+              </div>
+              }
+
+              {/* 错因卡片 */}
+              {hasKrMistake &&
+              <div style={{
+                padding: '12px 14px', borderRadius: 12,
+                background: '#FBF4EC', border: '1px solid #F0E2CF'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: 7, flex: 'none',
+                    background: '#B8771F', color: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>{Ic.bolt(11)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#8A5A12' }}>
+                    {krMistakeLabel || '错因分析'}
+                  </div>
+                </div>
+                {krMistakeReason &&
+                <div style={{ marginTop: 7, fontSize: 13, color: '#5A5C65', lineHeight: 1.6 }}>
+                  {krMistakeReason}
+                </div>
+                }
+              </div>
+              }
+
+              {/* 推荐复习动作 */}
+              {krActions.length > 0 &&
+              <div>
+                <SubLabel>AI 给你的学习建议</SubLabel>
                 <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {data.reviewSuggestions.map((r, i) =>
+                  {krActions.map((r, i) =>
                   <div key={i} style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10,
                     padding: '10px 12px', borderRadius: 12,
-                    background: '#F8FAFC', border: '1px solid #ECEFF3'
+                    background: '#F4FAF6', border: '1px solid #DEEFE5'
                   }}>
                       <div style={{
                       width: 22, height: 22, borderRadius: 7, flex: 'none',
@@ -1788,7 +1855,9 @@ function ResultScreen({ data, onClose, onWrong }) {
                   )}
                 </div>
               </div>
+              }
             </div>
+            )}
           </Disclosure>
         </div>
 
