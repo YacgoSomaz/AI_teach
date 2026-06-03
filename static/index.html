@@ -2327,9 +2327,6 @@ function App() {
       paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
       position: 'relative', overflow: 'hidden'
     }}>
-      {/* BrandHeader 只在拍题页隐藏 */}
-      {tab !== 'home' && <BrandHeader />}
-
       {tab === 'home' && <HomePage
         onCamera={onCameraClick}
         messages={chatMessages}
