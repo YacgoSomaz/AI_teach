@@ -1992,12 +1992,17 @@ function FormulaText({ text }) {
 
 function parseFormulaTokens(text) {
   const tokens = [];
-  const re = /\\frac\{([^}]+)\}\{([^}]+)\}/g;
+  // 匹配 \frac{num}{den} 或 简单的 变量/变量、数字/变量 等 A/B 形式
+  const re = /\\frac\{([^}]+)\}\{([^}]+)\}|([A-Za-z][A-Za-z0-9]*|[0-9]+(?:\.[0-9]+)?)\/([A-Za-z][A-Za-z0-9]*|[0-9]+(?:\.[0-9]+)?)/g;
   let last = 0;
   let match;
   while ((match = re.exec(text)) !== null) {
     if (match.index > last) tokens.push({ type: 'text', text: text.slice(last, match.index) });
-    tokens.push({ type: 'frac', num: normalizeInlineMath(match[1]), den: normalizeInlineMath(match[2]) });
+    if (match[1] !== undefined) {
+      tokens.push({ type: 'frac', num: normalizeInlineMath(match[1]), den: normalizeInlineMath(match[2]) });
+    } else {
+      tokens.push({ type: 'frac', num: match[3], den: match[4] });
+    }
     last = match.index + match[0].length;
   }
   if (last < text.length) tokens.push({ type: 'text', text: text.slice(last) });
@@ -2010,7 +2015,8 @@ function normalizeFormula(text) {
     .replace(/\\cdot/g, '·')
     .replace(/\\times/g, '×')
     .replace(/\\\(/g, '')
-    .replace(/\\\)/g, '');
+    .replace(/\\\)/g, '')
+    .replace(/\*/g, '×');   // * → × 乘号
 }
 
 function normalizeInlineMath(text) {
