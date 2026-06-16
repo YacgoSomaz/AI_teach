@@ -1332,7 +1332,6 @@ function HistoryRow({ item, onClick }) {
 // 批改流程步骤定义（内联卡片和旧全屏页共用）
 // ═══════════════════════════════════════════════════════════════
 const PIPELINE = [
-{ id: 'enhance', title: '图片优化', detail: '压缩 · 增强对比度 · 保留题干细节', dur: 2600 },
 { id: 'recognize', title: '识别题目', detail: 'OCR 提取文字 · 解析题型结构', dur: 3600 },
 { id: 'solve', title: 'AI 老师正在分析', streaming: true, dur: 26000 },
 { id: 'compare', title: '比对学生作答', detail: '识别作答内容 · 逐步判断正误', dur: 4200 },
@@ -1536,7 +1535,7 @@ function InlinePipelineCard({ msg, onViewResult }) {
     if (elapsedMs >= accMs) timerStep = i + 1;
   });
 
-  const solveStart = PIPELINE.slice(0, 2).reduce((a, s) => a + s.dur, 0);
+  const solveStart = PIPELINE.slice(0, 1).reduce((a, s) => a + s.dur, 0);
   const { streamCount, activeText } = getScriptedStreamState(elapsedMs - solveStart);
 
   // 取后端实时进度（msg.currentStep）与计时器动画的最大值，
