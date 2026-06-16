@@ -714,22 +714,54 @@ function ChatMessage({ msg, onViewResult }) {
       </div>
     );
   }
-  return (
-    <div style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-      <div style={{
-        background: msg.role === 'user' ? '#15161B' : '#fff',
-        color: msg.role === 'user' ? '#fff' : '#15161B',
-        border: msg.role === 'user' ? 'none' : '1px solid #ECEFF3',
-        padding: '10px 14px', borderRadius: 18,
-        borderBottomRightRadius: msg.role === 'user' ? 4 : 18,
-        borderBottomLeftRadius: msg.role === 'user' ? 18 : 4,
-        fontSize: 14, lineHeight: 1.65, maxWidth: '80%'
-      }}>
-        {msg.role === 'ai'
-          ? <ChatRichText text={msg.text} streaming={msg.streaming} />
-          : msg.text}
+  if (msg.role === 'user') {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{
+          background: '#15161B', color: '#fff',
+          padding: '10px 14px', borderRadius: 18, borderBottomRightRadius: 4,
+          fontSize: 14, lineHeight: 1.65, maxWidth: '80%'
+        }}>{msg.text}</div>
       </div>
-    </div>);
+    );
+  }
+
+  // AI 消息：按换行切成多个气泡，像微信分条发送
+  const content = normalizeChatText(stripAiIntro(msg.text || ''));
+  const segments = content.split(/\n+/).map(s => s.trim()).filter(Boolean);
+
+  if (segments.length === 0) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+        <div style={{
+          background: '#fff', border: '1px solid #ECEFF3',
+          padding: '10px 14px', borderRadius: 18, borderBottomLeftRadius: 4,
+          fontSize: 14, color: '#8A8B93'
+        }}>
+          {msg.streaming ? <><span>正在生成</span><span className="caret" /></> : null}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+      {segments.map((seg, i) => {
+        const isLast = i === segments.length - 1;
+        return (
+          <div key={i} className="stream-line" style={{
+            background: '#fff', border: '1px solid #ECEFF3',
+            padding: '10px 14px',
+            borderRadius: 18,
+            borderBottomLeftRadius: isLast ? 4 : 18,
+            fontSize: 14, lineHeight: 1.65, maxWidth: '80%'
+          }}>
+            <ChatRichText text={seg} streaming={msg.streaming && isLast} />
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function ChatRichText({ text, streaming }) {
