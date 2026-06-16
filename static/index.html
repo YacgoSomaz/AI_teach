@@ -2049,7 +2049,8 @@ function normalizeFormula(text) {
     .replace(/\\times/g, '×')
     .replace(/\\\(/g, '')
     .replace(/\\\)/g, '')
-    .replace(/\*/g, '×');   // * → × 乘号
+    .replace(/([A-Za-z])\*([A-Za-z(])/g, '$1$2')  // 字母×字母 → 省略（物理惯例）
+    .replace(/\*/g, '×');   // 剩余 * → × 乘号（数字间）
 }
 
 function normalizeInlineMath(text) {
