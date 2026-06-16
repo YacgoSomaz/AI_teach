@@ -2236,11 +2236,15 @@ function App() {
       )
       .then(aid => {
         setCurrentAid(aid);
-        // 插入：题目图片 + 内联批改进度卡（解析在流程卡完成后展示在下方，不再单独 SSE 消息）
+        const explainId = progressId + 1;
+        const explainPrompt = '请直接看图讲解这道题，边分析边输出：先说题型和条件，再一步步推导，最后给答案。不要等完整结论再开始。';
+        // 顺序：题目图片 → 内联批改进度卡 → AI 流式解析（解析在流程卡下方）
         setChatMessages(m => [...m,
           { type: 'photo', caption: title, previewUrl },
-          { type: 'grading', _id: progressId, title, startedAt }
+          { type: 'grading', _id: progressId, title, startedAt },
+          { role: 'ai', text: '', _id: explainId, streaming: true },
         ]);
+        streamAiMessage(aid, explainPrompt, explainId);
         startPoll(aid, title, progressId);
       })
       .catch(() => {
