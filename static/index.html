@@ -2025,8 +2025,8 @@ function FormulaText({ text }) {
 
 function parseFormulaTokens(text) {
   const tokens = [];
-  // 匹配 \frac{num}{den} 或 含括号的表达式 A(B+C)/D 形式
-  const re = /\\frac\{([^}]+)\}\{([^}]+)\}|([A-Za-z][A-Za-z0-9+\-.×·()]*|[0-9]+(?:\.[0-9]+)?)\/([A-Za-z][A-Za-z0-9+\-.×·()]*|[0-9]+(?:\.[0-9]+)?)/g;
+  // 匹配 \frac{num}{den} 或 简单 A/B（只匹配纯变量/数字，括号保留为文字）
+  const re = /\\frac\{([^}]+)\}\{([^}]+)\}|([A-Za-z][A-Za-z0-9]*|[0-9]+(?:\.[0-9]+)?)\/([A-Za-z][A-Za-z0-9]*|[0-9]+(?:\.[0-9]+)?)/g;
   let last = 0;
   let match;
   while ((match = re.exec(text)) !== null) {
