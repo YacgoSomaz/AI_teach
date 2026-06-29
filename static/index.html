@@ -4,6 +4,26 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI 物理拍题 · 初中物理批改助手</title>
+<script>
+// 未登录立即跳登录页，避免白屏
+(function(){
+  var token = localStorage.getItem('auth_token');
+  if (!token) { window.location.replace('/login'); return; }
+  try {
+    var b = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    b += '='.repeat((4 - b.length % 4) % 4);
+    var p = JSON.parse(atob(b));
+    if (p.exp && Date.now() / 1000 > p.exp) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user_email');
+      window.location.replace('/login');
+    }
+  } catch(e) {
+    localStorage.removeItem('auth_token');
+    window.location.replace('/login');
+  }
+})();
+</script>
 <style>
   /* ─── 基础 ───────────────────────────────────────── */
   * { box-sizing: border-box; }
