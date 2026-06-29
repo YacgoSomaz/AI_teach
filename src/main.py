@@ -22,6 +22,7 @@ from src.api.review import router as review_router
 from src.api.student import router as student_router
 from src.api.upload import router as upload_router
 from src.api.visualization import router as visualization_router
+from src.api.knowledge_graph import router as knowledge_graph_router
 
 
 def create_app() -> FastAPI:
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(report_router)
     app.include_router(export_router)
     app.include_router(visualization_router)
+    app.include_router(knowledge_graph_router)
 
     # 前端静态文件（claude_design 输出）
     static_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
@@ -65,6 +67,13 @@ def create_app() -> FastAPI:
 
 # 创建应用实例（uvicorn 启动时使用）
 app = create_app()
+
+# ── 登录页（Claude Code 追加，Kiro 请勿修改此块）────────────────────────────
+_static_dir_main = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+
+@app.get("/login", include_in_schema=False)
+async def login_page():
+    return FileResponse(os.path.join(_static_dir_main, "login.html"))
 
 
 if __name__ == "__main__":

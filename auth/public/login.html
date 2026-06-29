@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 / 注册 — 润墨智检</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+  .login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  .login-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border: 1px solid var(--glass-b);
+    border-radius: var(--radius);
+    padding: 40px 36px;
+    box-shadow: var(--shadow-glow), 0 8px 32px rgba(0,0,0,.3);
+  }
+  .login-logo {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .login-logo h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-1);
+    background: linear-gradient(135deg, var(--primary), #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .login-logo p { color: var(--text-3); font-size: 13px; margin-top: 4px; }
+
+  .url-msg {
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    display: none;
+  }
+  .url-msg.success { background: rgba(16,185,129,.12); color: var(--success); border: 1px solid rgba(16,185,129,.25); display: block; }
+  .url-msg.error   { background: rgba(239,68,68,.1);   color: var(--error);   border: 1px solid rgba(239,68,68,.2);  display: block; }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 28px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-base);
+    border-radius: 10px;
+    padding: 4px;
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px 6px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-3);
+    border-radius: 7px;
+    border: 1px solid transparent;
+    transition: all .2s;
+  }
+  .tab.active {
+    color: var(--primary);
+    background: rgba(var(--glow), .1);
+    border-color: rgba(var(--glow), .25);
+    font-weight: 600;
+  }
+  .tab:hover:not(.active) { color: var(--text-2); background: rgba(255,255,255,.04); }
+
+  .form { display: none; flex-direction: column; gap: 16px; }
+  .form.active { display: flex; }
+
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-3);
+    margin-bottom: 6px;
+    font-weight: 500;
+    letter-spacing: .3px;
+  }
+  .field input {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    color: var(--text-1);
+    font-size: 14px;
+    outline: none;
+    transition: border .2s, box-shadow .2s;
+    font-family: inherit;
+  }
+  .field input::placeholder { color: var(--text-3); }
+  .field input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--glow), .15);
+  }
+
+  .captcha-row { display: flex; gap: 10px; align-items: flex-end; }
+  .captcha-row .field { flex: 1; }
+  .captcha-box {
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    flex-shrink: 0;
+    height: 40px;
+    border: 1px solid var(--border-base);
+    background: var(--bg-input);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border .2s;
+  }
+  .captcha-box:hover { border-color: var(--primary); }
+  .captcha-box svg { display: block; }
+  .captcha-hint { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+  .btn-primary {
+    width: 100%;
+    padding: 11px;
+    background: linear-gradient(135deg, var(--primary-s), var(--primary));
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    font-family: inherit;
+    letter-spacing: .3px;
+  }
+  .btn-primary:hover { opacity: .9; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+  .form-msg {
+    font-size: 13px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    display: none;
+  }
+  .form-msg.error   { background: rgba(239,68,68,.1);   color: var(--error);   border: 1px solid rgba(239,68,68,.2);  display: block; }
+  .form-msg.success { background: rgba(16,185,129,.12); color: var(--success); border: 1px solid rgba(16,185,129,.25); display: block; }
+
+  .form-footer {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-3);
+  }
+  .form-footer a {
+    color: var(--primary);
+    text-decoration: none;
+    transition: opacity .2s;
+  }
+  .form-footer a:hover { opacity: .8; }
+</style>
+</head>
+<body>
+<!-- 背景层 -->
+<div class="bg-layer" aria-hidden="true">
+  <div class="bg-gradient"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-orb" style="width:500px;height:500px;left:15%;top:20%;background:rgba(var(--glow),.18);animation:orb-float-0 10s ease-in-out infinite;"></div>
+  <div class="bg-orb" style="width:380px;height:380px;left:75%;top:10%;background:rgba(167,139,250,.14);animation:orb-float-1 13s ease-in-out infinite 1s;"></div>
+  <div class="bg-orb" style="width:320px;height:320px;left:55%;top:55%;background:rgba(var(--glow),.12);animation:orb-float-2 11s ease-in-out infinite 2s;"></div>
+  <div class="bg-orb" style="width:260px;height:260px;left:5%;top:65%;background:rgba(139,92,246,.12);animation:orb-float-0 14s ease-in-out infinite 3s;"></div>
+  <div class="bg-orb" style="width:200px;height:200px;left:88%;top:70%;background:rgba(var(--glow),.10);animation:orb-float-1 9s ease-in-out infinite 0.5s;"></div>
+</div>
+<canvas id="particles-canvas" aria-hidden="true"></canvas>
+
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <h1>润墨智检</h1>
+      <p>AI 文案改写工具</p>
+    </div>
+
+    <div id="url-msg" class="url-msg"></div>
+
+    <div class="tabs">
+      <div class="tab active" id="tab-login" onclick="switchTab('login')">账号登录</div>
+      <div class="tab" id="tab-register" onclick="switchTab('register')">注册</div>
+      <div class="tab" id="tab-card" onclick="switchTab('card')">卡密登录</div>
+    </div>
+
+    <!-- 邮箱登录 -->
+    <form class="form active" id="form-login" onsubmit="doLogin(event)">
+      <div class="field">
+        <label>邮箱</label>
+        <input type="email" id="login-email" placeholder="your@qq.com 或 Gmail" required autocomplete="email">
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input type="password" id="login-password" placeholder="请输入密码" required autocomplete="current-password">
+      </div>
+      <div id="login-msg" class="form-msg"></div>
+      <button class="btn-primary" type="submit" id="btn-login">登录</button>
+      <div class="form-footer"><a href="#" onclick="showForgot(event)">忘记密码？</a></div>
+    </form>
+
+    <!-- 注册 -->
+    <form class="form" id="form-register" onsubmit="doRegister(event)">
+      <div class="field">
+        <label>邮箱</label>
+        <input type="email" id="reg-email" placeholder="your@qq.com 或 Gmail" required autocomplete="email">
+      </div>
+      <div class="field">
+        <label>密码（至少 8 位）</label>
+        <input type="password" id="reg-password" placeholder="设置登录密码" required minlength="8" autocomplete="new-password">
+      </div>
+      <div>
+        <div class="captcha-row">
+          <div class="field">
+            <label>验证码</label>
+            <input type="text" id="reg-captcha" placeholder="输入计算结果" maxlength="3" inputmode="numeric" required>
+          </div>
+          <div class="captcha-box" id="captcha-box" title="点击刷新" onclick="loadCaptcha()"></div>
+        </div>
+        <div class="captcha-hint">点击图片可刷新验证码</div>
+      </div>
+      <div id="register-msg" class="form-msg"></div>
+      <button class="btn-primary" type="submit" id="btn-register">注册并发送验证邮件</button>
+    </form>
+
+    <!-- 卡密登录 -->
+    <form class="form" id="form-card" onsubmit="doCardLogin(event)">
+      <p style="font-size:13px;color:var(--text-3);line-height:1.6;margin-bottom:4px;">输入管理员提供的卡密直接进入。</p>
+      <div class="field">
+        <label>卡密</label>
+        <input type="text" id="card-input" placeholder="XXXX-XXXX-XXXX-XXXX" required autocomplete="off"
+          style="letter-spacing:1px;"
+          oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <div id="card-msg" class="form-msg"></div>
+      <button class="btn-primary" type="submit" id="btn-card">进入</button>
+    </form>
+
+    <!-- 忘记密码 -->
+    <form class="form" id="form-forgot" onsubmit="doForgot(event)">
+      <p style="font-size:13px;color:var(--text-3);line-height:1.6">输入注册邮箱，我们将发送密码重置链接</p>
+      <div class="field">
+        <label>邮箱</label>
+        <input type="email" id="forgot-email" placeholder="your@qq.com 或 Gmail" required>
+      </div>
+      <div id="forgot-msg" class="form-msg"></div>
+      <button class="btn-primary" type="submit" id="btn-forgot">发送重置链接</button>
+      <div class="form-footer"><a href="#" onclick="switchTab('login');return false;">← 返回登录</a></div>
+    </form>
+  </div>
+</div>
+
+<script>
+let captchaToken = '';
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.form').forEach(f => f.classList.remove('active'));
+  document.getElementById('tab-' + tab)?.classList.add('active');
+  document.getElementById('form-' + tab)?.classList.add('active');
+}
+function showForgot(e) {
+  e.preventDefault();
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.form').forEach(f => f.classList.remove('active'));
+  document.getElementById('form-forgot').classList.add('active');
+}
+function setMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'form-msg ' + type;
+}
+function clearMsg(id) { const el = document.getElementById(id); el.className = 'form-msg'; el.textContent = ''; }
+
+async function loadCaptcha() {
+  try {
+    const res = await fetch('/api/auth/captcha');
+    const data = await res.json();
+    captchaToken = data.token;
+    document.getElementById('captcha-box').innerHTML = data.svg;
+  } catch {}
+}
+
+async function doLogin(e) {
+  e.preventDefault(); clearMsg('login-msg');
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true; btn.textContent = '登录中...';
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: document.getElementById('login-email').value.trim(), password: document.getElementById('login-password').value })
+    });
+    const data = await res.json();
+    if (!res.ok) { setMsg('login-msg', data.error || '登录失败', 'error'); return; }
+    localStorage.setItem('auth_token', data.token);
+    localStorage.setItem('user_email', data.email);
+    window.location.href = '/';
+  } catch { setMsg('login-msg', '网络错误，请重试', 'error'); }
+  finally { btn.disabled = false; btn.textContent = '登录'; }
+}
+
+async function doRegister(e) {
+  e.preventDefault(); clearMsg('register-msg');
+  if (!captchaToken) { setMsg('register-msg', '请先加载验证码', 'error'); return; }
+  const btn = document.getElementById('btn-register');
+  btn.disabled = true; btn.textContent = '注册中...';
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: document.getElementById('reg-email').value.trim(),
+        password: document.getElementById('reg-password').value,
+        captchaToken, captchaAnswer: document.getElementById('reg-captcha').value.trim()
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) { setMsg('register-msg', data.error || '注册失败', 'error'); loadCaptcha(); document.getElementById('reg-captcha').value = ''; return; }
+    // 免验证模式：直接拿到 token，自动登录
+    if (data.token) {
+      localStorage.setItem('auth_token', data.token);
+      localStorage.setItem('user_email', data.email);
+      window.location.href = '/';
+      return;
+    }
+    setMsg('register-msg', data.message, 'success');
+    btn.textContent = '已发送验证邮件';
+  } catch { setMsg('register-msg', '网络错误，请重试', 'error'); }
+  finally { if (btn.textContent !== '已发送验证邮件') { btn.disabled = false; btn.textContent = '注册并发送验证邮件'; } }
+}
+
+async function doForgot(e) {
+  e.preventDefault(); clearMsg('forgot-msg');
+  const btn = document.getElementById('btn-forgot');
+  btn.disabled = true; btn.textContent = '发送中...';
+  try {
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: document.getElementById('forgot-email').value.trim() })
+    });
+    const data = await res.json();
+    if (!res.ok) { setMsg('forgot-msg', data.error || '发送失败', 'error'); return; }
+    setMsg('forgot-msg', data.message, 'success');
+  } catch { setMsg('forgot-msg', '网络错误，请重试', 'error'); }
+  finally { btn.disabled = false; btn.textContent = '发送重置链接'; }
+}
+
+// URL 消息
+const params = new URLSearchParams(location.search);
+const msg = params.get('msg');
+const urlEl = document.getElementById('url-msg');
+if (msg === 'verified') { urlEl.textContent = '✅ 邮箱验证成功，请登录'; urlEl.className = 'url-msg success'; }
+else if (msg === 'expired') { urlEl.textContent = '验证链接已过期，请重新注册'; urlEl.className = 'url-msg error'; }
+else if (msg === 'invalid') { urlEl.textContent = '验证链接无效'; urlEl.className = 'url-msg error'; }
+else if (msg === 'required') { urlEl.textContent = '请先登录后使用'; urlEl.className = 'url-msg error'; }
+
+// 卡密登录
+async function doCardLogin(e) {
+  e.preventDefault(); clearMsg('card-msg');
+  const btn = document.getElementById('btn-card');
+  const code = document.getElementById('card-input').value.trim();
+  if (!code) { setMsg('card-msg', '请输入卡密', 'error'); return; }
+  btn.disabled = true; btn.textContent = '验证中...';
+  try {
+    const res = await fetch('/api/activate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) { setMsg('card-msg', data.error || '卡密无效', 'error'); return; }
+    localStorage.setItem('auth_token', data.token);
+    localStorage.removeItem('user_email');
+    window.location.href = '/';
+  } catch { setMsg('card-msg', '网络错误，请重试', 'error'); }
+  finally { btn.disabled = false; btn.textContent = '进入'; }
+}
+
+// 已登录跳首页（支持邮箱账号和卡密两种 token）
+function parseJwtPayload(t) {
+  try { let b=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'); b+='='.repeat((4-b.length%4)%4); return JSON.parse(atob(b)); } catch { return {}; }
+}
+const _savedToken = localStorage.getItem('auth_token');
+if (_savedToken) {
+  const p = parseJwtPayload(_savedToken);
+  if (p.type === 'user') {
+    fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + _savedToken } })
+      .then(r => { if (r.ok) window.location.href = '/'; }).catch(() => {});
+  } else if (p.card_id) {
+    // 卡密 token：直接信任本地存储，跳首页
+    window.location.href = '/';
+  }
+}
+
+// 进注册 tab 时自动加载验证码
+document.getElementById('tab-register').addEventListener('click', () => { if (!captchaToken) loadCaptcha(); });
+
+// ===== 动态背景 =====
+(function(){
+    const canvas = document.getElementById('particles-canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, stars = [], particles = [];
+    let mouse = { x: 0, y: 0, isMoving: false };
+    let lastMouseMove = 0;
+    function isDark(){ return !document.documentElement.classList.contains('light'); }
+    function isMobile(){ return W < 769; }
+    function initStars(){
+        stars = [];
+        const count = Math.floor((W * H) / (isMobile() ? 18000 : 8000));
+        for(let i = 0; i < count; i++){
+            stars.push({ x: Math.random()*W, y: Math.random()*H, size: Math.random()*2+0.5, opacity: Math.random()*0.8+0.2, twinkleSpeed: Math.random()*0.02+0.01, twinklePhase: Math.random()*Math.PI*2 });
+        }
+    }
+    function createParticle(x, y){
+        const angle = Math.random()*Math.PI*2, speed = Math.random()*3+1, baseHue = isDark()?250:240;
+        return { x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, size: Math.random()*4+2, opacity: 1, hue: baseHue+Math.random()*30-15, life: 0, maxLife: Math.random()*60+40 };
+    }
+    function resize(){ W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; initStars(); }
+    function draw(time){
+        ctx.clearRect(0, 0, W, H);
+        const dark = isDark();
+        stars.forEach(s => {
+            const twinkle = Math.sin(time*s.twinkleSpeed+s.twinklePhase)*0.5+0.5, opa = s.opacity*twinkle;
+            ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2);
+            ctx.fillStyle = dark ? `rgba(167,139,250,${opa})` : `rgba(99,102,241,${opa*0.6})`; ctx.fill();
+            if(s.size > 1.2){ ctx.beginPath(); ctx.arc(s.x, s.y, s.size*2, 0, Math.PI*2); ctx.fillStyle = dark ? `rgba(167,139,250,${opa*0.15})` : `rgba(99,102,241,${opa*0.1})`; ctx.fill(); }
+        });
+        const {x, y} = mouse;
+        if(x > 0 && y > 0){
+            const g = ctx.createRadialGradient(x, y, 0, x, y, 200);
+            dark ? (g.addColorStop(0,'rgba(139,92,246,0.3)'), g.addColorStop(0.3,'rgba(129,140,248,0.15)'), g.addColorStop(1,'transparent')) : (g.addColorStop(0,'rgba(99,102,241,0.2)'), g.addColorStop(0.3,'rgba(129,140,248,0.08)'), g.addColorStop(1,'transparent'));
+            ctx.fillStyle = g; ctx.fillRect(x-200, y-200, 400, 400);
+            if(mouse.isMoving){ const cg = ctx.createRadialGradient(x,y,0,x,y,30); dark?(cg.addColorStop(0,'rgba(255,255,255,0.8)'),cg.addColorStop(0.2,'rgba(167,139,250,0.6)'),cg.addColorStop(1,'transparent')):(cg.addColorStop(0,'rgba(99,102,241,0.6)'),cg.addColorStop(0.3,'rgba(129,140,248,0.3)'),cg.addColorStop(1,'transparent')); ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(x,y,30,0,Math.PI*2); ctx.fill(); }
+        }
+        particles = particles.filter(p => {
+            p.life++; if(p.life>=p.maxLife) return false;
+            p.x+=p.vx; p.y+=p.vy; p.vx*=0.98; p.vy*=0.98; p.opacity=1-p.life/p.maxLife;
+            const pg=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size);
+            dark?(pg.addColorStop(0,`hsla(${p.hue},80%,70%,${p.opacity})`),pg.addColorStop(1,`hsla(${p.hue},80%,50%,0)`)):(pg.addColorStop(0,`hsla(${p.hue},70%,55%,${p.opacity*0.8})`),pg.addColorStop(1,`hsla(${p.hue},70%,45%,0)`));
+            ctx.fillStyle=pg; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill(); return true;
+        });
+        for(let i=0;i<particles.length;i++) for(let j=i+1;j<particles.length;j++){
+            const dx=particles[i].x-particles[j].x, dy=particles[i].y-particles[j].y, d=Math.sqrt(dx*dx+dy*dy);
+            if(d<80){ const opa=(1-d/80)*Math.min(particles[i].opacity,particles[j].opacity)*0.3; ctx.beginPath(); ctx.moveTo(particles[i].x,particles[i].y); ctx.lineTo(particles[j].x,particles[j].y); ctx.strokeStyle=dark?`rgba(167,139,250,${opa})`:`rgba(99,102,241,${opa})`; ctx.lineWidth=1; ctx.stroke(); }
+        }
+        requestAnimationFrame(draw);
+    }
+    function handlePointer(x, y){
+        mouse.x=x; mouse.y=y; mouse.isMoving=true; lastMouseMove=Date.now();
+        const maxP=isMobile()?40:100;
+        if(Math.random()>(isMobile()?0.75:0.5)) particles.push(createParticle(x,y));
+        if(particles.length>maxP) particles=particles.slice(-maxP);
+    }
+    window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', e => handlePointer(e.clientX, e.clientY));
+    window.addEventListener('touchmove', e => { const t=e.touches[0]; handlePointer(t.clientX,t.clientY); }, { passive: true });
+    setInterval(() => { if(Date.now()-lastMouseMove>100) mouse.isMoving=false; }, 100);
+    resize(); requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
