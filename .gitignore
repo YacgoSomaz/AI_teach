@@ -76,3 +76,10 @@ dmypy.json
 
 # User uploaded files — never commit
 uploads/
+
+# Temporary exploration scripts (含服务器凭证，禁止提交)
+_tmp_*
+
+# Auth service runtime files
+auth/node_modules/
+auth/data/
