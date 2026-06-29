@@ -15,7 +15,11 @@ from src.models.grading import (
     StudentKnowledgePoint,
 )
 
+from src.models.knowledge_graph import CurriculumKPRelation, StudentReport
+
 __all__ = [
+    "CurriculumKPRelation",
+    "StudentReport",
     "Base",
     "Assignment",
     "AssignmentStatus",

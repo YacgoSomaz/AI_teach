@@ -24,8 +24,9 @@ from src.api.deps import get_current_student_id
 from src.config import settings
 from src.db.session import get_db
 from src.models.assignment import Assignment
-from src.models.grading import AssignmentAnalysis, GradingResult
+from src.models.grading import AssignmentAnalysis, GradingResult, QuestionKnowledgePoint
 from src.models.ocr_task import OCRTask
+from src.services.knowledge_graph_service import get_rag_context, semantic_search_kp
 
 logger = logging.getLogger(__name__)
 
@@ -138,10 +139,35 @@ async def chat_with_ai(
         if analysis and analysis.detected_subject:
             context_lines.append(f"【学科】{analysis.detected_subject}")
 
+    # ── RAG: inject student mastery context ──────────────────────────────────
+    rag_context = ""
+    try:
+        if assignment_id == "general":
+            # No assignment: semantic vector search against curriculum KB
+            rag_context = await semantic_search_kp(
+                body.message, "物理", current_student_id, db
+            )
+        else:
+            # Assignment-bound: exact KP lookup from grading result
+            aid_uuid_for_rag = UUID(assignment_id)
+            kp_rows = (
+                await db.execute(
+                    select(QuestionKnowledgePoint.knowledge_point_id)
+                    .where(QuestionKnowledgePoint.assignment_id == aid_uuid_for_rag)
+                    .limit(5)
+                )
+            ).scalars().all()
+            if kp_rows:
+                rag_context = await get_rag_context(current_student_id, list(kp_rows), db)
+    except Exception as e:
+        logger.debug(f"RAG context fetch skipped: {e}")
+
     # ── 组装多模态消息 ───────────────────────────────────────
     text_parts: list[str] = []
     if context_lines:
         text_parts.append("\n\n".join(context_lines))
+    if rag_context:
+        text_parts.append(rag_context)
     text_parts.append(f"学生追问：{body.message.strip()}")
 
     user_parts.append({"type": "text", "text": "\n\n".join(text_parts)})

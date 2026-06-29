@@ -61,7 +61,17 @@ class Settings(BaseSettings):
         default="https://ark.cn-beijing.volces.com/api/v3",
         description="豆包 Seed1.8 API Base URL",
     )
-    
+
+    doubao_embedding_model: str = Field(
+        default="doubao-embedding-large-text-250515",
+        description="豆包 Embedding 模型 ID",
+    )
+
+    embedding_dim: int = Field(
+        default=1024,
+        description="向量维度（MRL 截断），支持 2048/1024/512/256",
+    )
+
     # ==================== 文件存储配置 ====================
     upload_dir: str = Field(
         default="uploads",
@@ -98,6 +108,17 @@ class Settings(BaseSettings):
     upload_rate_limit_window: int = Field(
         default=60,
         description="上传限流：滑动窗口时长（秒）",
+    )
+
+    # ==================== 认证配置 ====================
+    jwt_secret: str = Field(
+        default="change-me-in-production-use-a-long-random-string",
+        description="JWT 签名密钥，生产环境必须通过环境变量 JWT_SECRET 设置",
+    )
+
+    jwt_expire_days: int = Field(
+        default=30,
+        description="JWT 有效期（天）",
     )
 
     # ==================== 应用配置 ====================
