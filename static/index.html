@@ -427,7 +427,13 @@ function masteryLevel(m) {
   return { label: '已掌握', color: '#9ED1B0', soft: '#E8F4ED' };
 }
 
-const TODAY_TASKS = [];
+const TODAY_TASKS = [
+  { id: 'kp_avg_speed',    chapter: '物理 八年级上', point: '平均速度',         count: 5, done: false, hint: '掌握度较低（18%），错误率较高（100%），尚未复习过' },
+  { id: 'kp_reflection',   chapter: '物理 八年级上', point: '光的反射定律',     count: 4, done: false, hint: '掌握度较低（22%），错误率较高（80%），尚未复习过' },
+  { id: 'kp_buoyancy',     chapter: '物理 八年级下', point: '阿基米德原理',     count: 5, done: false, hint: '掌握度较低（15%），错误率较高（100%），尚未复习过' },
+  { id: 'kp_newton1',      chapter: '物理 八年级下', point: '牛顿第一定律',     count: 4, done: false, hint: '掌握度较低（30%），错误率较高（75%），尚未复习过' },
+  { id: 'kp_lens',         chapter: '物理 八年级上', point: '凸透镜成像规律',   count: 5, done: false, hint: '掌握度较低（12%），错误率较高（100%），尚未复习过' },
+];
 
 // 历史记录初始为空，由 API 加载
 const HISTORY = [];
@@ -530,7 +536,7 @@ function TabBar({ value, onChange }) {
   { id: 'home', label: '拍题', icon: Ic.cam2 },
   { id: 'review', label: '复习', icon: Ic.rev },
   { id: 'library', label: '知识库', icon: Ic.book },
-  { id: 'history', label: '历史', icon: Ic.hist }];
+  { id: 'history', label: '错题本', icon: Ic.hist }];
 
   return (
     <div style={{
@@ -1017,13 +1023,55 @@ function ReviewPage({ tasks, onToggle }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Page 2 — 知识库（物理 · 知识图谱）
-//   静态布局 by us；节点不可拖拽，不互动模拟；只做轻微漂浮动效 + 点击高亮
+// Page 2 — 知识库（物理 · 知识图谱 + 学习报告）
 // ═══════════════════════════════════════════════════════════
 function PhysicsGraphPage() {
-  const [sel, setSel] = useState(null);
+  const [sel, setSel]           = useState(null);
+  const [pageTab, setPageTab]   = useState('graph'); // 'graph' | 'report'
+  const [apiMastery, setApiMastery] = useState({}); // name -> mastery 0-100
+  const [reportData, setReportData] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
   const svgRef = useRef(null);
-  const nodesById = useMemo(() => Object.fromEntries(PHYS_NODES.map(n => [n.id, n])), []);
+
+  // Overlay real mastery from API onto static nodes by name matching
+  const nodes = useMemo(() => PHYS_NODES.map(n => {
+    if (n.isSubject || !(n.name in apiMastery)) return n;
+    return { ...n, mastery: apiMastery[n.name] };
+  }), [apiMastery]);
+
+  const nodesById = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes]);
+
+  // Fetch real mastery (best-effort, falls back to static)
+  useEffect(() => {
+    apiGet('/api/knowledge-graph/graph?subject=物理')
+      .then(data => {
+        if (!data || !data.nodes) return;
+        const m = {};
+        data.nodes.forEach(n => {
+          if (n.mastery != null) m[n.name] = Math.round(n.mastery * 100);
+        });
+        if (Object.keys(m).length) setApiMastery(m);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch report when switching to report tab
+  const fetchReport = async (force = false) => {
+    setReportLoading(true);
+    try {
+      const url = `/api/knowledge-graph/report${force ? '/refresh' : ''}?subject=物理`;
+      const r = await fetch(url, {
+        method: force ? 'POST' : 'GET',
+        headers: { 'X-Student-Id': STUDENT_ID },
+      });
+      if (r.ok) setReportData(await r.json());
+    } catch(e) {}
+    setReportLoading(false);
+  };
+
+  useEffect(() => {
+    if (pageTab === 'report' && !reportData) fetchReport();
+  }, [pageTab]);
 
   // 计算高亮的节点集合（选中 + 与之相连）
   const relatedIds = useMemo(() => {
@@ -1038,6 +1086,7 @@ function PhysicsGraphPage() {
 
   // rAF 漂浮：直接 DOM 改 transform / line 端点，不触发 React 重渲染
   useEffect(() => {
+    if (pageTab !== 'graph') return;
     let raf;
     const start = performance.now();
     function tick(now) {
@@ -1045,20 +1094,19 @@ function PhysicsGraphPage() {
       const svg = svgRef.current;
       if (!svg) return;
       const offsets = {};
-      PHYS_NODES.forEach((n, i) => {
+      nodes.forEach((n, i) => {
         const dx = Math.sin(t * 0.45 + i * 0.7) * 1.0;
         const dy = Math.cos(t * 0.38 + i * 1.1) * 1.0;
         offsets[n.id] = [dx, dy];
         const g = svg.querySelector(`[data-nid="${n.id}"]`);
-        // 用 CSS transform（GPU 合成）代替 SVG transform 属性，不重新光栅化 text
         if (g) g.style.transform = `translate(${(n.x + dx).toFixed(2)}px, ${(n.y + dy).toFixed(2)}px)`;
       });
       PHYS_EDGES.forEach(([a, b], i) => {
         const ln = svg.querySelector(`[data-eid="${i}"]`);
         if (!ln) return;
         const A = nodesById[a], B = nodesById[b];
-        const [adx, ady] = offsets[a];
-        const [bdx, bdy] = offsets[b];
+        const [adx, ady] = offsets[a] || [0,0];
+        const [bdx, bdy] = offsets[b] || [0,0];
         ln.setAttribute('x1', A.x + adx);
         ln.setAttribute('y1', A.y + ady);
         ln.setAttribute('x2', B.x + bdx);
@@ -1068,15 +1116,15 @@ function PhysicsGraphPage() {
     }
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [nodesById]);
+  }, [nodesById, pageTab]);
 
   const PHYS_COLOR = '#8DCED4';
-  const totalKp = PHYS_NODES.length - 1;
+  const totalKp = nodes.length - 1;
 
   return (
     <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 8px' }}>
-      {/* 顶部 chip 行 */}
-      <div style={{ padding: '0 22px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* 顶部 chip 行 + 子 tab */}
+      <div style={{ padding: '0 22px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{
           padding: '4px 11px', borderRadius: 999, fontSize: 12, fontWeight: 700,
           background: PHYS_COLOR, color: '#fff',
@@ -1085,10 +1133,25 @@ function PhysicsGraphPage() {
           {totalKp} 个知识点 · {PHYS_EDGES.length} 条关联
         </div>
         <div style={{ marginLeft: 'auto', fontSize: 11.5, color: '#9CA0A8' }}>
-          点击节点查看详情
+          {pageTab === 'graph' ? '点击节点查看详情' : ''}
         </div>
       </div>
 
+      {/* 子 tab 切换 */}
+      <div style={{ display: 'flex', margin: '10px 22px 12px', background: '#F2F3F6', borderRadius: 12, padding: 3 }}>
+        {[['graph','知识图谱'],['report','学习报告']].map(([id, label]) => (
+          <button key={id} onClick={() => setPageTab(id)} style={{
+            flex: 1, padding: '7px 0', border: 'none', cursor: 'pointer', borderRadius: 10,
+            fontSize: 13, fontWeight: pageTab === id ? 600 : 400,
+            background: pageTab === id ? '#fff' : 'transparent',
+            color: pageTab === id ? '#15161B' : '#8A8B93',
+            boxShadow: pageTab === id ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+            transition: 'all .18s',
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {pageTab === 'graph' ? (<>
       {/* SVG 图谱画布 */}
       <div style={{
         position: 'relative', margin: '0 12px',
@@ -1128,7 +1191,7 @@ function PhysicsGraphPage() {
           })}
 
           {/* Nodes */}
-          {PHYS_NODES.map(n => {
+          {nodes.map(n => {
             const isSel = sel === n.id;
             const dim = relatedIds && !relatedIds.has(n.id);
             const lvl = n.isSubject ? null : masteryLevel(n.mastery);
@@ -1198,16 +1261,139 @@ function PhysicsGraphPage() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>{Ic.spark(14)}</div>
             <div>
-              <div style={{ fontWeight: 600, color: '#3A3C45' }}>
-                {sel === 'p0' ? '物理 · 八年级知识图谱' : '物理 · 知识图谱'}
-              </div>
+              <div style={{ fontWeight: 600, color: '#3A3C45' }}>物理 · 知识图谱</div>
               <div>实线 = 直接依赖 · 虚线 = 跨章联系 · 圆点颜色 = 掌握度</div>
             </div>
           </div>
         )}
       </div>
+      </>) : (
+        /* ── 学习报告 tab ── */
+        <ReportPanel
+          data={reportData}
+          loading={reportLoading}
+          onRefresh={() => fetchReport(true)}
+        />
+      )}
     </div>);
+}
 
+function ReportPanel({ data, loading, onRefresh }) {
+  const PHYS_COLOR = '#8DCED4';
+
+  if (loading) return (
+    <div style={{ padding: '48px 22px', textAlign: 'center' }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: '50%',
+        border: '3px solid #E8EAED', borderTopColor: PHYS_COLOR,
+        animation: 'spin 0.9s linear infinite', margin: '0 auto 14px',
+      }} />
+      <div style={{ fontSize: 13, color: '#8A8B93' }}>AI 正在生成学习报告…</div>
+    </div>
+  );
+
+  if (!data) return (
+    <div style={{ padding: '40px 22px', textAlign: 'center' }}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+      <div style={{ fontSize: 14, color: '#3A3C45', fontWeight: 600, marginBottom: 6 }}>还没有学习报告</div>
+      <div style={{ fontSize: 12.5, color: '#8A8B93', marginBottom: 20 }}>
+        做几道题之后，AI 会根据你的做题记录生成个性化报告
+      </div>
+      <button onClick={onRefresh} style={{
+        background: '#15161B', color: '#fff', border: 'none', borderRadius: 14,
+        padding: '10px 24px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+      }}>生成报告</button>
+    </div>
+  );
+
+  const meta = data.meta || {};
+  const total = meta.total || 0;
+  const strong = meta.strong_count || 0;
+  const weak = meta.weak_count || 0;
+  const unseen = meta.unseen_count || 0;
+  const pct = total ? Math.round((meta.overall_mastery || 0) * 100) : 0;
+
+  const statCards = [
+    { label: '知识点', value: total, color: '#8DCED4' },
+    { label: '已掌握', value: strong, color: '#9ED1B0' },
+    { label: '需加强', value: weak,   color: '#E89A98' },
+    { label: '未接触', value: unseen, color: '#C5C8CE' },
+  ];
+
+  const genTime = data.generated_at
+    ? new Date(data.generated_at).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })
+    : '';
+
+  return (
+    <div style={{ padding: '0 16px 20px' }}>
+      {/* 综合掌握度大卡 */}
+      <div style={{
+        background: '#15161B', borderRadius: 20, padding: '18px 20px', marginBottom: 12,
+        display: 'flex', alignItems: 'center', gap: 16,
+      }}>
+        <div style={{ position: 'relative', width: 64, height: 64, flex: 'none' }}>
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" stroke="rgba(255,255,255,0.12)" strokeWidth="6" fill="none"/>
+            <circle cx="32" cy="32" r="26" stroke={PHYS_COLOR} strokeWidth="6" fill="none"
+              strokeLinecap="round"
+              strokeDasharray={`${2*Math.PI*26*(pct/100)} ${2*Math.PI*26}`}
+              transform="rotate(-90 32 32)"/>
+          </svg>
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 15, fontWeight: 700, color: '#fff',
+          }}>{pct}%</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginBottom: 3 }}>综合掌握度</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: '#fff' }}>物理 · 初二</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>
+            {genTime ? `${genTime} 生成` : ''}
+          </div>
+        </div>
+      </div>
+
+      {/* 4格统计 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
+        {statCards.map(s => (
+          <div key={s.label} style={{
+            background: '#fff', borderRadius: 14, padding: '10px 8px', textAlign: 'center',
+            border: '1px solid #ECEFF3',
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 10.5, color: '#8A8B93', marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* AI 评语卡 */}
+      <div style={{
+        background: '#fff', borderRadius: 18, padding: '16px 18px',
+        border: '1px solid #ECEFF3', marginBottom: 14,
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+        }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 9, background: PHYS_COLOR,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
+          }}>{Ic.spark(14)}</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#15161B' }}>AI 老师的话</div>
+        </div>
+        <div style={{ fontSize: 13.5, color: '#3A3C45', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
+          {data.content}
+        </div>
+      </div>
+
+      {/* 刷新按钮 */}
+      <button onClick={onRefresh} style={{
+        width: '100%', background: 'transparent', border: '1px solid #E2E4E9',
+        borderRadius: 14, padding: '11px 0', fontSize: 13, color: '#6B7280',
+        cursor: 'pointer', fontFamily: 'inherit',
+      }}>刷新报告</button>
+    </div>
+  );
 }
 
 // 把知识点名拆成最多两行（便于塞进小圆里）
@@ -1305,23 +1491,72 @@ function MasteryRing({ pct, color }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Page · 历史
+// Page · 错题本（tab）+ 历史全览（overlay）
 // ═══════════════════════════════════════════════════════════════
 function HistoryPage({ items, onOpen }) {
-  return (
-    <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 14px' }}>
-      <SectionLabel title={`批改记录 · 共 ${items.length} 条`} />
-      <div style={{ padding: '0 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {items.length === 0
-          ? <div style={{ textAlign: 'center', padding: '40px 0', color: '#8A8B93', fontSize: 13 }}>
-              还没有批改记录<br />
-              <span style={{ fontSize: 12, opacity: 0.7 }}>拍一道题开始吧</span>
-            </div>
-          : items.map((item) => <HistoryRow key={item.id} item={item} onClick={onOpen} />)
-        }
-      </div>
-    </div>);
+  const [showHistory, setShowHistory] = React.useState(false);
 
+  // 错题本：错误 + 部分正确 + 未作答
+  const errorItems = items.filter(item =>
+    item.verdict === 'wrong' || item.verdict === 'partial' || item.verdict === 'empty'
+  );
+
+  function handleOpen(item) {
+    setShowHistory(false);
+    onOpen(item);
+  }
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+
+      {/* 主列表：错题 */}
+      <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 14px' }}>
+        <SectionLabel
+          title={`错题本 · ${errorItems.length} 条`}
+          action="历史"
+          onAction={() => setShowHistory(true)}
+        />
+        <div style={{ padding: '0 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {errorItems.length === 0
+            ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#8A8B93', fontSize: 13 }}>
+                暂无错题，继续加油！<br />
+                <span style={{ fontSize: 12, opacity: 0.7 }}>做过的错题会收录在这里</span>
+              </div>
+            : errorItems.map(item => <HistoryRow key={item.id} item={item} onClick={onOpen} />)
+          }
+        </div>
+      </div>
+
+      {/* 全部历史 overlay（从底部滑上来） */}
+      <div className={`overlay${showHistory ? ' open' : ''}`} style={{ background: '#F8FAFC' }}>
+        <div style={{
+          padding: '14px 14px 10px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          borderBottom: '1px solid #EDEEF2', background: '#fff', flex: 'none'
+        }}>
+          <button onClick={() => setShowHistory(false)} style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: '#F2F4F7', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#15161B'
+          }}>{Ic.back(18)}</button>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#15161B' }}>全部历史</span>
+        </div>
+        <div className="scroll" style={{ flex: 1, overflowY: 'auto', padding: '0 0 14px' }}>
+          <SectionLabel title={`批改记录 · 共 ${items.length} 条`} />
+          <div style={{ padding: '0 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {items.length === 0
+              ? <div style={{ textAlign: 'center', padding: '40px 0', color: '#8A8B93', fontSize: 13 }}>
+                  还没有批改记录<br />
+                  <span style={{ fontSize: 12, opacity: 0.7 }}>拍一道题开始吧</span>
+                </div>
+              : items.map(item => <HistoryRow key={item.id} item={item} onClick={handleOpen} />)
+            }
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
 }
 
 function HistoryRow({ item, onClick }) {
@@ -2145,7 +2380,7 @@ function Toast({ text }) {
 // ═══════════════════════════════════════════════════════════════
 function App() {
   const [tab,           setTab]           = useState('home');
-  const [tasks,         setTasks]         = useState([]);
+  const [tasks,         setTasks]         = useState(TODAY_TASKS);
   const [history,       setHistory]       = useState([]);
   const [grading,       setGrading]       = useState(null);          // null | 'streaming' | 'result'
   const [gradingResult, setGradingResult] = useState(null);          // 真实批改结果
@@ -2156,22 +2391,22 @@ function App() {
   const fileInputRef   = useRef(null);
   const streamQueuesRef = useRef({});
 
-  // ── 加载复习任务 ──────────────────────────────────────────
-  useEffect(() => {
-    apiGet('/api/students/' + STUDENT_ID + '/review-tasks')
-      .then(data => {
-        const mapped = (data.tasks || []).map(t => ({
-          id:      t.knowledge_point_id,
-          chapter: t.subject || '物理',
-          point:   t.knowledge_point_name,
-          count:   t.recommended_count || 3,
-          done:    false,
-          hint:    t.reason || ('掌握度 ' + Math.round((t.mastery_score || 0) * 100) + '%'),
-        }));
-        if (mapped.length) setTasks(mapped);
-      })
-      .catch(() => {});  // 保持 TODAY_TASKS 兜底
-  }, []);
+  // ── 复习任务（暂用占位数据，接入真实 API 时取消注释） ──────
+  // useEffect(() => {
+  //   apiGet('/api/students/' + STUDENT_ID + '/review-tasks')
+  //     .then(data => {
+  //       const mapped = (data.tasks || []).map(t => ({
+  //         id:      t.knowledge_point_id,
+  //         chapter: t.subject || '物理',
+  //         point:   t.knowledge_point_name,
+  //         count:   t.recommended_count || 3,
+  //         done:    false,
+  //         hint:    t.reason || ('掌握度 ' + Math.round((t.mastery_score || 0) * 100) + '%'),
+  //       }));
+  //       if (mapped.length) setTasks(mapped);
+  //     })
+  //     .catch(() => {});
+  // }, []);
 
   // ── 加载 / 刷新历史记录 ───────────────────────────────────
   function refreshHistory() {
