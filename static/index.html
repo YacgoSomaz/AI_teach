@@ -27,16 +27,20 @@
 <style>
   /* ─── CSS Token System ──────────────────────────────────── */
   :root {
-    --primary:       #4F6EF7;
-    --primary-deep:  #3651e8;
-    --primary-soft:  #EEF2FF;
-    --purple:        #6366f1;
-    --surface:       #F8FAFF;
+    --primary:       #4C67F0;
+    --primary-deep:  #334AD8;
+    --primary-soft:  #EEF3FF;
+    --purple:        #6D5DF6;
+    --surface:       #F6F8FC;
     --surface-card:  #ffffff;
-    --text:          #1a1a2e;
-    --text-muted:    #64748b;
-    --text-faint:    #94a3b8;
-    --border:        #E2E8F0;
+    --text:          #172033;
+    --text-muted:    #667085;
+    --text-faint:    #98A2B3;
+    --border:        #E5EAF2;
+    --border-soft:   rgba(229,234,242,.72);
+    --shadow-card:   0 12px 30px -24px rgba(18,32,61,.28);
+    --shadow-soft:   0 18px 42px -30px rgba(18,32,61,.32);
+    --radius-card:   18px;
     --success:       #10b981;
     --success-soft:  #d1fae5;
     --error:         #ef4444;
@@ -59,16 +63,32 @@
       -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     color: var(--text);
     -webkit-font-smoothing: antialiased;
-    background: var(--surface);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.62) 0%, rgba(246,248,252,0) 34%),
+      var(--surface);
   }
+  button, input { -webkit-tap-highlight-color: transparent; }
   button { font-family: inherit; }
+  button:focus-visible,
+  input:focus-visible {
+    outline: 1px solid rgba(76,103,240,.26);
+    outline-offset: 2px;
+  }
+  input::placeholder { color: #A5ADBB; }
 
   /* ─── 通用 ───────────────────────────────────────────────── */
-  .card { background: #fff; border-radius: 18px; border: 1px solid var(--border); }
-  .row-press { transition: background .15s; cursor: pointer; }
-  .row-press:active { background: rgba(0,0,0,0.025); }
+  .card {
+    background: var(--surface-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--shadow-card);
+  }
+  .row-press { transition: background .15s, transform .15s, border-color .15s, box-shadow .15s; cursor: pointer; }
+  .row-press:active { background: rgba(76,103,240,0.035); transform: scale(.992); }
   .scroll::-webkit-scrollbar { width: 0; }
-  .tab-btn { transition: color .2s; }
+  .tab-btn { transition: color .2s, background .2s, transform .16s; }
+  .tab-btn:focus-visible { outline-offset: -4px; }
+  .tab-btn:active { transform: translateY(1px); }
 
   /* ─── 流式批改步骤 ────────────────────────────────────────── */
   .step-dot {
@@ -172,14 +192,14 @@
 
   /* ─── FAB 按钮 ───────────────────────────────────────────── */
   .fab-btn {
-    background: linear-gradient(135deg, #4F6EF7 0%, #6366f1 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--purple) 100%);
     color: #fff; border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 10px;
-    box-shadow: 0 12px 28px -8px rgba(79,110,247,.55);
+    box-shadow: 0 16px 34px -16px rgba(76,103,240,.7);
     transition: transform .12s, box-shadow .12s;
     font-family: inherit;
   }
-  .fab-btn:active { transform: scale(.97); box-shadow: 0 6px 16px -6px rgba(79,110,247,.4); }
+  .fab-btn:active { transform: scale(.975); box-shadow: 0 8px 18px -10px rgba(76,103,240,.5); }
 </style>
 </head>
 <body>
@@ -360,17 +380,17 @@ const CHAPTERS = [
 ];
 
 const PHYS_NODES = [
-  {id:'p0',name:'物理',x:180,y:270,r:38,isSubject:true},
-  {id:'c1',name:'机械运动',x:100,y:200,r:25,mastery:86,total:12,wrong:2,recent:['速度单位换算','平均速度测量','路程时间图像']},
-  {id:'c2',name:'声现象',x:70,y:95,r:22,mastery:78,total:10,wrong:3,recent:['音调响度区分','声音传播介质']},
-  {id:'c3',name:'物态变化',x:55,y:320,r:22,mastery:71,total:11,wrong:5,recent:['熔化凝固图像','汽化液化判断']},
-  {id:'c4',name:'光现象',x:135,y:430,r:24,mastery:58,total:14,wrong:8,recent:['反射角判断','平面镜成像作图']},
-  {id:'c5',name:'透镜应用',x:215,y:130,r:24,mastery:64,total:13,wrong:6,recent:['凸透镜成像规律','照相机投影仪应用']},
-  {id:'c6',name:'质量密度',x:305,y:65,r:22,mastery:81,total:12,wrong:3,recent:['密度公式计算','量筒读数']},
-  {id:'c7',name:'力',x:320,y:170,r:22,mastery:69,total:9,wrong:5,recent:['力的示意图','重力方向判断']},
-  {id:'c8',name:'运动和力',x:330,y:265,r:22,mastery:62,total:12,wrong:6,recent:['惯性现象解释','二力平衡判断']},
-  {id:'c9',name:'压强',x:295,y:365,r:22,mastery:55,total:13,wrong:7,recent:['固体压强计算','液体压强比较']},
-  {id:'c10',name:'浮力',x:215,y:445,r:24,mastery:48,total:12,wrong:9,recent:['阿基米德原理','浮沉条件判断']},
+  {id:'p0',name:'物理',x:180,y:210,r:36,isSubject:true},
+  {id:'c1',name:'机械运动',x:100,y:155,r:24,mastery:86,total:12,wrong:2,recent:['速度单位换算','平均速度测量','路程时间图像']},
+  {id:'c2',name:'声现象',x:70,y:70,r:22,mastery:78,total:10,wrong:3,recent:['音调响度区分','声音传播介质']},
+  {id:'c3',name:'物态变化',x:55,y:260,r:22,mastery:71,total:11,wrong:5,recent:['熔化凝固图像','汽化液化判断']},
+  {id:'c4',name:'光现象',x:135,y:324,r:23,mastery:58,total:14,wrong:8,recent:['反射角判断','平面镜成像作图']},
+  {id:'c5',name:'透镜应用',x:215,y:112,r:23,mastery:64,total:13,wrong:6,recent:['凸透镜成像规律','照相机投影仪应用']},
+  {id:'c6',name:'质量密度',x:305,y:58,r:22,mastery:81,total:12,wrong:3,recent:['密度公式计算','量筒读数']},
+  {id:'c7',name:'力',x:320,y:145,r:22,mastery:69,total:9,wrong:5,recent:['力的示意图','重力方向判断']},
+  {id:'c8',name:'运动和力',x:330,y:225,r:22,mastery:62,total:12,wrong:6,recent:['惯性现象解释','二力平衡判断']},
+  {id:'c9',name:'压强',x:295,y:302,r:22,mastery:55,total:13,wrong:7,recent:['固体压强计算','液体压强比较']},
+  {id:'c10',name:'浮力',x:215,y:344,r:23,mastery:48,total:12,wrong:9,recent:['阿基米德原理','浮沉条件判断']},
 ];
 
 const PHYS_EDGES = [
@@ -432,7 +452,7 @@ function UserBar() {
   function logout() {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_email');
-    alert('预览版已移除登录跳转，点击不会进入登录页。');
+    window.location.replace('/login');
   }
 
   return (
@@ -440,21 +460,29 @@ function UserBar() {
       display:'flex', alignItems:'center', justifyContent:'space-between',
       padding:'0 18px',
       paddingTop:'env(safe-area-inset-top, 0px)',
-      height:'calc(env(safe-area-inset-top, 0px) + 52px)',
-      background:'#fff',
-      borderBottom:'1px solid var(--border)',
+      height:'calc(env(safe-area-inset-top, 0px) + 56px)',
+      background:'rgba(255,255,255,.92)',
+      borderBottom:'1px solid rgba(229,234,242,.78)',
+      boxShadow:'0 10px 30px -28px rgba(18,32,61,.35)',
       flex:'none', zIndex:40,
     }}>
       <div style={{
-        fontSize:15, fontWeight:700,
-        color:'var(--primary)',
-        letterSpacing:'-0.01em',
+        fontSize:15.5, fontWeight:750,
+        color:'var(--text)',
+        letterSpacing:0,
         display:'flex', alignItems:'center', gap:7,
       }}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--primary)">
-          <path d="M12 2l1.8 5.4L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.6L12 2z"/>
-          <path d="M19 14l.8 2.4L22 17.5l-2.2.7L19 20.5l-.8-2.3L16 17.5l2.2-.7L19 14z" opacity=".5"/>
-        </svg>
+        <span style={{
+          width:28, height:28, borderRadius:10,
+          background:'linear-gradient(135deg, rgba(76,103,240,.98), rgba(109,93,246,.9))',
+          color:'#fff', display:'flex', alignItems:'center', justifyContent:'center',
+          boxShadow:'0 8px 18px -12px rgba(76,103,240,.75)',
+        }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2l1.8 5.4L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.6L12 2z"/>
+            <path d="M19 14l.8 2.4L22 17.5l-2.2.7L19 20.5l-.8-2.3L16 17.5l2.2-.7L19 14z" opacity=".55"/>
+          </svg>
+        </span>
         AI 复习导航
       </div>
       <div style={{display:'flex', alignItems:'center', gap:10}}>
@@ -465,13 +493,14 @@ function UserBar() {
         )}
         <button onClick={logout} style={{
           display:'flex', alignItems:'center', gap:5,
-          background:'transparent',
-          border:'1px solid var(--border)',
+          background:'#fff',
+          border:'1px solid var(--border-soft)',
           borderRadius:999,
-          padding:'5px 12px',
+          padding:'6px 12px',
           fontSize:12, color:'var(--text-muted)',
           cursor:'pointer',
-          transition:'border-color .15s, color .15s',
+          boxShadow:'0 8px 18px -16px rgba(18,32,61,.35)',
+          transition:'border-color .15s, color .15s, transform .15s',
         }}>
           {Ic.logout(12)}
           退出
@@ -519,13 +548,13 @@ const CAMERA_ILLUSTRATION_DATA_URL = 'data:image/webp;base64,UklGRnI/AABXRUJQVlA
 function CameraIllustration() {
   return (
     <div style={{
-      width: 156,
-      height: 156,
+      width: 132,
+      height: 132,
       borderRadius: '50%',
       overflow: 'hidden',
-      background: 'radial-gradient(circle at 30% 25%, #F9FCFF 0%, #EEF4FF 55%, #E6EEFF 100%)',
-      boxShadow: '0 14px 34px -18px rgba(79,110,247,.34)',
-      border: '1px solid rgba(79,110,247,.12)',
+      background: 'radial-gradient(circle at 32% 24%, #FFFFFF 0%, #EEF3FF 54%, #E5ECFF 100%)',
+      boxShadow: '0 18px 42px -26px rgba(76,103,240,.44)',
+      border: '1px solid rgba(76,103,240,.12)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -536,19 +565,19 @@ function CameraIllustration() {
         position: 'absolute',
         inset: 0,
         borderRadius: '50%',
-        boxShadow: 'inset 0 0 0 10px rgba(255,255,255,.22)',
+        boxShadow: 'inset 0 0 0 10px rgba(255,255,255,.26), inset 0 -18px 24px -22px rgba(76,103,240,.4)',
         pointerEvents: 'none',
       }} />
       <img
         src={CAMERA_ILLUSTRATION_DATA_URL}
         alt="AI教师图标"
-        width="144"
-        height="144"
+        width="122"
+        height="122"
         decoding="async"
         fetchpriority="high"
         style={{
-          width: 144,
-          height: 144,
+          width: 122,
+          height: 122,
           objectFit: 'cover',
           display: 'block',
           borderRadius: '50%',
@@ -565,10 +594,10 @@ function CameraIllustration() {
 function SectionLabel({ title, action, onAction }) {
   return (
     <div style={{
-      padding:'4px 22px 8px',
+      padding:'6px 22px 9px',
       display:'flex', alignItems:'baseline', justifyContent:'space-between',
     }}>
-      <div style={{fontSize:13.5, fontWeight:700, color:'var(--text)', letterSpacing:'-0.005em'}}>{title}</div>
+      <div style={{fontSize:13.5, fontWeight:750, color:'var(--text)', letterSpacing:0}}>{title}</div>
       {action && (
         <button onClick={onAction} style={{
           background:'transparent', border:'none', cursor:'pointer',
@@ -585,7 +614,8 @@ function Pill({ color='var(--text)', bg='#F2F3F6', children, size='sm' }) {
       display:'inline-flex', alignItems:'center', gap:4,
       padding: size==='sm' ? '2px 8px' : '4px 10px',
       borderRadius:999, background:bg, color,
-      fontWeight:600, fontSize: size==='sm' ? 11 : 12, whiteSpace:'nowrap',
+      fontWeight:650, fontSize: size==='sm' ? 11 : 12, whiteSpace:'nowrap',
+      border:'1px solid rgba(255,255,255,.58)',
     }}>{children}</span>
   );
 }
@@ -604,13 +634,13 @@ function TabBar({ value, onChange }) {
 
   return (
     <div style={{
-      display:'flex', background:'#fff',
-      borderTop:'1px solid var(--border)',
-      paddingBottom:'max(12px, env(safe-area-inset-bottom, 0px))',
+      display:'flex', background:'rgba(255,255,255,.96)',
+      borderTop:'1px solid rgba(229,234,242,.86)',
+      padding:'6px 8px max(10px, env(safe-area-inset-bottom, 0px))',
       position:'absolute', left:0, right:0, bottom:0,
       zIndex:90,
       flex:'none',
-      boxShadow:'0 -10px 28px -24px rgba(15,23,42,.45)',
+      boxShadow:'0 -12px 34px -28px rgba(18,32,61,.46)',
     }}>
       {/* 滑动指示条 */}
       <div style={{
@@ -622,7 +652,7 @@ function TabBar({ value, onChange }) {
         pointerEvents:'none',
       }}>
         <div style={{
-          width:32, height:3,
+          width:26, height:3,
           background:'var(--primary)',
           borderRadius:'0 0 4px 4px',
         }}/>
@@ -638,9 +668,16 @@ function TabBar({ value, onChange }) {
               alignItems:'center', gap:3,
               border:'none', background:'transparent', cursor:'pointer',
               color: active ? 'var(--primary)' : 'var(--text-faint)',
-              padding:'10px 0 6px', fontFamily:'inherit',
+              padding:'8px 0 6px', fontFamily:'inherit',
+              borderRadius:14,
             }}>
-            {t.icon(22)}
+            <span style={{
+              width:30, height:25, borderRadius:12,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              background: active ? 'rgba(76,103,240,.09)' : 'transparent',
+            }}>
+              {t.icon(21)}
+            </span>
             <span style={{fontSize:10.5, fontWeight: active ? 700 : 500}}>{t.label}</span>
           </button>
         );
@@ -679,34 +716,34 @@ function QuestionThumb({ size=64 }) {
 function EmptyTutorial({ onCamera }) {
   return (
     <div style={{
-      width:'100%', maxWidth:320, margin:'0 auto',
+      width:'100%', maxWidth:324, margin:'0 auto',
       display:'flex', flexDirection:'column', alignItems:'center',
-      padding:'4px 0 20px',
+      padding:'2px 0 14px',
     }}>
       {/* 插画 */}
-      <div style={{marginBottom:10, transform:'scale(.92)', transformOrigin:'center bottom'}}>
+      <div style={{marginBottom:6, transform:'scale(.92)', transformOrigin:'center bottom'}}>
         <CameraIllustration/>
       </div>
 
       {/* 标题 */}
       <div style={{
-        textAlign:'center', fontSize:21, fontWeight:700,
-        color:'var(--text)', letterSpacing:'-0.012em', lineHeight:1.35,
+        textAlign:'center', fontSize:21, fontWeight:750,
+        color:'var(--text)', letterSpacing:0, lineHeight:1.34,
       }}>
         拍一道题，边解边讲
       </div>
       <div style={{
-        marginTop:8, textAlign:'center', fontSize:13.5,
-        color:'var(--text-muted)', lineHeight:1.65, maxWidth:260,
+        marginTop:7, textAlign:'center', fontSize:13.2,
+        color:'var(--text-muted)', lineHeight:1.6, maxWidth:270,
       }}>
         拍下作业或错题，AI 老师逐步分析批改，<br/>同步生成专属复习计划
       </div>
 
       {/* FAB 主按钮 */}
       <button onClick={onCamera} className="fab-btn" style={{
-        marginTop:20, width:'100%', maxWidth:240,
-        padding:'15px 0', borderRadius:22,
-        fontSize:16.5, fontWeight:700,
+        marginTop:16, width:'100%', maxWidth:248,
+        padding:'13px 0', borderRadius:20,
+        fontSize:16, fontWeight:750,
       }}>
         {Ic.camera(20)}
         拍照上传
@@ -714,10 +751,11 @@ function EmptyTutorial({ onCamera }) {
 
       {/* 三步教程 */}
       <div style={{
-        width:'100%', marginTop:18,
-        background:'#fff', border:'1px solid var(--border)',
-        borderRadius:16, padding:'12px 16px',
-        display:'flex', flexDirection:'column', gap:10,
+        width:'100%', marginTop:12,
+        background:'rgba(255,255,255,.94)', border:'1px solid var(--border-soft)',
+        borderRadius:18, padding:'9px 16px',
+        display:'flex', flexDirection:'column', gap:7,
+        boxShadow:'var(--shadow-card)',
       }}>
         {[
           {n:'1', t:'拍题上传',   s:'题目尽量占满画面'},
@@ -726,15 +764,15 @@ function EmptyTutorial({ onCamera }) {
         ].map((s, i) => (
           <div key={s.n} style={{display:'flex', alignItems:'center', gap:12}}>
             <div style={{
-              width:26, height:26, borderRadius:'50%', flex:'none',
-              background: i===0 ? 'var(--primary)' : '#F1F5F9',
-              color: i===0 ? '#fff' : 'var(--text)',
+              width:24, height:24, borderRadius:'50%', flex:'none',
+              background: i===0 ? 'linear-gradient(135deg, var(--primary), var(--purple))' : '#F3F6FA',
+              color: i===0 ? '#fff' : 'var(--text-muted)',
               display:'flex', alignItems:'center', justifyContent:'center',
               fontSize:12.5, fontWeight:700,
             }}>{s.n}</div>
             <div style={{minWidth:0, flex:1}}>
-              <div style={{fontSize:13.5, fontWeight:600, color:'var(--text)'}}>{s.t}</div>
-              <div style={{fontSize:11.5, color:'var(--text-faint)', marginTop:1}}>{s.s}</div>
+              <div style={{fontSize:13.5, fontWeight:650, color:'var(--text)'}}>{s.t}</div>
+              <div style={{fontSize:11.5, color:'var(--text-muted)', marginTop:1, opacity:.82}}>{s.s}</div>
             </div>
           </div>
         ))}
@@ -754,15 +792,16 @@ function ChatInputBar({ onCamera, onSend, placeholder='拍题或追问这道题�
 
   return (
     <div style={{
-      padding:'10px 14px 12px', background:'var(--surface)',
+      padding:'10px 14px 12px',
+      background:'linear-gradient(180deg, rgba(246,248,252,0), var(--surface) 28%)',
       flex:'none', position:'relative',
-      boxShadow:'0 -8px 18px -10px rgba(79,110,247,.06)',
+      boxShadow:'0 -12px 28px -24px rgba(18,32,61,.34)',
     }}>
       <div style={{
-        background:'#fff', borderRadius:28,
+        background:'rgba(255,255,255,.98)', borderRadius:28,
         padding:'7px', display:'flex', alignItems:'center', gap:6,
-        border:'1px solid var(--border)',
-        boxShadow:'0 4px 14px -8px rgba(79,110,247,.08)',
+        border:'1px solid rgba(229,234,242,.94)',
+        boxShadow:'0 14px 30px -24px rgba(18,32,61,.44)',
         position:'relative', zIndex:2,
       }}>
         <button onClick={onCamera} title="拍照" style={{
@@ -770,7 +809,7 @@ function ChatInputBar({ onCamera, onSend, placeholder='拍题或追问这道题�
           background:'linear-gradient(135deg, var(--primary) 0%, var(--purple) 100%)',
           color:'#fff', border:'none', cursor:'pointer',
           display:'flex', alignItems:'center', justifyContent:'center',
-          boxShadow:`0 4px 12px -4px ${ACCENT}55`,
+          boxShadow:`0 8px 16px -9px ${ACCENT}aa`,
         }}>
           {Ic.camera(20)}
         </button>
@@ -790,8 +829,8 @@ function ChatInputBar({ onCamera, onSend, placeholder='拍题或追问这道题�
           color: hasText ? '#fff' : 'var(--text-faint)',
           border:'none', cursor: hasText ? 'pointer' : 'default',
           display:'flex', alignItems:'center', justifyContent:'center',
-          transition:'background .18s, color .18s, box-shadow .18s',
-          boxShadow: hasText ? `0 4px 12px -4px ${ACCENT}80` : 'none',
+          transition:'background .18s, color .18s, box-shadow .18s, transform .16s',
+          boxShadow: hasText ? `0 8px 16px -9px ${ACCENT}aa` : 'none',
         }}>{Ic.arrow(15)}</button>
       </div>
     </div>
@@ -807,21 +846,29 @@ function HomePage({ onCamera, messages, onSend, onViewResult }) {
     <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden', minHeight:0}}>
       {/* 聊天区顶部 */}
       <div style={{
-        padding:'12px 22px 6px',
+        padding:'13px 22px 7px',
         display:'flex', alignItems:'center', justifyContent:'space-between',
       }}>
         <div style={{display:'flex', alignItems:'center', gap:8}}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--primary)">
-            <path d="M10 3l1.5 4.5L16 9l-4.5 1.5L10 15l-1.5-4.5L4 9l4.5-1.5L10 3z"/>
-            <path d="M18 13l.7 2.1L21 16l-2.3.7L18 19l-.7-2.3L15 16l2.3-.7L18 13z" opacity=".5"/>
-          </svg>
-          <div style={{fontSize:15, fontWeight:700, letterSpacing:'-0.005em', color:'var(--text)'}}>
+          <span style={{
+            width:24, height:24, borderRadius:9,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            background:'var(--primary-soft)', color:'var(--primary)',
+          }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M10 3l1.5 4.5L16 9l-4.5 1.5L10 15l-1.5-4.5L4 9l4.5-1.5L10 3z"/>
+              <path d="M18 13l.7 2.1L21 16l-2.3.7L18 19l-.7-2.3L15 16l2.3-.7L18 13z" opacity=".55"/>
+            </svg>
+          </span>
+          <div style={{fontSize:15, fontWeight:750, letterSpacing:0, color:'var(--text)'}}>
             你的私人 AI 老师
           </div>
         </div>
         <button style={{
-          background:'transparent', border:'none', cursor:'pointer',
-          color:'var(--text-faint)', padding:4, fontFamily:'inherit',
+          width:30, height:30, borderRadius:'50%',
+          background:'#fff', border:'1px solid var(--border-soft)', cursor:'pointer',
+          color:'var(--text-faint)', padding:0, fontFamily:'inherit',
+          display:'flex', alignItems:'center', justifyContent:'center',
         }}>{Ic.more(18)}</button>
       </div>
 
@@ -829,7 +876,7 @@ function HomePage({ onCamera, messages, onSend, onViewResult }) {
         flex:1, overflowY:'auto', minHeight:0,
         display:'flex', flexDirection:'column',
         justifyContent:'flex-start',
-        alignItems:'center', padding:'0 24px 12px',
+        alignItems:'center', padding:'0 24px 14px',
         contentVisibility:'auto',
         containIntrinsicSize:'800px',
       }}>
@@ -978,34 +1025,34 @@ function ReviewPage({ tasks, onToggle }) {
   const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日 · 周${weekday}`;
 
   return (
-    <div className="scroll" style={{flex:1, overflowY:'auto', padding:'0 0 14px'}}>
-      <div style={{padding:'14px 18px 14px'}}>
+    <div className="scroll" style={{flex:1, overflowY:'auto', padding:'0 0 96px'}}>
+      <div style={{padding:'14px 18px 12px'}}>
         <div style={{
-          borderRadius:22,
+          borderRadius:21,
           background: allDone
             ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-            : 'linear-gradient(135deg, #4F6EF7 0%, #6366f1 100%)',
-          padding:'20px 22px',
+            : 'linear-gradient(135deg, var(--primary) 0%, var(--purple) 100%)',
+          padding:'19px 21px',
           color:'#fff',
           position:'relative', overflow:'hidden',
           boxShadow: allDone
             ? '0 12px 32px -12px rgba(16,185,129,.5)'
-            : '0 12px 32px -12px rgba(79,110,247,.5)',
+            : '0 16px 36px -20px rgba(76,103,240,.65)',
         }}>
           {/* 装饰圆 */}
           <div style={{
             position:'absolute', top:-28, right:-28, width:130, height:130,
-            borderRadius:'50%', background:'rgba(255,255,255,.08)', pointerEvents:'none',
+            borderRadius:'50%', background:'rgba(255,255,255,.07)', pointerEvents:'none',
           }}/>
           <div style={{
             position:'absolute', bottom:-36, right:52, width:90, height:90,
-            borderRadius:'50%', background:'rgba(255,255,255,.05)', pointerEvents:'none',
+            borderRadius:'50%', background:'rgba(255,255,255,.045)', pointerEvents:'none',
           }}/>
 
           {/* 日期 */}
           <div style={{
             fontSize:11.5, fontWeight:600, opacity:.8,
-            marginBottom:10, letterSpacing:'.03em',
+            marginBottom:10, letterSpacing:0,
           }}>
             {dateStr}
           </div>
@@ -1017,12 +1064,12 @@ function ReviewPage({ tasks, onToggle }) {
           }}>
             <div style={{flex:1}}>
               <div style={{
-                fontSize:22, fontWeight:700,
-                letterSpacing:'-0.01em', lineHeight:1.25,
+                fontSize:21.5, fontWeight:750,
+                letterSpacing:0, lineHeight:1.25,
               }}>
                 {allDone ? '今日全部完成 ✓' : `还有 ${total - done} 个任务`}
               </div>
-              <div style={{marginTop:6, fontSize:12.5, opacity:.8, display:'flex', alignItems:'center', gap:8}}>
+              <div style={{marginTop:6, fontSize:12.5, opacity:.82, display:'flex', alignItems:'center', gap:8}}>
                 <span>{total} 个知识点</span>
                 <span style={{opacity:.5}}>·</span>
                 <span>{allDone ? '坚持是最了不起的事' : `预计 ${(total-done)*4} 分钟`}</span>
@@ -1045,16 +1092,17 @@ function ReviewPage({ tasks, onToggle }) {
       </div>
 
       <div style={{
-        margin:'14px 18px 0', padding:'11px 14px', borderRadius:14,
-        background:'var(--primary-soft)',
-        border:'1px dashed rgba(79,110,247,.2)',
+        margin:'14px 18px 0', padding:'11px 14px', borderRadius:16,
+        background:'#fff',
+        border:'1px solid var(--border-soft)',
+        boxShadow:'var(--shadow-card)',
         display:'flex', alignItems:'center', gap:10,
         color:'var(--text-muted)', fontSize:12, lineHeight:1.5,
       }}>
         <div style={{
           width:28, height:28, borderRadius:9,
-          background:'linear-gradient(135deg, var(--primary), var(--purple))',
-          color:'#fff', flex:'none',
+          background:'var(--primary-soft)',
+          color:'var(--primary)', flex:'none',
           display:'flex', alignItems:'center', justifyContent:'center',
         }}>{Ic.spark(14)}</div>
         <div>AI 根据你的错题生成，完成后会更新章节掌握度</div>
@@ -1095,7 +1143,7 @@ function Stat({ n, unit, label, color='var(--text)' }) {
   return (
     <div style={{flex:1}}>
       <div style={{display:'flex', alignItems:'baseline', gap:2}}>
-        <span style={{fontSize:24, fontWeight:700, color, letterSpacing:'-0.02em', lineHeight:1}}>{n}</span>
+        <span style={{fontSize:24, fontWeight:700, color, letterSpacing:0, lineHeight:1}}>{n}</span>
         <span style={{fontSize:11, color:'var(--text-faint)'}}>{unit}</span>
       </div>
       <div style={{marginTop:4, fontSize:11.5, color:'var(--text-faint)'}}>{label}</div>
@@ -1184,15 +1232,16 @@ function PhysicsGraphPage() {
     return () => cancelAnimationFrame(raf);
   }, [nodesById, pageTab]);
 
-  const PHYS_COLOR = '#8DCED4';
+  const PHYS_COLOR = '#6575F4';
   const totalKp = nodes.length - 1;
 
   return (
-    <div className="scroll" style={{flex:1, overflowY:'auto', padding:'0 0 8px'}}>
-      <div style={{padding:'12px 22px 0', display:'flex', alignItems:'center', gap:8}}>
+    <div className="scroll" style={{flex:1, overflowY:'auto', padding:'0 0 96px'}}>
+      <div style={{padding:'13px 22px 0', display:'flex', alignItems:'center', gap:8}}>
         <div style={{
-          padding:'4px 11px', borderRadius:999, fontSize:12, fontWeight:700,
-          background:PHYS_COLOR, color:'#fff',
+          padding:'4px 11px', borderRadius:999, fontSize:12, fontWeight:750,
+          background:'var(--primary-soft)', color:'var(--primary-deep)',
+          border:'1px solid rgba(76,103,240,.20)',
         }}>物理</div>
         <div style={{fontSize:12.5, color:'var(--text-muted)'}}>
           {totalKp} 个知识点 · {PHYS_EDGES.length} 条关联
@@ -1202,14 +1251,18 @@ function PhysicsGraphPage() {
         </div>
       </div>
 
-      <div style={{display:'flex', margin:'10px 22px 12px', background:'#F2F3F6', borderRadius:12, padding:3}}>
+      <div style={{
+        display:'flex', margin:'10px 22px 12px',
+        background:'#EEF2F7', borderRadius:13, padding:3,
+        border:'1px solid rgba(229,234,242,.72)',
+      }}>
         {[['graph','知识图谱'],['report','学习报告']].map(([id,label]) => (
           <button key={id} onClick={() => setPageTab(id)} style={{
             flex:1, padding:'7px 0', border:'none', cursor:'pointer', borderRadius:10,
-            fontSize:13, fontWeight: pageTab===id ? 600 : 400,
+            fontSize:13, fontWeight: pageTab===id ? 650 : 500,
             background: pageTab===id ? '#fff' : 'transparent',
             color: pageTab===id ? 'var(--text)' : 'var(--text-faint)',
-            boxShadow: pageTab===id ? '0 1px 4px rgba(0,0,0,.08)' : 'none',
+            boxShadow: pageTab===id ? '0 8px 18px -16px rgba(18,32,61,.45)' : 'none',
             transition:'all .18s', fontFamily:'inherit',
           }}>{label}</button>
         ))}
@@ -1217,16 +1270,17 @@ function PhysicsGraphPage() {
 
       {pageTab === 'graph' ? (<>
         <div style={{
-          position:'relative', margin:'0 12px', borderRadius:24, overflow:'hidden',
-          background:'radial-gradient(circle at 50% 38%, #F3FAFB 0%, #FBFCFD 65%)',
-          border:'1px solid rgba(141,206,212,.22)',
+          position:'relative', margin:'0 12px', borderRadius:22, overflow:'hidden',
+          background:'linear-gradient(180deg, #FFFFFF 0%, #F8FAFF 100%)',
+          border:'1px solid rgba(76,103,240,.16)',
+          boxShadow:'var(--shadow-soft)',
         }}>
           <div style={{
             position:'absolute', inset:0, pointerEvents:'none',
-            backgroundImage:'radial-gradient(rgba(141,206,212,.22) 1px, transparent 1px)',
-            backgroundSize:'14px 14px', opacity:.6,
+            backgroundImage:'radial-gradient(rgba(76,103,240,.13) 1px, transparent 1px)',
+            backgroundSize:'16px 16px', opacity:.42,
           }}/>
-          <svg ref={svgRef} viewBox="0 0 360 520" width="100%" style={{display:'block', height:'auto', position:'relative'}}
+          <svg ref={svgRef} viewBox="0 0 360 380" width="100%" style={{display:'block', height:'auto', position:'relative'}}
             onClick={() => setSel(null)}>
             {PHYS_EDGES.map(([a,b,kind], i) => {
               const A = nodesById[a], B = nodesById[b];
@@ -1234,11 +1288,11 @@ function PhysicsGraphPage() {
               return (
                 <line key={i} data-eid={i}
                   x1={A.x} y1={A.y} x2={B.x} y2={B.y}
-                  stroke={inHL && relatedIds ? '#6B7280' : '#C5CBD3'}
-                  strokeWidth={kind==='primary' ? 1.4 : 1.05}
+                  stroke={inHL && relatedIds ? '#667085' : '#CBD5E1'}
+                  strokeWidth={kind==='primary' ? 1.25 : 1}
                   strokeDasharray={kind==='dashed' ? '3 4' : null}
                   strokeLinecap="round"
-                  opacity={relatedIds ? (inHL ? .9 : .12) : (kind==='primary' ? .6 : kind==='dashed' ? .45 : .5)}
+                  opacity={relatedIds ? (inHL ? .86 : .11) : (kind==='primary' ? .52 : kind==='dashed' ? .38 : .44)}
                   style={{transition:'opacity .3s, stroke .3s'}}/>
               );
             })}
@@ -1253,19 +1307,19 @@ function PhysicsGraphPage() {
                   onClick={e => { e.stopPropagation(); setSel(isSel ? null : n.id); }}>
                   {isSel && <circle r={n.r+10} fill={n.isSubject ? PHYS_COLOR : lvl.color} opacity=".18"/>}
                   {n.isSubject ? (<>
-                    <circle r={n.r} fill={PHYS_COLOR}/>
+                    <circle r={n.r} fill={PHYS_COLOR} style={{filter:'drop-shadow(0 12px 16px rgba(76,103,240,.24))'}}/>
                     <circle r={n.r-4} fill="none" stroke="rgba(255,255,255,.4)" strokeWidth="1"/>
-                    <text textAnchor="middle" dy="6" fontSize="17" fontWeight="500" fill="#fff"
-                      style={{fontFamily:'inherit', letterSpacing:'.04em'}}>{n.name}</text>
+                    <text textAnchor="middle" dy="6" fontSize="17" fontWeight="650" fill="#fff"
+                      style={{fontFamily:'inherit', letterSpacing:0}}>{n.name}</text>
                   </>) : (<>
-                    <circle r={n.r} fill="#fff" stroke={isSel ? lvl.color : 'rgba(141,206,212,.6)'} strokeWidth={isSel ? 2.5 : 1.4}/>
+                    <circle r={n.r} fill="#fff" stroke={isSel ? lvl.color : 'rgba(76,103,240,.34)'} strokeWidth={isSel ? 2.4 : 1.2}/>
                     <MasteryArc r={n.r-2} pct={n.mastery} color={lvl.color}/>
                     <circle cx={n.r-5} cy={-n.r+5} r="4.5" fill={lvl.color} stroke="#fff" strokeWidth="1.5"/>
                     {labelLines.map((line, li) => (
                       <text key={li} textAnchor="middle"
                         dy={labelLines.length===1 ? 4 : (li===0 ? -2 : 11)}
                         fontSize={labelLines.length===1 ? 11 : 10}
-                        fontWeight="500" fill="#2A2D33"
+                        fontWeight="550" fill="#344054"
                         style={{fontFamily:'inherit'}}>{line}</text>
                     ))}
                   </>)}
@@ -1279,14 +1333,15 @@ function PhysicsGraphPage() {
             <NodeDetail node={nodesById[sel]} onClose={() => setSel(null)}/>
           ) : (
             <div style={{
-              padding:'11px 14px', borderRadius:16,
-              background:'var(--primary-soft)', border:'1px dashed rgba(79,110,247,.2)',
+              padding:'12px 14px', borderRadius:16,
+              background:'#fff', border:'1px solid var(--border-soft)',
+              boxShadow:'var(--shadow-card)',
               display:'flex', alignItems:'center', gap:10,
               color:'var(--text-muted)', fontSize:12.5, lineHeight:1.5,
             }}>
               <div style={{
                 width:28, height:28, borderRadius:9,
-                background:PHYS_COLOR, color:'#fff', flex:'none',
+                background:'var(--primary-soft)', color:'var(--primary-deep)', flex:'none',
                 display:'flex', alignItems:'center', justifyContent:'center',
               }}>{Ic.spark(14)}</div>
               <div>
@@ -1304,7 +1359,7 @@ function PhysicsGraphPage() {
 }
 
 function ReportPanel({ data, loading, onRefresh }) {
-  const PHYS_COLOR = '#8DCED4';
+  const PHYS_COLOR = '#6575F4';
   if (loading) return (
     <div style={{padding:'48px 22px', textAlign:'center'}}>
       <div style={{
@@ -1322,8 +1377,9 @@ function ReportPanel({ data, loading, onRefresh }) {
         做几道题之后，AI 会生成个性化报告
       </div>
       <button onClick={onRefresh} style={{
-        background:'var(--primary)', color:'#fff', border:'none', borderRadius:14,
-        padding:'10px 24px', fontSize:13.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit',
+        background:'linear-gradient(135deg, var(--primary), var(--purple))', color:'#fff', border:'none', borderRadius:14,
+        padding:'10px 24px', fontSize:13.5, fontWeight:650, cursor:'pointer', fontFamily:'inherit',
+        boxShadow:'0 12px 24px -16px rgba(76,103,240,.72)',
       }}>生成报告</button>
     </div>
   );
@@ -1345,13 +1401,15 @@ function ReportPanel({ data, loading, onRefresh }) {
   return (
     <div style={{padding:'0 16px 20px'}}>
       <div style={{
-        background:'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+        background:'#fff',
         borderRadius:20, padding:'18px 20px', marginBottom:12,
         display:'flex', alignItems:'center', gap:16,
+        border:'1px solid var(--border-soft)',
+        boxShadow:'var(--shadow-card)',
       }}>
         <div style={{position:'relative', width:64, height:64, flex:'none'}}>
           <svg width="64" height="64" viewBox="0 0 64 64">
-            <circle cx="32" cy="32" r="26" stroke="rgba(255,255,255,.12)" strokeWidth="6" fill="none"/>
+            <circle cx="32" cy="32" r="26" stroke="#EEF2F7" strokeWidth="6" fill="none"/>
             <circle cx="32" cy="32" r="26" stroke={PHYS_COLOR} strokeWidth="6" fill="none"
               strokeLinecap="round"
               strokeDasharray={`${2*Math.PI*26*(pct/100)} ${2*Math.PI*26}`}
@@ -1360,13 +1418,13 @@ function ReportPanel({ data, loading, onRefresh }) {
           <div style={{
             position:'absolute', inset:0,
             display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:15, fontWeight:700, color:'#fff',
+            fontSize:15, fontWeight:750, color:'var(--text)',
           }}>{pct}%</div>
         </div>
         <div>
-          <div style={{fontSize:11, color:'rgba(255,255,255,.45)', marginBottom:3}}>综合掌握度</div>
-          <div style={{fontSize:17, fontWeight:700, color:'#fff'}}>物理 · 初二</div>
-          <div style={{fontSize:11, color:'rgba(255,255,255,.35)', marginTop:3}}>
+          <div style={{fontSize:11, color:'var(--text-faint)', marginBottom:3}}>综合掌握度</div>
+          <div style={{fontSize:17, fontWeight:750, color:'var(--text)'}}>物理 · 初二</div>
+          <div style={{fontSize:11, color:'var(--text-faint)', marginTop:3}}>
             {genTime ? `${genTime} 生成` : ''}
           </div>
         </div>
@@ -1375,7 +1433,8 @@ function ReportPanel({ data, loading, onRefresh }) {
         {statCards.map(s => (
           <div key={s.label} style={{
             background:'#fff', borderRadius:14, padding:'10px 8px', textAlign:'center',
-            border:'1px solid var(--border)',
+            border:'1px solid var(--border-soft)',
+            boxShadow:'var(--shadow-card)',
           }}>
             <div style={{fontSize:18, fontWeight:700, color:s.color}}>{s.value}</div>
             <div style={{fontSize:10.5, color:'var(--text-faint)', marginTop:2}}>{s.label}</div>
@@ -1384,11 +1443,14 @@ function ReportPanel({ data, loading, onRefresh }) {
       </div>
       <div style={{
         background:'#fff', borderRadius:18, padding:'16px 18px',
-        border:'1px solid var(--border)', marginBottom:14,
+        border:'1px solid var(--border-soft)', marginBottom:14,
+        boxShadow:'var(--shadow-card)',
       }}>
         <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:12}}>
           <div style={{
-            width:28, height:28, borderRadius:9, background:PHYS_COLOR,
+            width:28, height:28, borderRadius:9,
+            background:'linear-gradient(135deg, var(--primary), var(--purple))',
+            color:'#fff',
             display:'flex', alignItems:'center', justifyContent:'center', flex:'none',
           }}>{Ic.spark(14)}</div>
           <div style={{fontSize:13.5, fontWeight:600, color:'var(--text)'}}>AI 老师的话</div>
@@ -1418,7 +1480,7 @@ function MasteryArc({ r, pct, color }) {
   return (
     <circle r={r} fill="none" stroke={color} strokeWidth="2"
       strokeLinecap="round" strokeDasharray={`${c*(pct/100)} ${c}`}
-      transform="rotate(-90)" opacity=".55"/>
+      transform="rotate(-90)" opacity=".62"/>
   );
 }
 
@@ -1427,13 +1489,14 @@ function NodeDetail({ node, onClose }) {
   return (
     <div style={{
       background:'#fff', borderRadius:18, padding:'14px 16px',
-      border:'1px solid rgba(0,0,0,.05)',
+      border:'1px solid var(--border-soft)',
+      boxShadow:'var(--shadow-card)',
       animation:'flashIn .35s cubic-bezier(.2,.7,.2,1)',
     }}>
       <div style={{display:'flex', alignItems:'center', gap:12}}>
         <MasteryRing pct={node.mastery} color={lvl.color}/>
         <div style={{flex:1, minWidth:0}}>
-          <div style={{fontSize:15.5, fontWeight:700, letterSpacing:'-0.005em'}}>{node.name}</div>
+          <div style={{fontSize:15.5, fontWeight:700, letterSpacing:0}}>{node.name}</div>
           <div style={{marginTop:4, fontSize:11.5, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap'}}>
             <span style={{padding:'1.5px 8px', borderRadius:999, background:lvl.soft, color:lvl.color, fontWeight:600}}>{lvl.label}</span>
             <span>共 {node.total} 题</span>
@@ -1442,19 +1505,19 @@ function NodeDetail({ node, onClose }) {
           </div>
         </div>
         <button onClick={onClose} style={{
-          width:30, height:30, borderRadius:'50%', background:'#F2F2F4',
+          width:30, height:30, borderRadius:'50%', background:'#F3F6FA',
           border:'none', cursor:'pointer', display:'flex',
-          alignItems:'center', justifyContent:'center', color:'#0A0A0A', flex:'none',
+          alignItems:'center', justifyContent:'center', color:'var(--text-muted)', flex:'none',
         }}>{Ic.close(16)}</button>
       </div>
-      <div style={{marginTop:10, paddingTop:8, borderTop:'1px dashed rgba(0,0,0,.06)'}}>
+      <div style={{marginTop:10, paddingTop:8, borderTop:'1px solid var(--border-soft)'}}>
         <div style={{fontSize:11.5, color:'var(--text-muted)', fontWeight:600, padding:'4px 0'}}>近期相关题目</div>
         {node.recent.map((t, i) => (
           <div key={i} style={{
             display:'flex', alignItems:'center', gap:8, padding:'7px 0',
             borderTop: i===0 ? 'none' : '0.5px solid rgba(0,0,0,.05)',
           }}>
-            <div style={{width:5, height:5, borderRadius:'50%', background:'#8DCED4', flex:'none'}}/>
+            <div style={{width:5, height:5, borderRadius:'50%', background:'#6575F4', flex:'none'}}/>
             <div style={{flex:1, fontSize:13, color:'var(--text)'}}>{t}</div>
             <div style={{color:'var(--text-faint)'}}>{Ic.chev(14)}</div>
           </div>
@@ -1494,7 +1557,7 @@ function HistoryPage({ items, onOpen }) {
   function handleOpen(item) { setShowHistory(false); onOpen(item); }
   return (
     <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden', position:'relative'}}>
-      <div className="scroll" style={{flex:1, overflowY:'auto', padding:'0 0 14px'}}>
+      <div className="scroll" style={{flex:1, overflowY:'auto', padding:'0 0 96px'}}>
         <SectionLabel
           title={`错题本 · ${errorItems.length} 条`}
           action="历史"
@@ -1524,7 +1587,7 @@ function HistoryPage({ items, onOpen }) {
           }}>{Ic.back(18)}</button>
           <span style={{fontSize:15, fontWeight:700, color:'var(--text)'}}>全部历史</span>
         </div>
-        <div className="scroll" style={{flex:1, overflowY:'auto', padding:'0 0 14px'}}>
+        <div className="scroll" style={{flex:1, overflowY:'auto', padding:'0 0 96px'}}>
           <SectionLabel title={`批改记录 · 共 ${items.length} 条`}/>
           <div style={{padding:'0 18px', display:'flex', flexDirection:'column', gap:10}}>
             {items.length === 0
@@ -1645,7 +1708,7 @@ function ResultMiniCard({ data, onViewResult }) {
           background:verdict.soft, color:verdict.color, fontSize:12, fontWeight:800,
         }}>{verdict.short}</span>
         <span style={{fontSize:13, color:'var(--text-muted)'}}>正确答案</span>
-        <b style={{fontSize:14, color:'var(--text)', letterSpacing:'.02em'}}>{data.correctAnswer||'—'}</b>
+        <b style={{fontSize:14, color:'var(--text)', letterSpacing:0}}>{data.correctAnswer||'—'}</b>
       </div>
       {steps.length > 0 && (
         <div style={{display:'flex', flexDirection:'column', gap:8, marginBottom:12}}>
@@ -1848,7 +1911,7 @@ function ResultScreen({ data, onClose, onWrong }) {
                   fontSize:26, fontWeight:700,
                 }}>{v.short}</div>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:22, fontWeight:700, color:v.color, letterSpacing:'-0.01em'}}>{v.label}</div>
+                  <div style={{fontSize:22, fontWeight:700, color:v.color, letterSpacing:0}}>{v.label}</div>
                   <div style={{marginTop:2, fontSize:11.5, color:'#5A5C65', display:'flex', gap:6, alignItems:'center'}}>
                     <Pill bg="#fff" color="var(--text)">{data.grade}</Pill>
                     <Pill bg="#fff" color="var(--text)">{data.chapter}</Pill>
@@ -2131,7 +2194,7 @@ function AnswerCell({ label, value, good, bad }) {
   );
 }
 function SubLabel({ children }) {
-  return <div style={{fontSize:11.5, color:'var(--text-muted)', fontWeight:700, letterSpacing:'.02em'}}>{children}</div>;
+  return <div style={{fontSize:11.5, color:'var(--text-muted)', fontWeight:700, letterSpacing:0}}>{children}</div>;
 }
 function Mini({ label, value, accent }) {
   return (
