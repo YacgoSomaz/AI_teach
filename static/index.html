@@ -2362,19 +2362,28 @@ function CropQuestionScreen({ draft, onCancel, onUseWhole, onConfirm }) {
     setTimeout(() => el.remove(), 1800);
   }
 
-  const handle = (mode, style) => (
+  const cursorFor = {
+    lt:'nwse-resize', rb:'nwse-resize',
+    rt:'nesw-resize', lb:'nesw-resize',
+    l:'ew-resize', r:'ew-resize',
+    t:'ns-resize', b:'ns-resize',
+  };
+
+  const handle = (mode, style, visible=true) => (
     <div onMouseDown={(e)=>beginDrag(mode,e)} onTouchStart={(e)=>beginDrag(mode,e)} style={{
       position:'absolute', width:44, height:44, borderRadius:'50%',
       display:'flex', alignItems:'center', justifyContent:'center',
-      touchAction:'none', zIndex:4,
+      touchAction:'none', zIndex:4, cursor:cursorFor[mode] || 'move',
       ...style,
     }}>
-      <span style={{
-        width:24, height:24, borderRadius:'50%',
-        background:'#fff', border:'2px solid var(--primary)',
-        boxShadow:'0 6px 18px rgba(15,23,42,.22)',
-        display:'block',
-      }}/>
+      {visible && (
+        <span style={{
+          width:24, height:24, borderRadius:'50%',
+          background:'#fff', border:'2px solid var(--primary)',
+          boxShadow:'0 6px 18px rgba(15,23,42,.22)',
+          display:'block', pointerEvents:'none',
+        }}/>
+      )}
     </div>
   );
 
@@ -2427,6 +2436,10 @@ function CropQuestionScreen({ draft, onCancel, onUseWhole, onConfirm }) {
                 position:'absolute', left:8, top:8, background:'rgba(79,110,247,.92)', color:'#fff',
                 padding:'4px 8px', borderRadius:999, fontSize:12, fontWeight:700,
               }}>拖动或缩放框选区域</div>
+              {handle('t', {left:28, right:28, top:-11, width:'auto', height:22, borderRadius:8}, false)}
+              {handle('b', {left:28, right:28, bottom:-11, width:'auto', height:22, borderRadius:8}, false)}
+              {handle('l', {left:-11, top:28, bottom:28, width:22, height:'auto', borderRadius:8}, false)}
+              {handle('r', {right:-11, top:28, bottom:28, width:22, height:'auto', borderRadius:8}, false)}
               {handle('lt', {left:-22, top:-22})}
               {handle('rt', {right:-22, top:-22})}
               {handle('lb', {left:-22, bottom:-22})}
