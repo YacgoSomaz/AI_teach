@@ -47,7 +47,13 @@
 
   /* ─── 基础 ───────────────────────────────────────────────── */
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
+  html, body, #root {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
   body {
     font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
       -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -2386,15 +2392,18 @@ function App() {
 function Mounted() {
   return (
     <div style={{
-      minHeight:'100svh',
+      height:'100%',
+      minHeight:0,
       background:'var(--surface)',
       display:'flex',
       justifyContent:'center',
+      overflow:'hidden',
     }}>
       <div style={{
         width:'100%',
         maxWidth:480,
-        height:'100svh',
+        height:'100%',
+        minHeight:0,
         display:'flex',
         flexDirection:'column',
         background:'#fff',
