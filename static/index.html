@@ -2275,15 +2275,9 @@ function CropQuestionScreen({ draft, onCancel, onUseWhole, onConfirm }) {
   const dragRef = useRef(null);
 
   useEffect(() => {
-    function clampRect(next) {
-      let x = Math.max(0, Math.min(96, next.x));
-      let y = Math.max(0, Math.min(96, next.y));
-      let w = Math.max(10, Math.min(100 - x, next.w));
-      let h = Math.max(10, Math.min(100 - y, next.h));
-      if (x + w > 100) x = 100 - w;
-      if (y + h > 100) y = 100 - h;
-      return {x, y, w, h};
-    }
+    const minSize = 10;
+    const limit = (value, min, max) => Math.max(min, Math.min(max, value));
+    const tidy = (value) => Math.round(value * 10) / 10;
     function onMove(ev) {
       const d = dragRef.current;
       if (!d) return;
@@ -2295,37 +2289,46 @@ function CropQuestionScreen({ draft, onCancel, onUseWhole, onConfirm }) {
       const r = d.startRect;
       let next = {...r};
       if (d.mode === 'move') {
-        next.x = r.x + dx;
-        next.y = r.y + dy;
+        next.x = limit(r.x + dx, 0, 100 - r.w);
+        next.y = limit(r.y + dy, 0, 100 - r.h);
       } else {
+        const right = r.x + r.w;
+        const bottom = r.y + r.h;
         if (d.mode.includes('l')) {
-          next.x = r.x + dx;
-          next.w = r.w - dx;
+          next.x = limit(r.x + dx, 0, right - minSize);
+          next.w = right - next.x;
         }
-        if (d.mode.includes('r')) next.w = r.w + dx;
+        if (d.mode.includes('r')) {
+          next.w = limit(r.w + dx, minSize, 100 - r.x);
+        }
         if (d.mode.includes('t')) {
-          next.y = r.y + dy;
-          next.h = r.h - dy;
+          next.y = limit(r.y + dy, 0, bottom - minSize);
+          next.h = bottom - next.y;
         }
-        if (d.mode.includes('b')) next.h = r.h + dy;
+        if (d.mode.includes('b')) {
+          next.h = limit(r.h + dy, minSize, 100 - r.y);
+        }
       }
-      setRect(clampRect(next));
+      setRect({x:tidy(next.x), y:tidy(next.y), w:tidy(next.w), h:tidy(next.h)});
     }
     function onUp() { dragRef.current = null; }
-    window.addEventListener('mousemove', onMove, {passive:false});
-    window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchmove', onMove, {passive:false});
-    window.addEventListener('touchend', onUp);
+    document.addEventListener('mousemove', onMove, {passive:false});
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, {passive:false});
+    document.addEventListener('touchend', onUp);
+    document.addEventListener('touchcancel', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      window.removeEventListener('touchmove', onMove);
-      window.removeEventListener('touchend', onUp);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+      document.removeEventListener('touchcancel', onUp);
     };
   }, []);
 
   function beginDrag(mode, ev) {
     const point = ev.touches ? ev.touches[0] : ev;
+    if (!point) return;
     const box = ev.currentTarget.closest('[data-crop-box]').getBoundingClientRect();
     dragRef.current = {
       mode,
@@ -2334,6 +2337,7 @@ function CropQuestionScreen({ draft, onCancel, onUseWhole, onConfirm }) {
       box,
       startRect: {...rect},
     };
+    ev.stopPropagation && ev.stopPropagation();
     ev.preventDefault && ev.preventDefault();
   }
 
@@ -2360,11 +2364,18 @@ function CropQuestionScreen({ draft, onCancel, onUseWhole, onConfirm }) {
 
   const handle = (mode, style) => (
     <div onMouseDown={(e)=>beginDrag(mode,e)} onTouchStart={(e)=>beginDrag(mode,e)} style={{
-      position:'absolute', width:26, height:26, borderRadius:'50%',
-      background:'#fff', border:'2px solid var(--primary)',
-      boxShadow:'0 6px 18px rgba(15,23,42,.18)', touchAction:'none',
+      position:'absolute', width:44, height:44, borderRadius:'50%',
+      display:'flex', alignItems:'center', justifyContent:'center',
+      touchAction:'none', zIndex:4,
       ...style,
-    }}/>
+    }}>
+      <span style={{
+        width:24, height:24, borderRadius:'50%',
+        background:'#fff', border:'2px solid var(--primary)',
+        boxShadow:'0 6px 18px rgba(15,23,42,.22)',
+        display:'block',
+      }}/>
+    </div>
   );
 
   return (
@@ -2416,10 +2427,10 @@ function CropQuestionScreen({ draft, onCancel, onUseWhole, onConfirm }) {
                 position:'absolute', left:8, top:8, background:'rgba(79,110,247,.92)', color:'#fff',
                 padding:'4px 8px', borderRadius:999, fontSize:12, fontWeight:700,
               }}>拖动或缩放框选区域</div>
-              {handle('lt', {left:-13, top:-13})}
-              {handle('rt', {right:-13, top:-13})}
-              {handle('lb', {left:-13, bottom:-13})}
-              {handle('rb', {right:-13, bottom:-13})}
+              {handle('lt', {left:-22, top:-22})}
+              {handle('rt', {right:-22, top:-22})}
+              {handle('lb', {left:-22, bottom:-22})}
+              {handle('rb', {right:-22, bottom:-22})}
             </div>
           </div>
         </div>
