@@ -2178,6 +2178,205 @@ function Toast({ text }) {
   return <div className="toast">{text}</div>;
 }
 
+function cropImageFile(file, imageUrl, rectPct) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const sx = Math.max(0, Math.round(img.naturalWidth * rectPct.x / 100));
+      const sy = Math.max(0, Math.round(img.naturalHeight * rectPct.y / 100));
+      const sw = Math.max(1, Math.round(img.naturalWidth * rectPct.w / 100));
+      const sh = Math.max(1, Math.round(img.naturalHeight * rectPct.h / 100));
+      const canvas = document.createElement('canvas');
+      canvas.width = sw;
+      canvas.height = sh;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('裁剪失败'));
+          return;
+        }
+        const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+        const base = (file.name || 'question').replace(/\.[^.]+$/, '');
+        resolve(new File([blob], `${base}-crop.${ext}`, { type: blob.type || 'image/jpeg' }));
+      }, file.type && file.type.includes('png') ? 'image/png' : 'image/jpeg', 0.92);
+    };
+    img.onerror = () => reject(new Error('图片读取失败'));
+    img.src = imageUrl;
+  });
+}
+
+function CropQuestionScreen({ draft, onCancel, onUseWhole, onConfirm }) {
+  const [rect, setRect] = useState({x:8, y:18, w:84, h:54});
+  const [working, setWorking] = useState(false);
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    function clampRect(next) {
+      let x = Math.max(0, Math.min(96, next.x));
+      let y = Math.max(0, Math.min(96, next.y));
+      let w = Math.max(10, Math.min(100 - x, next.w));
+      let h = Math.max(10, Math.min(100 - y, next.h));
+      if (x + w > 100) x = 100 - w;
+      if (y + h > 100) y = 100 - h;
+      return {x, y, w, h};
+    }
+    function onMove(ev) {
+      const d = dragRef.current;
+      if (!d) return;
+      const point = ev.touches ? ev.touches[0] : ev;
+      if (!point) return;
+      ev.preventDefault && ev.preventDefault();
+      const dx = (point.clientX - d.startX) / d.box.width * 100;
+      const dy = (point.clientY - d.startY) / d.box.height * 100;
+      const r = d.startRect;
+      let next = {...r};
+      if (d.mode === 'move') {
+        next.x = r.x + dx;
+        next.y = r.y + dy;
+      } else {
+        if (d.mode.includes('l')) {
+          next.x = r.x + dx;
+          next.w = r.w - dx;
+        }
+        if (d.mode.includes('r')) next.w = r.w + dx;
+        if (d.mode.includes('t')) {
+          next.y = r.y + dy;
+          next.h = r.h - dy;
+        }
+        if (d.mode.includes('b')) next.h = r.h + dy;
+      }
+      setRect(clampRect(next));
+    }
+    function onUp() { dragRef.current = null; }
+    window.addEventListener('mousemove', onMove, {passive:false});
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, {passive:false});
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+  }, []);
+
+  function beginDrag(mode, ev) {
+    const point = ev.touches ? ev.touches[0] : ev;
+    const box = ev.currentTarget.closest('[data-crop-box]').getBoundingClientRect();
+    dragRef.current = {
+      mode,
+      startX: point.clientX,
+      startY: point.clientY,
+      box,
+      startRect: {...rect},
+    };
+    ev.preventDefault && ev.preventDefault();
+  }
+
+  async function confirmCrop() {
+    if (working) return;
+    setWorking(true);
+    try {
+      const cropped = await cropImageFile(draft.file, draft.previewUrl, rect);
+      const croppedUrl = URL.createObjectURL(cropped);
+      onConfirm(cropped, croppedUrl);
+    } catch (err) {
+      wxToastFallback(err.message || '裁剪失败');
+      setWorking(false);
+    }
+  }
+
+  function wxToastFallback(text) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = text;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1800);
+  }
+
+  const handle = (mode, style) => (
+    <div onMouseDown={(e)=>beginDrag(mode,e)} onTouchStart={(e)=>beginDrag(mode,e)} style={{
+      position:'absolute', width:26, height:26, borderRadius:'50%',
+      background:'#fff', border:'2px solid var(--primary)',
+      boxShadow:'0 6px 18px rgba(15,23,42,.18)', touchAction:'none',
+      ...style,
+    }}/>
+  );
+
+  return (
+    <div className="overlay open" style={{zIndex:180, background:'#0f172a'}}>
+      <div style={{
+        height:'calc(env(safe-area-inset-top, 0px) + 54px)',
+        paddingTop:'env(safe-area-inset-top, 0px)',
+        flex:'none', display:'flex', alignItems:'center', justifyContent:'space-between',
+        paddingLeft:16, paddingRight:16, color:'#fff',
+      }}>
+        <button onClick={onCancel} style={{border:'none', background:'rgba(255,255,255,.12)', color:'#fff', borderRadius:999, padding:'8px 12px'}}>取消</button>
+        <div style={{fontSize:15, fontWeight:700}}>框选一道题</div>
+        <button onClick={onUseWhole} style={{border:'none', background:'rgba(255,255,255,.12)', color:'#fff', borderRadius:999, padding:'8px 12px'}}>用整张</button>
+      </div>
+
+      <div style={{flex:1, minHeight:0, padding:'10px 14px 12px', display:'flex', flexDirection:'column'}}>
+        <div style={{
+          flex:1, minHeight:0, position:'relative', borderRadius:18, overflow:'hidden',
+          background:'#020617', display:'flex', alignItems:'center', justifyContent:'center',
+          touchAction:'none',
+        }}>
+          <div data-crop-box style={{
+            position:'relative',
+            maxWidth:'100%',
+            maxHeight:'100%',
+            display:'flex',
+            alignItems:'center',
+            justifyContent:'center',
+          }}>
+            <img src={draft.previewUrl} style={{
+              maxWidth:'100%', maxHeight:'100%', width:'auto', height:'auto', display:'block',
+              userSelect:'none', WebkitUserSelect:'none', pointerEvents:'none',
+            }}/>
+            <div style={{position:'absolute', inset:0, background:'rgba(2,6,23,.42)', pointerEvents:'none'}}/>
+            <div onMouseDown={(e)=>beginDrag('move',e)} onTouchStart={(e)=>beginDrag('move',e)} style={{
+              position:'absolute',
+              left:`${rect.x}%`, top:`${rect.y}%`, width:`${rect.w}%`, height:`${rect.h}%`,
+              border:'2px solid #fff', borderRadius:12,
+              boxShadow:'0 0 0 9999px rgba(2,6,23,.46), 0 0 0 1px var(--primary) inset',
+              cursor:'move', touchAction:'none',
+            }}>
+              <div style={{
+                position:'absolute', left:0, right:0, top:'50%', borderTop:'1px dashed rgba(255,255,255,.7)'
+              }}/>
+              <div style={{
+                position:'absolute', top:0, bottom:0, left:'50%', borderLeft:'1px dashed rgba(255,255,255,.7)'
+              }}/>
+              <div style={{
+                position:'absolute', left:8, top:8, background:'rgba(79,110,247,.92)', color:'#fff',
+                padding:'4px 8px', borderRadius:999, fontSize:12, fontWeight:700,
+              }}>拖动或缩放框选区域</div>
+              {handle('lt', {left:-13, top:-13})}
+              {handle('rt', {right:-13, top:-13})}
+              {handle('lb', {left:-13, bottom:-13})}
+              {handle('rb', {right:-13, bottom:-13})}
+            </div>
+          </div>
+        </div>
+
+        <div style={{flex:'none', padding:'12px 2px max(12px, env(safe-area-inset-bottom, 0px))'}}>
+          <div style={{color:'rgba(255,255,255,.72)', fontSize:12.5, textAlign:'center', marginBottom:10}}>
+            建议只框住一道题，避免多题混在一起影响批改
+          </div>
+          <button onClick={confirmCrop} disabled={working} className="fab-btn" style={{
+            width:'100%', borderRadius:18, padding:'15px 0', fontSize:16, fontWeight:800,
+            opacity:working ? .72 : 1,
+          }}>
+            {working ? '正在裁剪…' : '使用框选区域'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 主应用
 // ═══════════════════════════════════════════════════════════════
@@ -2190,6 +2389,7 @@ function App() {
   const [toast,         setToast]         = useState(null);
   const [chatMessages,  setChatMessages]  = useState([]);
   const [currentAid,    setCurrentAid]    = useState(null);
+  const [cropDraft,     setCropDraft]     = useState(null);
   const fileInputRef    = useRef(null);
   const streamQueuesRef = useRef({});
 
@@ -2258,6 +2458,10 @@ function App() {
     setGradingResult(null);
     const title = file.name.replace(/\.[^.]+$/,'')||'作业';
     const previewUrl = URL.createObjectURL(file);
+    setCropDraft({file, title, previewUrl});
+  }
+
+  function uploadPreparedFile(file, title, previewUrl) {
     const progressId = Date.now();
     const startedAt = Date.now();
     const fd = new FormData();
@@ -2277,6 +2481,26 @@ function App() {
         startPoll(aid, title, progressId);
       })
       .catch(() => { URL.revokeObjectURL(previewUrl); showToast('上传失败，请重试'); });
+  }
+
+  function cancelCrop() {
+    if (cropDraft?.previewUrl) URL.revokeObjectURL(cropDraft.previewUrl);
+    setCropDraft(null);
+  }
+
+  function useWholeImage() {
+    if (!cropDraft) return;
+    const draft = cropDraft;
+    setCropDraft(null);
+    uploadPreparedFile(draft.file, draft.title, draft.previewUrl);
+  }
+
+  function useCroppedImage(file, previewUrl) {
+    if (!cropDraft) return;
+    const title = cropDraft.title;
+    URL.revokeObjectURL(cropDraft.previewUrl);
+    setCropDraft(null);
+    uploadPreparedFile(file, title, previewUrl);
   }
 
   function closeResult()        { setGrading(null); setGradingResult(null); }
@@ -2387,6 +2611,14 @@ function App() {
       <input ref={fileInputRef} type="file" accept="image/*"
         style={{display:'none'}} onChange={onFileSelected}/>
 
+      {cropDraft && (
+        <CropQuestionScreen
+          draft={cropDraft}
+          onCancel={cancelCrop}
+          onUseWhole={useWholeImage}
+          onConfirm={useCroppedImage}
+        />
+      )}
       {grading==='result' && <ResultScreen data={resultData} onClose={closeResult} onWrong={reportWrong}/>}
       <Toast text={toast?.text}/>
     </React.Fragment>
